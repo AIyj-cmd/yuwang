@@ -14,13 +14,15 @@ import {
   Languages,
   LogIn,
   LogOut,
+  Menu,
   MessageCircle,
   Search,
   Send,
   Share2,
   ShieldAlert,
   Star,
-  User
+  User,
+  X
 } from 'lucide-vue-next';
 import { PxButton, PxCard, PxInput, PxTag } from '@mmt817/pixel-ui';
 import {
@@ -476,9 +478,27 @@ const socialNavItems = [
   enHint: string;
 }[];
 
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const scrollToTop = () => {
+  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+};
+
+const navOpen = ref(false);
+const toggleNav = () => {
+  navOpen.value = !navOpen.value;
+};
+const closeNav = () => {
+  navOpen.value = false;
+};
+
 const jumpToSection = (id: string) => {
   void router.push(sectionRouteMap[id] ?? '/');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  closeNav();
+  scrollToTop();
 };
 
 const defaultOptions: OptionsResponse = {
@@ -736,7 +756,7 @@ const isTopicSelected = (topicName: string) =>
 
 const openTopic = async (slug: string) => {
   await router.push(`/topics/${slug}`);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  scrollToTop();
 };
 
 const loadGuilds = async () => {
@@ -1394,6 +1414,7 @@ watch(communityFilter, () => {
 });
 
 watch(activeSection, (section) => {
+  closeNav();
   if (section === 'community') void loadCommunity();
   if (section === 'guilds') void loadGuilds();
   if (section === 'circles') void loadCircles();
@@ -1416,8 +1437,29 @@ onMounted(async () => {
 
 <template>
   <RouterView v-if="isAdminStandalone" />
-  <main v-else class="app-shell">
-    <nav class="feature-nav" :aria-label="copy('MVP 功能导航', 'MVP feature navigation')">
+  <main v-else class="app-shell" :class="{ 'nav-open': navOpen }">
+    <button
+      type="button"
+      class="mobile-nav-toggle"
+      :aria-expanded="navOpen"
+      :aria-label="navOpen ? copy('关闭菜单', 'Close menu') : copy('打开菜单', 'Open menu')"
+      aria-controls="feature-nav"
+      @click="toggleNav"
+    >
+      <component :is="navOpen ? X : Menu" :size="18" />
+      <span>{{ navOpen ? copy('关闭菜单', 'Close menu') : copy('菜单', 'Menu') }}</span>
+    </button>
+    <div
+      v-if="navOpen"
+      class="mobile-nav-backdrop"
+      aria-hidden="true"
+      @click="closeNav"
+    ></div>
+    <nav
+      id="feature-nav"
+      class="feature-nav"
+      :aria-label="copy('MVP 功能导航', 'MVP feature navigation')"
+    >
       <div class="nav-brand">
         <span class="brand-mark">{{ copy('鱼', 'Y') }}</span>
         <div>

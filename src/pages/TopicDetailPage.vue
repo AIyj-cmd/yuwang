@@ -66,8 +66,8 @@ watch(slug, load);
         </div>
       </template>
 
-      <div v-if="loading" class="loading-line">{{ copy('话题加载中...', 'Loading topic...') }}</div>
-      <p v-else-if="error" class="error-line">{{ error }}</p>
+      <div v-if="loading" class="loading-line" role="status" aria-live="polite">{{ copy('话题加载中...', 'Loading topic...') }}</div>
+      <p v-else-if="error" class="error-line" role="alert" aria-live="assertive">{{ error }}</p>
       <template v-else-if="topic">
         <div class="module-intro">
           <strong>#{{ topic.name }}</strong>

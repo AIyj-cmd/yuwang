@@ -202,7 +202,7 @@ const {
               />
               <button type="button" @click="addTopicFromDraft">{{ copy('添加', 'Add') }}</button>
             </div>
-            <p v-if="topicError" class="topic-error">{{ topicError }}</p>
+            <p v-if="topicError" class="topic-error" role="alert" aria-live="assertive">{{ topicError }}</p>
             <div v-if="form.topics.length" class="topic-chip-list editable">
               <button v-for="topic in form.topics" :key="topic" type="button" class="topic-chip selected" @click="removeTopic(topic)">
                 #{{ topic }} <X :size="13" />
@@ -263,8 +263,8 @@ const {
             <p v-else class="scope-note">{{ copy('还没有可同步的小组。可以去「我的小组」创建一个地下茶水间。', 'No group is available for syncing yet. Create one in My Groups.') }}</p>
           </section>
 
-          <p v-if="errorMessage" class="error-line"><AlertTriangle :size="16" />{{ errorMessage }}</p>
-          <p v-if="statusMessage" class="status-line"><Check :size="16" />{{ statusMessage }}</p>
+          <p v-if="errorMessage" class="error-line" role="alert" aria-live="assertive"><AlertTriangle :size="16" />{{ errorMessage }}</p>
+          <p v-if="statusMessage" class="status-line" role="status" aria-live="polite"><Check :size="16" />{{ statusMessage }}</p>
 
           <div class="form-actions">
             <PxButton type="primary" native-type="submit" :disabled="!canSubmit" :loading="loading">

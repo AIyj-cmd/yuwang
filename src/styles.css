@@ -19,6 +19,39 @@ html {
   scroll-behavior: smooth;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:focus-visible {
+  outline: 3px solid #0c8f7b;
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible {
+  outline: 3px solid #0c8f7b;
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -49,6 +82,11 @@ button {
   padding: 24px;
 }
 
+.mobile-nav-toggle,
+.mobile-nav-backdrop {
+  display: none;
+}
+
 .feature-nav {
   position: sticky;
   top: 24px;
@@ -57,7 +95,7 @@ button {
   flex-direction: column;
   gap: 16px;
   height: calc(100vh - 48px);
-  min-height: 640px;
+  min-height: 0;
   max-height: calc(100vh - 48px);
   overflow: auto;
   border: 3px solid #18202a;
@@ -98,7 +136,7 @@ button {
 
 .nav-brand small {
   margin-top: 4px;
-  color: #536172;
+  color: #3e4a5b;
   font-size: 11px;
   font-weight: 800;
 }
@@ -118,7 +156,7 @@ button {
 
 .nav-section p {
   margin: 0 0 4px;
-  color: #536172;
+  color: #3e4a5b;
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
@@ -170,8 +208,8 @@ button {
 .nav-account-actions button small {
   grid-column: 2;
   overflow: hidden;
-  color: #667385;
-  font-size: 11px;
+  color: #4a5568;
+  font-size: 12px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -204,8 +242,8 @@ button {
 
 .account-nav-list button small {
   overflow: visible;
-  font-size: 10px;
-  line-height: 1.2;
+  font-size: 11px;
+  line-height: 1.25;
   text-overflow: clip;
   white-space: normal;
 }
@@ -280,7 +318,7 @@ button {
 }
 
 .account-card small {
-  color: #667385;
+  color: #4a5568;
   font-size: 11px;
   font-weight: 800;
 }
@@ -301,7 +339,7 @@ button {
 
 .nav-admin-card small {
   grid-column: 2;
-  color: #667385;
+  color: #4a5568;
   font-size: 11px;
   font-weight: 800;
 }
@@ -385,7 +423,7 @@ button {
 
 .workspace.single-view {
   grid-template-columns: minmax(0, 1fr);
-  max-width: 980px;
+  max-width: 1100px;
 }
 
 .workspace.single-view .info-grid {
@@ -421,7 +459,7 @@ button {
 }
 
 .panel-title small {
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 700;
 }
@@ -445,7 +483,7 @@ button {
 }
 
 .field-hint {
-  color: #536172;
+  color: #3e4a5b;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
@@ -538,7 +576,7 @@ button {
 }
 
 .topic-empty {
-  color: #667385;
+  color: #4a5568;
 }
 
 .topic-error {
@@ -585,7 +623,7 @@ textarea:focus {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
-  color: #536172;
+  color: #3e4a5b;
   font-size: 12px;
   font-weight: 800;
   scroll-margin-top: 24px;
@@ -668,7 +706,7 @@ textarea:focus {
 }
 
 .score-label {
-  color: #536172;
+  color: #3e4a5b;
   font-size: 13px;
   font-weight: 900;
 }
@@ -703,7 +741,7 @@ textarea:focus {
 
 .breakdown {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 8px;
   margin: 0;
 }
@@ -721,7 +759,7 @@ textarea:focus {
 }
 
 .breakdown dt {
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 800;
 }
@@ -763,7 +801,7 @@ textarea:focus {
 
 .leaderboard-control-head small {
   margin-top: 4px;
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 800;
 }
@@ -789,7 +827,7 @@ textarea:focus {
 
 .leaderboard-board-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
 }
 
@@ -866,7 +904,7 @@ textarea:focus {
 
 .leader-main span,
 .leader-score span {
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 800;
 }
@@ -887,8 +925,8 @@ textarea:focus {
 .leader-score small {
   display: block;
   margin-top: 4px;
-  color: #667385;
-  font-size: 11px;
+  color: #4a5568;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -898,7 +936,7 @@ textarea:focus {
   min-height: 88px;
   place-items: center;
   border: 2px dashed #8a96a8;
-  color: #536172;
+  color: #3e4a5b;
   font-weight: 900;
 }
 
@@ -932,7 +970,7 @@ textarea:focus {
 }
 
 .level-list small {
-  color: #667385;
+  color: #4a5568;
   font-weight: 800;
 }
 
@@ -970,11 +1008,11 @@ textarea:focus {
 }
 
 .profile-summary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
 .wallet-summary {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .profile-summary div,
@@ -992,7 +1030,7 @@ textarea:focus {
 .profile-badge-card small,
 .profile-record-button small,
 .protection-item span {
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 800;
 }
@@ -1018,7 +1056,7 @@ textarea:focus {
 
 .profile-badge-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
 }
 
@@ -1105,7 +1143,7 @@ textarea:focus {
 
 .scope-groups > span,
 .scope-note {
-  color: #536172;
+  color: #3e4a5b;
   font-size: 12px;
   font-weight: 900;
 }
@@ -1211,7 +1249,7 @@ textarea:focus {
 .entity-card span,
 .entity-card small,
 .task-list span {
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.5;
@@ -1278,8 +1316,8 @@ textarea:focus {
 }
 
 .popular-topic-strip button span {
-  color: #667385;
-  font-size: 11px;
+  color: #4a5568;
+  font-size: 12px;
 }
 
 .board-tags {
@@ -1295,7 +1333,7 @@ textarea:focus {
 
 .entity-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 10px;
 }
 
@@ -1361,7 +1399,7 @@ textarea:focus {
 .profile-toggle-button:disabled {
   cursor: not-allowed;
   background: #e5e7eb;
-  color: #667385;
+  color: #4a5568;
   box-shadow: none;
 }
 
@@ -1388,7 +1426,7 @@ textarea:focus {
 
 .wallet-transaction span,
 .wallet-transaction small {
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 800;
 }
@@ -1405,7 +1443,7 @@ textarea:focus {
 
 .protection-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 10px;
   margin-top: 14px;
 }
@@ -1440,7 +1478,7 @@ textarea:focus {
 
 .share-card p {
   margin: 0;
-  color: #536172;
+  color: #3e4a5b;
   font-size: 13px;
   font-weight: 800;
 }
@@ -1504,7 +1542,7 @@ textarea:focus {
 .admin-panel p,
 .admin-empty {
   margin: 0;
-  color: #536172;
+  color: #3e4a5b;
   font-size: 13px;
   font-weight: 800;
   line-height: 1.6;
@@ -1568,7 +1606,7 @@ textarea:focus {
 
 .admin-brand small,
 .admin-topbar small {
-  color: #667385;
+  color: #4a5568;
   font-size: 12px;
   font-weight: 800;
 }
@@ -1687,7 +1725,7 @@ textarea:focus {
 .admin-stat-card span,
 .admin-list-row span,
 .admin-definition-grid dt {
-  color: #536172;
+  color: #3e4a5b;
   font-size: 12px;
   font-weight: 900;
 }
@@ -1943,11 +1981,45 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .mobile-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 3px solid #18202a;
+    background: #ffe66d;
+    color: #18202a;
+    box-shadow: 3px 3px 0 #18202a;
+    font-size: 13px;
+    font-weight: 900;
+    justify-self: start;
+  }
+
+  .app-shell.nav-open .mobile-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    background: rgba(24, 32, 42, 0.35);
+  }
+
   .feature-nav {
     position: static;
     height: auto;
     min-height: 0;
     max-height: none;
+    display: none;
+  }
+
+  .app-shell.nav-open .feature-nav {
+    display: flex;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 9;
+    max-height: calc(100vh - 24px);
+    overflow: auto;
   }
 
   .nav-section {
