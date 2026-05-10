@@ -1,0 +1,41 @@
+{
+  "name": "gongwei-yuwang",
+  "version": "1.0.0",
+  "description": "Gongwei Yuwang MVP",
+  "private": true,
+  "main": "dist-server/server/index.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:client": "vite --host 0.0.0.0",
+    "dev:server": "tsx watch server/index.ts",
+    "build": "vue-tsc --noEmit && vite build && tsc -p tsconfig.server.json",
+    "start": "node dist-server/server/index.js",
+    "typecheck": "vue-tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "api": "tsx server/index.ts",
+    "admin:hash-password": "node scripts/hash-admin-password.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/static": "^9.1.3",
+    "@mmt817/pixel-ui": "^1.6.0",
+    "bcryptjs": "^3.0.3",
+    "fastify": "^5.8.5",
+    "lucide-vue-next": "^1.0.0",
+    "vue": "^3.5.34",
+    "vue-router": "^4.6.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.11",
+    "vue-tsc": "^3.2.8"
+  }
+}
