@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, type Component } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   AlertTriangle,
+  Award,
   BadgeCheck,
   Check,
   ClipboardCheck,
   Coins,
   Crown,
+  Fish,
+  Flame,
+  Gauge,
   Hash,
   Heart,
+  Lock,
   MessageCircle,
+  MessagesSquare,
   RefreshCw,
   Search,
   Send,
   Share2,
+  Shield,
   ShieldAlert,
+  Sparkles,
   Star,
   Trophy,
   User,
@@ -22,10 +31,47 @@ import {
 } from 'lucide-vue-next';
 import { PxButton, PxCard, PxInput, PxTag } from '@mmt817/pixel-ui';
 import { TITLE_LEVELS } from '../../shared/scoring';
+import type { Badge } from '../types';
 import { useAppContext } from '../appContext';
 
 const props = defineProps<{ section: string }>();
 const activeSection = computed(() => props.section);
+
+const router = useRouter();
+
+type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
+type AchievementFilter = 'all' | 'unlocked' | 'locked' | 'near';
+
+// Frontend-only mapping: icon per badge key. Falls back to Award.
+const BADGE_ICON_MAP: Record<string, Component> = {
+  'first-catch': Fish,
+  'power-200': Gauge,
+  'power-500': Flame,
+  'meeting-fish': MessageCircle,
+  'disguise-master': Shield,
+  'legend-voter': Crown,
+  'social-fish': MessagesSquare
+};
+
+// Frontend-only mapping: rarity per badge key.
+const BADGE_RARITY_MAP: Record<string, AchievementRarity> = {
+  'first-catch': 'common',
+  'power-200': 'rare',
+  'power-500': 'epic',
+  'meeting-fish': 'rare',
+  'disguise-master': 'rare',
+  'legend-voter': 'epic',
+  'social-fish': 'common'
+};
+
+const RARITY_LABEL_MAP: Record<AchievementRarity, { zh: string; en: string }> = {
+  common: { zh: '普通', en: 'Common' },
+  rare: { zh: '稀有', en: 'Rare' },
+  epic: { zh: '史诗', en: 'Epic' },
+  legendary: { zh: '传说', en: 'Legendary' }
+};
+
+const achievementFilter = ref<AchievementFilter>('all');
 const {
   activeBoard,
   addTopic,
@@ -138,6 +184,90 @@ const {
   walletData,
   walletTransactions
 } = useAppContext();
+
+type AchievementItem = {
+  badge: Badge;
+  rarity: AchievementRarity;
+  icon: Component;
+  progress: { current: number; target: number; ratio: number } | null;
+  near: boolean;
+};
+
+const profileTopScore = computed<number>(() => {
+  const records = profile.value?.records ?? [];
+  if (!records.length) return 0;
+  return records.reduce((max: number, record: { score: number }) => {
+    const score = typeof record?.score === 'number' ? record.score : 0;
+    return score > max ? score : max;
+  }, 0);
+});
+
+const getAchievementRarity = (badge: Badge): AchievementRarity => {
+  if (BADGE_RARITY_MAP[badge.key]) return BADGE_RARITY_MAP[badge.key];
+  const key = String(badge.key).toLowerCase();
+  if (/legend|legendary|传奇|传说|10000|1000/.test(key)) return 'legendary';
+  if (/500|epic|史诗|power-500/.test(key)) return 'epic';
+  if (/200|rare|稀有|meeting|disguise|voter/.test(key)) return 'rare';
+  return 'common';
+};
+
+const getAchievementIcon = (badge: Badge): Component => BADGE_ICON_MAP[badge.key] ?? Award;
+
+const getAchievementProgress = (
+  badge: Badge
+): { current: number; target: number; ratio: number } | null => {
+  const top = profileTopScore.value;
+  if (badge.key === 'power-200') {
+    const current = Math.min(top, 200);
+    return { current, target: 200, ratio: current / 200 };
+  }
+  if (badge.key === 'power-500') {
+    const current = Math.min(top, 500);
+    return { current, target: 500, ratio: current / 500 };
+  }
+  return null;
+};
+
+const achievementItems = computed<AchievementItem[]>(() => {
+  const source: Badge[] = allProfileBadges.value ?? [];
+  return source.map((badge: Badge) => {
+    const progress = badge.unlocked ? null : getAchievementProgress(badge);
+    const near = !badge.unlocked && !!progress && progress.ratio >= 0.7 && progress.ratio < 1;
+    return {
+      badge,
+      rarity: getAchievementRarity(badge),
+      icon: getAchievementIcon(badge),
+      progress,
+      near
+    };
+  });
+});
+
+const filteredAchievements = computed<AchievementItem[]>(() => {
+  const items = achievementItems.value;
+  if (achievementFilter.value === 'unlocked') return items.filter((i) => i.badge.unlocked);
+  if (achievementFilter.value === 'locked') return items.filter((i) => !i.badge.unlocked);
+  if (achievementFilter.value === 'near') return items.filter((i) => i.near);
+  return items;
+});
+
+const achievementCounts = computed(() => {
+  const items = achievementItems.value;
+  const unlocked = items.filter((i) => i.badge.unlocked).length;
+  const locked = items.length - unlocked;
+  const near = items.filter((i) => i.near).length;
+  return { all: items.length, unlocked, locked, near };
+});
+
+const rarityLabel = (rarity: AchievementRarity) =>
+  locale.value === 'en-US' ? RARITY_LABEL_MAP[rarity].en : RARITY_LABEL_MAP[rarity].zh;
+
+const progressPercent = (ratio: number) => `${Math.min(100, Math.max(0, Math.round(ratio * 100)))}%`;
+
+const goToSubmit = () => {
+  showAllBadges.value = true;
+  void router.push('/');
+};
 </script>
 
 <template>
@@ -318,23 +448,130 @@ const {
               </ul>
             </section>
 
-            <section class="profile-section">
-              <div class="profile-section-head">
-                <strong>{{ t('badges') }}</strong>
-                <small>{{ unlockedBadges.length }} {{ t('unlocked') }}</small>
+            <section class="profile-section achievement-panel">
+              <header class="achievement-header">
+                <div>
+                  <h2>{{ t('badges') }}</h2>
+                  <p>{{ copy('收集鱼塘里的摸鱼传说。', 'Collect the legends drifting in the fish pond.') }}</p>
+                </div>
+                <div class="achievement-summary">
+                  <strong>{{ achievementCounts.unlocked }}</strong>
+                  <span>/ {{ achievementCounts.all }} {{ t('unlocked') }}</span>
+                </div>
+              </header>
+
+              <div class="achievement-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="achievementFilter === 'all'"
+                  :class="{ active: achievementFilter === 'all' }"
+                  @click="achievementFilter = 'all'"
+                >
+                  {{ copy('全部', 'All') }}
+                  <span class="achievement-tab-count">{{ achievementCounts.all }}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="achievementFilter === 'unlocked'"
+                  :class="{ active: achievementFilter === 'unlocked' }"
+                  @click="achievementFilter = 'unlocked'"
+                >
+                  {{ copy('已解锁', 'Unlocked') }}
+                  <span class="achievement-tab-count">{{ achievementCounts.unlocked }}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="achievementFilter === 'locked'"
+                  :class="{ active: achievementFilter === 'locked' }"
+                  @click="achievementFilter = 'locked'"
+                >
+                  {{ copy('未解锁', 'Locked') }}
+                  <span class="achievement-tab-count">{{ achievementCounts.locked }}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="achievementFilter === 'near'"
+                  :class="{ active: achievementFilter === 'near' }"
+                  @click="achievementFilter = 'near'"
+                >
+                  {{ copy('接近完成', 'Near Complete') }}
+                  <span class="achievement-tab-count">{{ achievementCounts.near }}</span>
+                </button>
               </div>
-              <div class="profile-badge-grid">
-                <article v-for="badge in displayedBadges" :key="badge.key" class="profile-badge-card" :class="{ unlocked: badge.unlocked }">
-                  <BadgeCheck :size="16" />
-                  <strong>{{ translatedBadge(badge).label }}</strong>
-                  <span>{{ translatedBadge(badge).description }}</span>
-                  <small>{{ badge.unlocked ? t('unlocked') : t('locked') }}</small>
+
+              <div v-if="filteredAchievements.length" class="achievement-grid">
+                <article
+                  v-for="item in filteredAchievements"
+                  :key="item.badge.key"
+                  class="achievement-card"
+                  :class="[
+                    item.badge.unlocked ? 'achievement-card--unlocked' : 'achievement-card--locked',
+                    item.near ? 'achievement-card--near' : '',
+                    `achievement-card--${item.rarity}`
+                  ]"
+                >
+                  <div class="achievement-badge" aria-hidden="true">
+                    <component :is="item.icon" :size="28" :stroke-width="2.5" />
+                    <span v-if="!item.badge.unlocked" class="achievement-badge-lock">
+                      <Lock :size="12" :stroke-width="3" />
+                    </span>
+                  </div>
+
+                  <div class="achievement-content">
+                    <div class="achievement-title-row">
+                      <h3>{{ translatedBadge(item.badge).label }}</h3>
+                      <span class="achievement-rarity" :class="`achievement-rarity--${item.rarity}`">
+                        {{ rarityLabel(item.rarity) }}
+                      </span>
+                    </div>
+
+                    <p class="achievement-description">{{ translatedBadge(item.badge).description }}</p>
+
+                    <div class="achievement-meta">
+                      <span v-if="item.badge.unlocked" class="achievement-meta-status">
+                        <Sparkles :size="12" :stroke-width="3" />
+                        {{ t('unlocked') }}
+                      </span>
+                      <span v-else-if="item.near" class="achievement-meta-status">
+                        <Flame :size="12" :stroke-width="3" />
+                        {{ copy('快完成了', 'Almost there') }}
+                      </span>
+                      <span v-else class="achievement-meta-status">
+                        <Lock :size="12" :stroke-width="3" />
+                        {{ t('locked') }}
+                      </span>
+                    </div>
+
+                    <template v-if="item.progress">
+                      <div class="achievement-progress" aria-hidden="true">
+                        <span
+                          class="achievement-progress-bar"
+                          :style="{ width: progressPercent(item.progress.ratio) }"
+                        ></span>
+                      </div>
+                      <div class="achievement-progress-text">
+                        {{ Math.floor(item.progress.current) }} / {{ item.progress.target }}
+                      </div>
+                    </template>
+                  </div>
                 </article>
-                <div v-if="!displayedBadges.length" class="empty-list">{{ copy('登录并互动后解锁徽章和成就。', 'Sign in and interact to unlock badges and achievements.') }}</div>
               </div>
-              <button class="profile-toggle-button" type="button" @click="showAllBadges = !showAllBadges">
-                {{ showAllBadges ? copy('只看已解锁', 'Unlocked only') : copy('查看全部徽章', 'View all badges') }}
-              </button>
+
+              <div v-else class="achievement-empty">
+                <div class="achievement-empty-badge" aria-hidden="true">
+                  <Trophy :size="28" :stroke-width="2.5" />
+                </div>
+                <strong>{{ copy('还没有解锁成就', 'No achievements unlocked yet') }}</strong>
+                <p>{{ copy('提交第一条摸鱼记录，开始收集鱼塘徽章。', 'Submit your first slacking record to start collecting fish-pond badges.') }}</p>
+                <button type="button" class="achievement-empty-action" @click="goToSubmit">
+                  <Send :size="14" />
+                  {{ copy('去提交记录', 'Go submit a record') }}
+                </button>
+              </div>
             </section>
 
             <section v-if="profile.records.length" class="profile-section">
