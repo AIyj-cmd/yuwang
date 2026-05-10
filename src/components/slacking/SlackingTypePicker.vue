@@ -146,9 +146,9 @@ const selectOption = (option: SlackingTypeOption) => {
   display: grid;
   gap: 10px;
   padding: 10px;
-  border: 3px solid #18202a;
-  background: #fff7cc;
-  box-shadow: 3px 3px 0 #18202a;
+  border: 3px solid var(--color-border);
+  background: var(--color-warning);
+  box-shadow: 3px 3px 0 var(--color-border);
 }
 
 .picker-block {
@@ -172,7 +172,7 @@ const selectOption = (option: SlackingTypeOption) => {
 .selected-result span,
 .selected-result small,
 .option-card small {
-  color: #667385;
+  color: var(--color-text-muted);
   font-size: 11px;
   font-weight: 800;
   line-height: 1.35;
@@ -195,10 +195,10 @@ const selectOption = (option: SlackingTypeOption) => {
 .picker-chip,
 .group-button,
 .option-card {
-  border: 2px solid #18202a;
-  background: #ffffff;
-  color: #18202a;
-  box-shadow: 2px 2px 0 #18202a;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-border);
   font-weight: 900;
 }
 
@@ -243,24 +243,30 @@ const selectOption = (option: SlackingTypeOption) => {
 .picker-chip.active,
 .group-button.active,
 .option-card.active {
-  background: #d8fff4;
+  background: var(--color-accent);
 }
 
 .picker-search {
   min-height: 38px;
   padding: 0 10px;
-  border: 2px solid #18202a;
-  background: #ffffff;
-  box-shadow: 2px 2px 0 #18202a;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-border);
   outline: none;
+}
+
+.picker-search:focus {
+  border-color: var(--color-focus);
+  box-shadow: 2px 2px 0 var(--color-focus);
 }
 
 .picker-empty {
   display: grid;
   min-height: 64px;
   place-items: center;
-  border: 2px dashed #8a96a8;
-  color: #536172;
+  border: 2px dashed var(--color-border-soft);
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 900;
   text-align: center;
@@ -270,8 +276,9 @@ const selectOption = (option: SlackingTypeOption) => {
   display: grid;
   gap: 3px;
   padding: 9px;
-  border: 2px solid #18202a;
-  background: #d8fff4;
+  border: 2px solid var(--color-border);
+  background: var(--color-accent);
+  color: var(--color-text);
 }
 
 .selected-result strong {
