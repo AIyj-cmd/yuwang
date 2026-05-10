@@ -2044,3 +2044,792 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =====================================================================
+   Theme layer (added without modifying existing rules above).
+   - Tokens live on :root and are swapped via [data-theme="..."] on <html>.
+   - Visual upgrades are scoped to .app-shell .workspace so the left sidebar
+     (.feature-nav and its children) is untouched per design constraint.
+   ===================================================================== */
+
+:root {
+  /* Canvas */
+  --yw-bg: #eaf4fb;
+  --yw-bg-grid: rgba(24, 32, 42, 0.06);
+  --yw-wash-1: rgba(64, 190, 214, 0.28);
+  --yw-wash-2: rgba(255, 230, 109, 0.22);
+  --yw-wash-3: rgba(12, 143, 123, 0.18);
+
+  /* Panels */
+  --yw-panel-bg: #fffefc;
+  --yw-panel-border: #18202a;
+  --yw-panel-shadow: 6px 6px 0 #18202a;
+  --yw-panel-stripe: linear-gradient(90deg, #40bed6, #0c8f7b 45%, #ffe66d);
+
+  /* Accents */
+  --yw-accent: #0c8f7b;
+  --yw-accent-2: #40bed6;
+  --yw-accent-3: #ff7a59;
+  --yw-highlight: #ffe66d;
+  --yw-highlight-soft: #fff7cc;
+  --yw-mint: #d8fff4;
+  --yw-rose: #ffe4e6;
+  --yw-pop: #40bed6;
+
+  /* Score hero */
+  --yw-score-grad: radial-gradient(circle at 28% 22%, #fff7cc 0%, #ffe66d 35%, #40bed6 75%, #0c8f7b 100%);
+  --yw-score-text: #18202a;
+
+  /* Rank medals */
+  --yw-rank-1: #ffd166;
+  --yw-rank-2: #e7ecf3;
+  --yw-rank-3: #f4a261;
+  --yw-rank-default: #ffb4a2;
+
+  /* Text */
+  --yw-text: #18202a;
+  --yw-text-soft: #536172;
+
+  /* Card accents */
+  --yw-card-accent-a: #40bed6;
+  --yw-card-accent-b: #ff7a59;
+  --yw-card-accent-c: #ffe66d;
+  --yw-card-accent-d: #b08cff;
+}
+
+html[data-theme='sunset'] {
+  --yw-bg: #fff2e4;
+  --yw-bg-grid: rgba(90, 30, 30, 0.07);
+  --yw-wash-1: rgba(255, 138, 86, 0.32);
+  --yw-wash-2: rgba(255, 205, 90, 0.28);
+  --yw-wash-3: rgba(230, 72, 114, 0.18);
+
+  --yw-panel-bg: #fffbf3;
+  --yw-panel-stripe: linear-gradient(90deg, #ff5d73, #ff8a56 45%, #ffd166);
+
+  --yw-accent: #e64872;
+  --yw-accent-2: #ff8a56;
+  --yw-accent-3: #b2325a;
+  --yw-highlight: #ffd166;
+  --yw-highlight-soft: #ffe9b5;
+  --yw-mint: #ffd7c4;
+  --yw-rose: #ffd2d9;
+  --yw-pop: #ff5d73;
+
+  --yw-score-grad: radial-gradient(circle at 30% 25%, #ffe9b5 0%, #ffd166 30%, #ff8a56 65%, #e64872 100%);
+
+  --yw-rank-1: #ffd166;
+  --yw-rank-2: #ffd7c4;
+  --yw-rank-3: #ff8a56;
+
+  --yw-card-accent-a: #ff8a56;
+  --yw-card-accent-b: #e64872;
+  --yw-card-accent-c: #ffd166;
+  --yw-card-accent-d: #b2325a;
+}
+
+html[data-theme='midnight'] {
+  --yw-bg: #141a28;
+  --yw-bg-grid: rgba(156, 195, 255, 0.08);
+  --yw-wash-1: rgba(108, 92, 231, 0.34);
+  --yw-wash-2: rgba(64, 190, 214, 0.24);
+  --yw-wash-3: rgba(255, 230, 109, 0.12);
+
+  --yw-panel-bg: #1e2636;
+  --yw-panel-border: #0b1120;
+  --yw-panel-shadow: 6px 6px 0 #0b1120;
+  --yw-panel-stripe: linear-gradient(90deg, #6c5ce7, #40bed6 45%, #ffe66d);
+
+  --yw-accent: #40bed6;
+  --yw-accent-2: #6c5ce7;
+  --yw-accent-3: #ffe66d;
+  --yw-highlight: #6c5ce7;
+  --yw-highlight-soft: #2a3350;
+  --yw-mint: #1c3a3a;
+  --yw-rose: #3a1f2b;
+  --yw-pop: #6c5ce7;
+
+  --yw-score-grad: radial-gradient(circle at 30% 25%, #2a3350 0%, #40bed6 45%, #6c5ce7 80%, #0b1120 100%);
+  --yw-score-text: #ffe66d;
+
+  --yw-rank-1: #ffe66d;
+  --yw-rank-2: #9fb2d8;
+  --yw-rank-3: #ff8a56;
+  --yw-rank-default: #6c5ce7;
+
+  --yw-text: #eef2f7;
+  --yw-text-soft: #9fb2d8;
+
+  --yw-card-accent-a: #40bed6;
+  --yw-card-accent-b: #6c5ce7;
+  --yw-card-accent-c: #ffe66d;
+  --yw-card-accent-d: #ff8a56;
+}
+
+html[data-theme='sakura'] {
+  --yw-bg: #fff1f5;
+  --yw-bg-grid: rgba(131, 24, 67, 0.07);
+  --yw-wash-1: rgba(255, 154, 188, 0.34);
+  --yw-wash-2: rgba(183, 108, 215, 0.22);
+  --yw-wash-3: rgba(255, 205, 210, 0.28);
+
+  --yw-panel-bg: #fffafc;
+  --yw-panel-stripe: linear-gradient(90deg, #ff78a4, #b76cd7 50%, #ffd166);
+
+  --yw-accent: #c63678;
+  --yw-accent-2: #ff78a4;
+  --yw-accent-3: #b76cd7;
+  --yw-highlight: #ffd1dc;
+  --yw-highlight-soft: #ffe0ea;
+  --yw-mint: #e9d8ff;
+  --yw-rose: #ffd1dc;
+  --yw-pop: #ff78a4;
+
+  --yw-score-grad: radial-gradient(circle at 30% 25%, #fff0f5 0%, #ffd1dc 30%, #ff78a4 65%, #b76cd7 100%);
+
+  --yw-rank-1: #ffd1dc;
+  --yw-rank-2: #e9d8ff;
+  --yw-rank-3: #ff78a4;
+  --yw-rank-default: #ff9abc;
+
+  --yw-card-accent-a: #ff78a4;
+  --yw-card-accent-b: #b76cd7;
+  --yw-card-accent-c: #ffd1dc;
+  --yw-card-accent-d: #c63678;
+}
+
+html[data-theme='forest'] {
+  --yw-bg: #eef7ec;
+  --yw-bg-grid: rgba(25, 60, 33, 0.08);
+  --yw-wash-1: rgba(86, 168, 93, 0.28);
+  --yw-wash-2: rgba(255, 209, 102, 0.22);
+  --yw-wash-3: rgba(130, 92, 58, 0.16);
+
+  --yw-panel-bg: #fbfff6;
+  --yw-panel-stripe: linear-gradient(90deg, #2f9e6e, #56a85d 50%, #ffd166);
+
+  --yw-accent: #2f9e6e;
+  --yw-accent-2: #56a85d;
+  --yw-accent-3: #825c3a;
+  --yw-highlight: #ffd166;
+  --yw-highlight-soft: #fff1c4;
+  --yw-mint: #d7f3d4;
+  --yw-rose: #ffe1c8;
+  --yw-pop: #2f9e6e;
+
+  --yw-score-grad: radial-gradient(circle at 30% 25%, #fff1c4 0%, #ffd166 30%, #56a85d 70%, #2f9e6e 100%);
+
+  --yw-rank-1: #ffd166;
+  --yw-rank-2: #d7f3d4;
+  --yw-rank-3: #c68c5a;
+  --yw-rank-default: #56a85d;
+
+  --yw-card-accent-a: #2f9e6e;
+  --yw-card-accent-b: #56a85d;
+  --yw-card-accent-c: #ffd166;
+  --yw-card-accent-d: #825c3a;
+}
+
+/* ---- Canvas: paint the app background using tokens.
+       Keep the pixel grid, add a soft color wash, and decorative blobs.
+       The sidebar retains its own solid background from earlier rules. ---- */
+body {
+  background:
+    radial-gradient(circle at 85% 12%, var(--yw-wash-1) 0, transparent 42%),
+    radial-gradient(circle at 8% 82%, var(--yw-wash-2) 0, transparent 44%),
+    radial-gradient(circle at 55% 55%, var(--yw-wash-3) 0, transparent 56%),
+    linear-gradient(90deg, var(--yw-bg-grid) 1px, transparent 1px),
+    linear-gradient(0deg, var(--yw-bg-grid) 1px, transparent 1px),
+    var(--yw-bg);
+  background-size:
+    auto,
+    auto,
+    auto,
+    18px 18px,
+    18px 18px,
+    auto;
+}
+
+/* ---- Scope: everything below only applies inside .workspace / .admin-shell.
+       The sidebar (.feature-nav) is excluded. ---- */
+
+.app-shell .workspace,
+.admin-shell .admin-main {
+  color: var(--yw-text);
+}
+
+/* Panel: themed background + decorative stripe on top edge. */
+.app-shell .workspace .panel {
+  position: relative;
+  overflow: hidden;
+  background: var(--yw-panel-bg) !important;
+  border-color: var(--yw-panel-border) !important;
+  box-shadow: var(--yw-panel-shadow);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.app-shell .workspace .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: var(--yw-panel-stripe);
+  pointer-events: none;
+}
+
+.app-shell .workspace .panel:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 7px 7px 0 var(--yw-panel-border);
+}
+
+.app-shell .workspace .panel-title {
+  color: var(--yw-text);
+}
+
+.app-shell .workspace .panel-title small {
+  color: var(--yw-text-soft);
+}
+
+/* Score hero: turn the flat green block into a themed "trophy" medallion. */
+.app-shell .workspace .score-block,
+.app-shell .workspace .empty-result {
+  position: relative;
+  background: var(--yw-score-grad);
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 255, 255, 0.55),
+    inset 0 0 0 8px rgba(24, 32, 42, 0.08);
+  color: var(--yw-score-text);
+  overflow: hidden;
+}
+
+.app-shell .workspace .score-block::after,
+.app-shell .workspace .empty-result::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -30%;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
+.app-shell .workspace .score-number,
+.app-shell .workspace .empty-score {
+  color: var(--yw-score-text);
+  text-shadow: 3px 3px 0 rgba(24, 32, 42, 0.18);
+}
+
+.app-shell .workspace .score-label {
+  color: var(--yw-score-text);
+  opacity: 0.75;
+}
+
+/* Result tags gain a slight lift. */
+.app-shell .workspace .result-tags .px-tag {
+  letter-spacing: 0.02em;
+}
+
+/* Breakdown: give each metric a colored left border for visual rhythm. */
+.app-shell .workspace .breakdown {
+  gap: 10px;
+}
+
+.app-shell .workspace .breakdown div {
+  position: relative;
+  border-left-width: 6px;
+  background: var(--yw-panel-bg);
+}
+
+.app-shell .workspace .breakdown div:nth-child(4n + 1) {
+  border-left-color: var(--yw-card-accent-a);
+}
+.app-shell .workspace .breakdown div:nth-child(4n + 2) {
+  border-left-color: var(--yw-card-accent-b);
+}
+.app-shell .workspace .breakdown div:nth-child(4n + 3) {
+  border-left-color: var(--yw-card-accent-c);
+}
+.app-shell .workspace .breakdown div:nth-child(4n) {
+  border-left-color: var(--yw-card-accent-d);
+}
+
+.app-shell .workspace .breakdown dd {
+  color: var(--yw-text);
+}
+
+/* Leaderboard rank medals: gold / silver / bronze for the top three rows. */
+.app-shell .workspace .leaderboard-list li {
+  background: var(--yw-panel-bg);
+}
+
+.app-shell .workspace .leaderboard-list li:nth-child(1) .rank {
+  background: var(--yw-rank-1);
+  box-shadow: inset 0 0 0 3px rgba(24, 32, 42, 0.12);
+}
+
+.app-shell .workspace .leaderboard-list li:nth-child(2) .rank {
+  background: var(--yw-rank-2);
+  box-shadow: inset 0 0 0 3px rgba(24, 32, 42, 0.12);
+}
+
+.app-shell .workspace .leaderboard-list li:nth-child(3) .rank {
+  background: var(--yw-rank-3);
+  box-shadow: inset 0 0 0 3px rgba(24, 32, 42, 0.12);
+}
+
+.app-shell .workspace .leaderboard-list li:nth-child(n + 4) .rank {
+  background: var(--yw-rank-default);
+}
+
+.app-shell .workspace .leaderboard-board-button.active,
+.app-shell .workspace .feed-filters button.active,
+.app-shell .workspace .record-actions button.active,
+.app-shell .workspace .entity-card.active,
+.app-shell .workspace .level-list li.active {
+  background: var(--yw-highlight);
+  box-shadow: 2px 2px 0 var(--yw-panel-border), inset 0 0 0 2px rgba(24, 32, 42, 0.2);
+}
+
+.app-shell .workspace .leaderboard-control-head {
+  background: var(--yw-highlight-soft);
+}
+
+/* Record cards: rotating colored accent on the top edge. */
+.app-shell .workspace .record-card {
+  position: relative;
+  padding-top: 16px;
+  background: var(--yw-panel-bg);
+}
+
+.app-shell .workspace .record-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--yw-card-accent-a);
+}
+
+.app-shell .workspace .record-card:nth-child(4n + 2)::before {
+  background: var(--yw-card-accent-b);
+}
+.app-shell .workspace .record-card:nth-child(4n + 3)::before {
+  background: var(--yw-card-accent-c);
+}
+.app-shell .workspace .record-card:nth-child(4n)::before {
+  background: var(--yw-card-accent-d);
+}
+
+.app-shell .workspace .record-card .record-score strong {
+  color: var(--yw-accent);
+}
+
+.app-shell .workspace .record-activity {
+  color: var(--yw-text);
+}
+
+.app-shell .workspace .record-tags span {
+  background: var(--yw-highlight-soft);
+}
+
+/* Topic chips: make selected topics clearly pop. */
+.app-shell .workspace .topic-chip.selected,
+.app-shell .workspace .topic-suggestions button.active,
+.app-shell .workspace .record-topic-list .topic-chip {
+  background: var(--yw-highlight);
+  color: var(--yw-text);
+}
+
+.app-shell .workspace .popular-topic-strip {
+  background: var(--yw-highlight-soft);
+}
+
+/* Safety / module intro blocks: colored backgrounds driven by tokens. */
+.app-shell .workspace .module-intro {
+  background: var(--yw-mint);
+}
+
+.app-shell .workspace .publish-scope {
+  background: var(--yw-highlight-soft);
+}
+
+.app-shell .workspace .safety-inline {
+  border-left: 6px solid var(--yw-accent-3);
+  background: var(--yw-panel-bg);
+}
+
+/* Share card + comments: accent the share card with highlight. */
+.app-shell .workspace .share-card {
+  background: var(--yw-highlight-soft);
+  border-left: 6px solid var(--yw-accent);
+}
+
+/* Entity cards (guilds / circles / groups): colored avatar block. */
+.app-shell .workspace .entity-card b {
+  background: var(--yw-accent);
+  color: var(--yw-panel-bg);
+}
+
+.app-shell .workspace .entity-card.active b {
+  background: var(--yw-accent-3);
+}
+
+/* Profile summary tiles: color the label bar on each metric. */
+.app-shell .workspace .profile-summary div {
+  position: relative;
+  padding-top: 14px;
+  background: var(--yw-panel-bg);
+}
+
+.app-shell .workspace .profile-summary div::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--yw-accent);
+}
+
+.app-shell .workspace .profile-summary div:nth-child(2)::before {
+  background: var(--yw-accent-2);
+}
+
+.app-shell .workspace .profile-summary div:nth-child(3)::before {
+  background: var(--yw-accent-3);
+}
+
+.app-shell .workspace .profile-summary div:nth-child(4)::before {
+  background: var(--yw-highlight);
+}
+
+.app-shell .workspace .profile-summary strong {
+  color: var(--yw-text);
+}
+
+/* Badges: unlocked badges get the mint background, locked stay muted. */
+.app-shell .workspace .profile-badge-card.unlocked {
+  background: var(--yw-mint);
+}
+
+/* Text color rebinding for dark themes. */
+.app-shell .workspace p,
+.app-shell .workspace .record-card p,
+.app-shell .workspace .comment,
+.app-shell .workspace .module-copy,
+.app-shell .workspace .safety-inline,
+.app-shell .workspace .comment-item span,
+.app-shell .workspace .share-card span {
+  color: var(--yw-text);
+}
+
+.app-shell .workspace .field span,
+.app-shell .workspace .checkbox-line span,
+.app-shell .workspace .profile-section-head strong,
+.app-shell .workspace .profile-record-button strong,
+.app-shell .workspace .record-card strong,
+.app-shell .workspace .record-card header > div > strong {
+  color: var(--yw-text);
+}
+
+.app-shell .workspace .field-hint,
+.app-shell .workspace .record-card small,
+.app-shell .workspace .record-card span,
+.app-shell .workspace .entity-card span,
+.app-shell .workspace .entity-card small,
+.app-shell .workspace .profile-section-head small,
+.app-shell .workspace .profile-summary span,
+.app-shell .workspace .leader-main span,
+.app-shell .workspace .leader-score span {
+  color: var(--yw-text-soft);
+}
+
+/* Form controls pick up the themed panel tone. */
+.app-shell .workspace select,
+.app-shell .workspace textarea,
+.app-shell .workspace .topic-input-row input {
+  background: var(--yw-panel-bg);
+  color: var(--yw-text);
+  border-color: var(--yw-panel-border);
+  box-shadow: 3px 3px 0 var(--yw-panel-border);
+}
+
+.app-shell .workspace select:focus,
+.app-shell .workspace textarea:focus {
+  border-color: var(--yw-accent);
+  box-shadow: 3px 3px 0 var(--yw-accent);
+}
+
+/* Inputs/buttons inside workspace get themed neutral background. */
+.app-shell .workspace .feed-filters button,
+.app-shell .workspace .record-actions button,
+.app-shell .workspace .entity-actions button,
+.app-shell .workspace .feed-comment-row button,
+.app-shell .workspace .entity-card button,
+.app-shell .workspace .interaction-bar button,
+.app-shell .workspace .auth-tabs button,
+.app-shell .workspace .profile-toggle-button,
+.app-shell .workspace .leaderboard-board-button,
+.app-shell .workspace .leaderboard-clear-button,
+.app-shell .workspace .leaderboard-control-head button,
+.app-shell .workspace .topic-input-row button,
+.app-shell .workspace .topic-suggestions button,
+.app-shell .workspace .topic-chip,
+.app-shell .workspace .popular-topic-strip button,
+.app-shell .workspace .profile-record-button {
+  background: var(--yw-panel-bg);
+  color: var(--yw-text);
+  border-color: var(--yw-panel-border);
+  box-shadow: 2px 2px 0 var(--yw-panel-border);
+}
+
+.app-shell .workspace .checkbox-line {
+  background: var(--yw-panel-bg);
+  border-color: var(--yw-panel-border);
+}
+
+.app-shell .workspace .level-list li,
+.app-shell .workspace .wallet-transaction,
+.app-shell .workspace .record-card,
+.app-shell .workspace .comment-item,
+.app-shell .workspace .share-card,
+.app-shell .workspace .review-item,
+.app-shell .workspace .entity-card,
+.app-shell .workspace .profile-badge-card,
+.app-shell .workspace .profile-section,
+.app-shell .workspace .module-section,
+.app-shell .workspace .publish-scope,
+.app-shell .workspace .module-intro,
+.app-shell .workspace .safety-inline,
+.app-shell .workspace .profile-summary div,
+.app-shell .workspace .stats-line,
+.app-shell .workspace .breakdown div {
+  border-color: var(--yw-panel-border);
+}
+
+/* Scope sections within dark theme need to pick up panel bg. */
+html[data-theme='midnight'] .app-shell .workspace .profile-section,
+html[data-theme='midnight'] .app-shell .workspace .module-section,
+html[data-theme='midnight'] .app-shell .workspace .scope-group-option,
+html[data-theme='midnight'] .app-shell .workspace .topic-field {
+  background: #242d42;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .record-card,
+html[data-theme='midnight'] .app-shell .workspace .comment-item,
+html[data-theme='midnight'] .app-shell .workspace .review-item,
+html[data-theme='midnight'] .app-shell .workspace .entity-card,
+html[data-theme='midnight'] .app-shell .workspace .profile-summary div,
+html[data-theme='midnight'] .app-shell .workspace .level-list li,
+html[data-theme='midnight'] .app-shell .workspace .wallet-transaction,
+html[data-theme='midnight'] .app-shell .workspace .breakdown div {
+  background: var(--yw-panel-bg);
+}
+
+html[data-theme='midnight'] .app-shell .workspace select,
+html[data-theme='midnight'] .app-shell .workspace textarea,
+html[data-theme='midnight'] .app-shell .workspace .topic-input-row input {
+  background: #151b29;
+  color: var(--yw-text);
+}
+
+html[data-theme='midnight'] .app-shell .workspace .feed-filters button,
+html[data-theme='midnight'] .app-shell .workspace .record-actions button,
+html[data-theme='midnight'] .app-shell .workspace .entity-actions button,
+html[data-theme='midnight'] .app-shell .workspace .feed-comment-row button,
+html[data-theme='midnight'] .app-shell .workspace .entity-card button,
+html[data-theme='midnight'] .app-shell .workspace .interaction-bar button,
+html[data-theme='midnight'] .app-shell .workspace .leaderboard-board-button,
+html[data-theme='midnight'] .app-shell .workspace .leaderboard-control-head button,
+html[data-theme='midnight'] .app-shell .workspace .topic-input-row button,
+html[data-theme='midnight'] .app-shell .workspace .topic-suggestions button,
+html[data-theme='midnight'] .app-shell .workspace .topic-chip,
+html[data-theme='midnight'] .app-shell .workspace .popular-topic-strip button,
+html[data-theme='midnight'] .app-shell .workspace .profile-toggle-button,
+html[data-theme='midnight'] .app-shell .workspace .profile-record-button {
+  background: #2a3350;
+  color: var(--yw-text);
+}
+
+html[data-theme='midnight'] .app-shell .workspace .popular-topic-strip,
+html[data-theme='midnight'] .app-shell .workspace .leaderboard-control-head,
+html[data-theme='midnight'] .app-shell .workspace .share-card {
+  background: #2a3350;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .module-intro {
+  background: #1c3a3a;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .publish-scope {
+  background: #2a3350;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .record-tags span {
+  background: #2a3350;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .leaderboard-board-button.active,
+html[data-theme='midnight'] .app-shell .workspace .feed-filters button.active,
+html[data-theme='midnight'] .app-shell .workspace .record-actions button.active,
+html[data-theme='midnight'] .app-shell .workspace .entity-card.active,
+html[data-theme='midnight'] .app-shell .workspace .level-list li.active {
+  background: var(--yw-highlight);
+  color: #18202a;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .profile-badge-card:not(.unlocked) {
+  background: #2a3350;
+  border-color: #3a4460;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .profile-badge-card.unlocked {
+  background: #1c3a3a;
+}
+
+html[data-theme='midnight'] .app-shell .workspace .loading-line,
+html[data-theme='midnight'] .app-shell .workspace .empty-list {
+  background: #242d42;
+  border-color: #3a4460;
+  color: var(--yw-text-soft);
+}
+
+/* Floating theme picker (outside sidebar; does not alter nav layout). */
+.theme-picker {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  font-family: inherit;
+}
+
+.theme-picker-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 3px solid var(--yw-panel-border);
+  background: var(--yw-panel-bg);
+  color: var(--yw-text);
+  box-shadow: 4px 4px 0 var(--yw-panel-border);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.theme-picker-toggle:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--yw-panel-border);
+}
+
+.theme-picker-toggle .theme-swatch-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--yw-panel-border);
+  background: var(--yw-panel-stripe);
+  background-size: cover;
+}
+
+.theme-picker-panel {
+  display: grid;
+  gap: 10px;
+  width: min(280px, 82vw);
+  padding: 14px;
+  border: 3px solid var(--yw-panel-border);
+  background: var(--yw-panel-bg);
+  box-shadow: 6px 6px 0 var(--yw-panel-border);
+}
+
+.theme-picker-panel h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 950;
+  color: var(--yw-text);
+}
+
+.theme-picker-panel small {
+  color: var(--yw-text-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-picker-options {
+  display: grid;
+  gap: 8px;
+}
+
+.theme-picker-option {
+  display: grid;
+  grid-template-columns: 20px 36px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 2px solid var(--yw-panel-border);
+  background: var(--yw-panel-bg);
+  color: var(--yw-text);
+  box-shadow: 2px 2px 0 var(--yw-panel-border);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-picker-option:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--yw-panel-border);
+}
+
+.theme-picker-option.active {
+  background: var(--yw-highlight-soft);
+}
+
+.theme-picker-option .theme-swatch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 36px;
+  height: 20px;
+  border: 2px solid var(--yw-panel-border);
+}
+
+.theme-picker-option .theme-swatch i {
+  display: block;
+}
+
+.theme-picker-option small {
+  display: block;
+  color: var(--yw-text-soft);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .theme-picker {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .theme-picker-panel {
+    width: min(240px, 88vw);
+  }
+}
+
+/* Respect "reduce motion" users. */
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .workspace .panel,
+  .theme-picker-toggle,
+  .theme-picker-option {
+    transition: none;
+  }
+}

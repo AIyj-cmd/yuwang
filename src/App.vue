@@ -23,6 +23,7 @@ import {
   User
 } from 'lucide-vue-next';
 import { PxButton, PxCard, PxInput, PxTag } from '@mmt817/pixel-ui';
+import ThemePicker from './components/ThemePicker.vue';
 import {
   BADGE_DEFINITIONS,
   CREATIVITY_LEVELS,
@@ -1529,5 +1530,6 @@ onMounted(async () => {
     </nav>
 
     <RouterView />
+    <ThemePicker :locale="locale" />
   </main>
 </template>
