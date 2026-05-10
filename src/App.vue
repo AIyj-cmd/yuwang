@@ -106,6 +106,7 @@ import type {
 import { appContextKey } from './appContext';
 import { MAX_TOPICS_PER_RECORD, RECOMMENDED_TOPICS, normalizeTopicName, validateTopicName } from '../shared/topics';
 import type { Topic } from './types';
+import ThemeSwitcher from './components/ThemeSwitcher.vue';
 
 const messages = {
   'zh-CN': {
@@ -1519,6 +1520,10 @@ onMounted(async () => {
           <ShieldAlert :size="14" />
           {{ t('safety') }}
         </button>
+      </div>
+
+      <div class="nav-theme-switcher">
+        <ThemeSwitcher :locale="locale" />
       </div>
 
       <div class="nav-stats" v-if="stats">

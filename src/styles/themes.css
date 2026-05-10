@@ -1,0 +1,213 @@
+/*
+ * 工位鱼王 - Theme tokens
+ *
+ * Design approach: pixel + flat modern.
+ *   - One set of semantic CSS variables controls color / border / shadow /
+ *     spacing / typography for the whole front-end.
+ *   - Five themes override the tokens. Switch is done by setting
+ *     [data-theme="<id>"] on <html>. If missing, :root defaults apply ("pond").
+ *   - No linear-gradient, no radial-gradient, no glass, no blur shadow,
+ *     no skeuomorphism. Backgrounds use solid color + optional SVG grid /
+ *     dot / checker pattern.
+ *
+ * Token reference:
+ *   --color-bg             page background
+ *   --bg-pattern           background-image pattern (SVG data URI, no gradient)
+ *   --color-surface        card / input / button background
+ *   --color-surface-soft   nested card / field background
+ *   --color-text           main text
+ *   --color-text-muted     hint / meta text
+ *   --color-border         pixel line color (borders + pixel shadows)
+ *   --color-border-soft    secondary borders (dashed, locked badges)
+ *   --color-primary        brand color (pond yellow by default)
+ *   --color-primary-text   text placed on primary surfaces
+ *   --color-accent         accent color (mint by default)
+ *   --color-warning        warning surface (soft yellow)
+ *   --color-danger         danger surface (soft coral)
+ *   --color-danger-text    danger text color
+ *   --color-success-text   success text color
+ *   --color-focus          input focus line color
+ *   --color-rank           rank badge background
+ *   --color-disabled       disabled background
+ *   --color-ink-strong-bg  inverted pixel badge background (brand mark)
+ *   --color-ink-strong-text text placed on inverted badge
+ *
+ *   --border-strong / --border-normal / --border-subtle
+ *   --shadow-pixel / --shadow-small
+ *   --radius-none
+ *   --space-page / --space-card / --space-small
+ *   --font-pixel / --font-readable
+ */
+
+/* ============================================================
+ * Default tokens (pond). Also applied when data-theme is absent.
+ * ============================================================ */
+:root,
+[data-theme='pond'] {
+  --color-bg: #eef3f7;
+  --bg-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18'><path d='M0 0H18' stroke='%2318202a' stroke-opacity='0.06' stroke-width='1'/><path d='M0 0V18' stroke='%2318202a' stroke-opacity='0.06' stroke-width='1'/></svg>");
+
+  --color-surface: #fffefc;
+  --color-surface-soft: #f7fafc;
+  --color-text: #18202a;
+  --color-text-muted: #536172;
+
+  --color-border: #18202a;
+  --color-border-soft: #d1d8e0;
+
+  --color-primary: #ffe66d;
+  --color-primary-text: #18202a;
+  --color-accent: #d8fff4;
+
+  --color-warning: #fff7cc;
+  --color-danger: #ffe4e6;
+  --color-danger-text: #b91c1c;
+  --color-success-text: #047857;
+  --color-focus: #0c8f7b;
+  --color-rank: #ffb4a2;
+  --color-disabled: #e5e7eb;
+
+  --color-ink-strong-bg: #18202a;
+  --color-ink-strong-text: #ffe66d;
+
+  --border-strong: 3px solid var(--color-border);
+  --border-normal: 2px solid var(--color-border);
+  --border-subtle: 1px solid var(--color-border);
+
+  --shadow-pixel: 6px 6px 0 var(--color-border);
+  --shadow-small: 3px 3px 0 var(--color-border);
+
+  --radius-none: 0px;
+  --space-page: 24px;
+  --space-card: 16px;
+  --space-small: 8px;
+
+  --font-pixel: 'Press Start 2P', 'VT323', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --font-readable:
+    'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ============================================================
+ * Theme 2: office (clean blue, long-session friendly)
+ * ============================================================ */
+[data-theme='office'] {
+  --color-bg: #eef3f9;
+  --bg-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><path d='M0 0H20' stroke='%232b3a55' stroke-opacity='0.05' stroke-width='1'/><path d='M0 0V20' stroke='%232b3a55' stroke-opacity='0.05' stroke-width='1'/></svg>");
+
+  --color-surface: #ffffff;
+  --color-surface-soft: #f2f6fb;
+  --color-text: #1f2a3a;
+  --color-text-muted: #5a6a80;
+
+  --color-border: #2b3a55;
+  --color-border-soft: #cdd7e3;
+
+  --color-primary: #5fa8e9;
+  --color-primary-text: #0b1a30;
+  --color-accent: #cef0e4;
+
+  --color-warning: #fff1c6;
+  --color-danger: #ffd9d9;
+  --color-danger-text: #9e2b2b;
+  --color-success-text: #1f7a5a;
+  --color-focus: #2c7fc5;
+  --color-rank: #f7b27a;
+  --color-disabled: #e4e8ef;
+
+  --color-ink-strong-bg: #2b3a55;
+  --color-ink-strong-text: #fff8d6;
+}
+
+/* ============================================================
+ * Theme 3: night (dark mode for after-work slacking)
+ * ============================================================ */
+[data-theme='night'] {
+  --color-bg: #11182a;
+  --bg-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22'><path d='M0 0H22' stroke='%23e8edf6' stroke-opacity='0.05' stroke-width='1'/><path d='M0 0V22' stroke='%23e8edf6' stroke-opacity='0.05' stroke-width='1'/></svg>");
+
+  --color-surface: #1c2540;
+  --color-surface-soft: #232e4d;
+  --color-text: #e8edf6;
+  --color-text-muted: #9aa6c0;
+
+  --color-border: #c4cde0;
+  --color-border-soft: #40507a;
+
+  --color-primary: #f3d463;
+  --color-primary-text: #11182a;
+  --color-accent: #2d6d5f;
+
+  --color-warning: #5c4f24;
+  --color-danger: #6b2a2f;
+  --color-danger-text: #ffb5ba;
+  --color-success-text: #7fe3c6;
+  --color-focus: #56d1b5;
+  --color-rank: #d17a5a;
+  --color-disabled: #2a3355;
+
+  --color-ink-strong-bg: #0c1224;
+  --color-ink-strong-text: #f3d463;
+}
+
+/* ============================================================
+ * Theme 4: paper (warm paper for reading long content)
+ * ============================================================ */
+[data-theme='paper'] {
+  --color-bg: #f5efde;
+  --bg-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><circle cx='2' cy='2' r='1' fill='%234a3a20' fill-opacity='0.07'/></svg>");
+
+  --color-surface: #fbf6e7;
+  --color-surface-soft: #efe7cf;
+  --color-text: #3d2e18;
+  --color-text-muted: #7b6a4c;
+
+  --color-border: #4a3a20;
+  --color-border-soft: #c6b994;
+
+  --color-primary: #f6d261;
+  --color-primary-text: #3d2e18;
+  --color-accent: #c4e4b2;
+
+  --color-warning: #ffe8a7;
+  --color-danger: #f4c9b6;
+  --color-danger-text: #8a3a20;
+  --color-success-text: #4a6b24;
+  --color-focus: #8a6a1c;
+  --color-rank: #e8a379;
+  --color-disabled: #e4dcc1;
+
+  --color-ink-strong-bg: #4a3a20;
+  --color-ink-strong-text: #f6d261;
+}
+
+/* ============================================================
+ * Theme 5: arcade (high contrast game mood, still flat)
+ * ============================================================ */
+[data-theme='arcade'] {
+  --color-bg: #14101e;
+  --bg-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><rect x='0' y='0' width='8' height='8' fill='%23ffffff' fill-opacity='0.03'/><rect x='8' y='8' width='8' height='8' fill='%23ffffff' fill-opacity='0.03'/></svg>");
+
+  --color-surface: #1e1830;
+  --color-surface-soft: #27203f;
+  --color-text: #f5f2ff;
+  --color-text-muted: #a69cbe;
+
+  --color-border: #f5f2ff;
+  --color-border-soft: #4d436b;
+
+  --color-primary: #ffe34d;
+  --color-primary-text: #14101e;
+  --color-accent: #3ce0c9;
+
+  --color-warning: #5a4c1f;
+  --color-danger: #73272f;
+  --color-danger-text: #ff8a8a;
+  --color-success-text: #3ce0c9;
+  --color-focus: #3ce0c9;
+  --color-rank: #ff6a6a;
+  --color-disabled: #2b2440;
+
+  --color-ink-strong-bg: #14101e;
+  --color-ink-strong-text: #ffe34d;
+}
