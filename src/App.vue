@@ -104,6 +104,7 @@ import type {
   WalletTransactionsResponse
 } from './types';
 import { appContextKey } from './appContext';
+import MainWorkspace from './components/layout/MainWorkspace.vue';
 import { MAX_TOPICS_PER_RECORD, RECOMMENDED_TOPICS, normalizeTopicName, validateTopicName } from '../shared/topics';
 import type { Topic } from './types';
 
@@ -1528,6 +1529,8 @@ onMounted(async () => {
       </div>
     </nav>
 
-    <RouterView />
+    <MainWorkspace>
+      <RouterView />
+    </MainWorkspace>
   </main>
 </template>

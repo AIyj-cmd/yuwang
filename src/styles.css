@@ -23,11 +23,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    linear-gradient(90deg, rgba(24, 32, 42, 0.06) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(24, 32, 42, 0.06) 1px, transparent 1px),
-    #eef3f7;
-  background-size: 18px 18px;
+  background: #eef3f7;
 }
 
 button,
@@ -44,25 +40,26 @@ button {
 .app-shell {
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr);
-  gap: 20px;
+  gap: 0;
   min-height: 100vh;
-  padding: 24px;
+  padding: 0;
+  background: transparent;
 }
 
 .feature-nav {
   position: sticky;
-  top: 24px;
+  top: 0;
   align-self: stretch;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: calc(100vh - 48px);
-  min-height: 640px;
-  max-height: calc(100vh - 48px);
+  height: 100vh;
+  min-height: 560px;
+  max-height: 100vh;
   overflow: auto;
-  border: 3px solid #18202a;
+  border-right: 3px solid #18202a;
   background: #fffefc;
-  box-shadow: 6px 6px 0 #18202a;
+  box-shadow: 6px 0 0 #18202a;
 }
 
 .nav-brand {
@@ -376,16 +373,15 @@ button {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.05fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   align-items: start;
   min-width: 0;
-  max-width: 1440px;
+  width: 100%;
 }
 
 .workspace.single-view {
   grid-template-columns: minmax(0, 1fr);
-  max-width: 980px;
 }
 
 .workspace.single-view .info-grid {
@@ -1981,10 +1977,6 @@ textarea:focus {
 }
 
 @media (max-width: 980px) {
-  .app-shell {
-    padding: 14px;
-  }
-
   .workspace,
   .info-grid {
     grid-template-columns: 1fr;
@@ -2042,5 +2034,442 @@ textarea:focus {
   .admin-card-grid,
   .admin-definition-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+
+
+/* ============================================================
+ * Workbench layout additions (MainWorkspace + PageWorkbench)
+ * ============================================================ */
+
+.workspace {
+  padding: 0;
+}
+
+.panel.fill {
+  width: 100%;
+  height: 100%;
+}
+
+.workbench-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 2px solid #18202a;
+  background: #ffffff;
+  color: #18202a;
+  box-shadow: 2px 2px 0 #18202a;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.workbench-action:hover {
+  background: #d8fff4;
+}
+
+.workbench-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .workbench-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .workbench-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.strip-card {
+  min-height: 140px;
+}
+
+.mini-feed-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-feed-item {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border: 2px solid #18202a;
+  background: #ffffff;
+}
+
+.mini-feed-item strong {
+  color: #18202a;
+  font-weight: 950;
+}
+
+.mini-feed-item span {
+  color: #0c8f7b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mini-feed-item small {
+  overflow: hidden;
+  color: #536172;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* submit safety checklist */
+.safety-checklist {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 2px dashed #18202a;
+  background: #fff7cc;
+  text-align: left;
+}
+
+.safety-checklist strong {
+  color: #18202a;
+  font-weight: 950;
+}
+
+.safety-checklist ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+/* empty result block uses vertical column layout */
+.empty-result {
+  gap: 12px;
+  padding: 20px;
+  align-content: start;
+}
+
+.empty-result p {
+  margin: 0;
+}
+
+/* Vertical list variants */
+.feed-filters.vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.feed-filters.vertical button {
+  justify-content: flex-start;
+}
+
+.compact-topic-list {
+  gap: 6px;
+}
+
+.entity-grid-vertical {
+  grid-template-columns: 1fr;
+}
+
+/* Leaderboard rank emphasis */
+.leaderboard-item.rank-1 .leaderboard-row,
+.leaderboard-item.rank-2 .leaderboard-row,
+.leaderboard-item.rank-3 .leaderboard-row {
+  background: #fffefc;
+}
+
+.leaderboard-item.rank-1 .rank {
+  background: #ffe66d;
+  color: #18202a;
+}
+
+.leaderboard-item.rank-2 .rank {
+  background: #d8fff4;
+}
+
+.leaderboard-item.rank-3 .rank {
+  background: #ffd6a5;
+}
+
+.leaderboard-item.rank-1 {
+  box-shadow: 4px 4px 0 #18202a;
+}
+
+.leaderboard-item.rank-1 .leader-score strong {
+  color: #b45309;
+  font-size: 20px;
+}
+
+/* Board type list */
+.board-type-list {
+  display: grid;
+  gap: 8px;
+}
+
+.board-type-button {
+  display: grid;
+  gap: 2px;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 2px solid #18202a;
+  background: #ffffff;
+  color: #18202a;
+  box-shadow: 2px 2px 0 #18202a;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+
+.board-type-button:hover {
+  background: #d8fff4;
+}
+
+.board-type-button.active {
+  background: #ffe66d;
+}
+
+.board-type-button strong {
+  font-size: 13px;
+}
+
+.board-type-button small {
+  color: #536172;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.filter-body {
+  display: grid;
+  gap: 10px;
+}
+
+/* Top three highlight cards */
+.top-three {
+  display: grid;
+  gap: 8px;
+}
+
+.top-three-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 4px 10px;
+  padding: 10px;
+  border: 2px solid #18202a;
+  background: #fffefc;
+  box-shadow: 2px 2px 0 #18202a;
+}
+
+.top-three-card .top-three-rank {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid #18202a;
+  background: #ffe66d;
+  color: #18202a;
+  font-weight: 950;
+}
+
+.top-three-card.rank-1 .top-three-rank {
+  background: #ffe66d;
+}
+
+.top-three-card.rank-2 .top-three-rank {
+  background: #d8fff4;
+}
+
+.top-three-card.rank-3 .top-three-rank {
+  background: #ffd6a5;
+}
+
+.top-three-card strong {
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.top-three-card small {
+  color: #536172;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Rule list */
+.rule-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.rule-list li::marker {
+  color: #0c8f7b;
+}
+
+/* My position block */
+.my-position {
+  display: grid;
+  gap: 4px;
+}
+
+.my-position strong {
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.my-position span {
+  color: #536172;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.my-position p {
+  margin: 4px 0 0;
+  color: #334155;
+  line-height: 1.6;
+}
+
+/* side stats */
+.side-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.side-stats div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 2px solid #18202a;
+  background: #ffffff;
+}
+
+.side-stats dt {
+  color: #536172;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.side-stats dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+/* wallet hero */
+.wallet-balance-hero {
+  background: linear-gradient(135deg, #ffe66d 0%, #ffd84a 100%) !important;
+}
+
+.balance-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 6px;
+}
+
+.balance-hero-text {
+  display: grid;
+  gap: 4px;
+}
+
+.balance-hero-label {
+  color: #18202a;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.balance-hero-amount {
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 1000;
+  line-height: 1;
+  color: #18202a;
+}
+
+.balance-hero-text small {
+  color: #2f3b4a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.balance-hero-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 140px;
+  padding: 10px 14px;
+  border: 2px solid #18202a;
+  background: #fffefc;
+  box-shadow: 2px 2px 0 #18202a;
+}
+
+.balance-hero-meta span {
+  color: #536172;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.balance-hero-meta strong {
+  font-size: 20px;
+  font-weight: 950;
+  color: #18202a;
+}
+
+/* Comment compose toggle button inside record actions */
+.record-actions .toggle-compose {
+  background: #d8fff4;
+}
+
+/* Override: main workspace inner should grow */
+.main-workspace__inner > .workspace {
+  flex: 1;
+}
+
+/* Announcement item adjustments inside workbench */
+.announcement-item {
+  padding: 14px;
+}
+
+/* ---------------------------------------------------------------
+ * Cleanup: remove narrow centered constraints that were used
+ * before the workbench refactor. max-width: 1440px on .workspace
+ * and 980px on .workspace.single-view are intentionally removed;
+ * the MainWorkspace container now owns right-side sizing.
+ * --------------------------------------------------------------- */
+
+@media (max-width: 1200px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-nav {
+    position: static;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    border-right: 0;
+    border-bottom: 3px solid #18202a;
+    box-shadow: 0 6px 0 #18202a;
   }
 }
