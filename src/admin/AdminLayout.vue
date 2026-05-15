@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
 import {
   Bell,
+  Bot,
   CircleDot,
   ClipboardList,
   FileText,
@@ -34,6 +35,7 @@ const navItems = [
   { to: '/admin/circles', label: '圈子管理', icon: CircleDot },
   { to: '/admin/groups', label: '小组管理', icon: ClipboardList },
   { to: '/admin/safety', label: '安全配置', icon: ShieldAlert },
+  { to: '/admin/ai-prompts', label: 'AI Prompt 管理', icon: Bot },
   { to: '/admin/settings', label: '站点配置', icon: Settings },
   { to: '/admin/audit-logs', label: '操作日志', icon: History }
 ] as const;

@@ -94,7 +94,18 @@ onMounted(load);
 
       <article class="admin-panel">
         <h2>分数明细</h2>
-        <template v-if="record.scoreVersion === 'duration_v3'">
+        <template v-if="record.scoreVersion.startsWith('ai_judge_v1')">
+          <div class="admin-list-row"><span>时长基础分</span><strong>{{ record.breakdown.baseScore }}</strong></div>
+          <div class="admin-list-row"><span>烈度</span><strong>{{ record.breakdown.intensityLabel }} ×{{ record.breakdown.intensityMultiplier }}</strong></div>
+          <div class="admin-list-row"><span>结局</span><strong>{{ record.breakdown.outcomeLabel }} +{{ record.breakdown.outcomeBonus }}</strong></div>
+          <div class="admin-list-row"><span>特殊加成</span><strong>+{{ record.breakdown.specialBonusTotal ?? 0 }}</strong></div>
+          <div class="admin-list-row"><span>原始分</span><strong>{{ record.breakdown.rawScore }}</strong></div>
+          <div class="admin-list-row"><span>显示分</span><strong>{{ record.breakdown.displayScore?.toFixed(3) }} / 10</strong></div>
+          <div class="admin-list-row"><span>AI</span><strong>{{ record.breakdown.aiProvider }} / {{ record.breakdown.aiModel }}</strong></div>
+          <div class="admin-list-row"><span>Prompt</span><strong>{{ record.breakdown.promptKey }} v{{ record.breakdown.promptVersion }}</strong></div>
+          <div class="admin-list-row"><span>Fallback</span><strong>{{ record.breakdown.fallback ? record.breakdown.fallbackReason || 'true' : 'false' }}</strong></div>
+        </template>
+        <template v-else-if="record.scoreVersion === 'duration_v3'">
           <div class="admin-list-row"><span>持续时间分</span><strong>{{ record.breakdown.durationScore }}</strong></div>
           <p>本次分数由持续时间档位计算。</p>
         </template>

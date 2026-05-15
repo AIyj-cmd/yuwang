@@ -2,6 +2,11 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { ScoreBreakdown } from '../shared/scoring.js';
+import {
+  AI_JUDGE_PROMPT_KEY,
+  AI_JUDGE_PROMPT_NAME,
+  DEFAULT_AI_JUDGE_SYSTEM_PROMPT
+} from '../shared/aiJudgePrompt.js';
 import { findSlackingTypeOption } from '../shared/slackingTypes.js';
 import { OFFICIAL_CIRCLES, OFFICIAL_GUILDS, getCircleSlugsForRecord } from '../shared/social.js';
 import { createTopicSlug, type Topic } from '../shared/topics.js';
@@ -31,6 +36,7 @@ export type StoredRecord = {
   creativity_bonus: number;
   fish_power_score: number;
   score_version: string;
+  score_breakdown: string;
   title: string;
   system_comment: string;
   status: 'approved' | 'published' | 'pending' | 'hidden' | 'rejected';
@@ -54,6 +60,20 @@ export type StoredRecord = {
 };
 
 export type StoredTopic = Topic;
+
+export type StoredAiPrompt = {
+  id: number;
+  key: string;
+  name: string;
+  content: string;
+  description: string;
+  version: number;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+  updated_by: string;
+  last_tested_at: string;
+};
 
 export type FishScaleTransactionType = 'earn_submission' | 'earn_interaction' | 'spend' | 'admin_adjustment';
 export type FishScaleEarnCategory = 'submission' | 'interaction';
@@ -400,6 +420,20 @@ export const initDatabase = (): void => {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS ai_prompts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      version INTEGER NOT NULL DEFAULT 1,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL DEFAULT '',
+      last_tested_at TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS sensitive_words (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       word TEXT NOT NULL UNIQUE,
@@ -460,6 +494,7 @@ export const initDatabase = (): void => {
   addColumnIfMissing('slacking_records', 'duration_score', 'REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('slacking_records', 'duration_base_score', 'REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('slacking_records', 'score_version', "TEXT NOT NULL DEFAULT 'legacy_type_v1'");
+  addColumnIfMissing('slacking_records', 'score_breakdown', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('slacking_records', 'status', "TEXT NOT NULL DEFAULT 'approved'");
   addColumnIfMissing('slacking_records', 'review_note', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('slacking_records', 'visibility', "TEXT NOT NULL DEFAULT 'public'");
@@ -496,6 +531,11 @@ export const initDatabase = (): void => {
   addColumnIfMissing('topics', 'updated_at', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('"groups"', 'status', "TEXT NOT NULL DEFAULT 'active'");
   addColumnIfMissing('"groups"', 'updated_at', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('ai_prompts', 'description', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('ai_prompts', 'version', 'INTEGER NOT NULL DEFAULT 1');
+  addColumnIfMissing('ai_prompts', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+  addColumnIfMissing('ai_prompts', 'updated_by', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('ai_prompts', 'last_tested_at', "TEXT NOT NULL DEFAULT ''");
   db.exec("UPDATE slacking_records SET slacking_type_id = slacking_type WHERE slacking_type_id = ''");
   db.exec("UPDATE slacking_records SET activity_text = slacking_type WHERE activity_text = ''");
   db.exec("UPDATE slacking_records SET story_text = description WHERE story_text = ''");
@@ -507,6 +547,29 @@ export const initDatabase = (): void => {
   db.exec("UPDATE circles SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE topics SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE \"groups\" SET updated_at = created_at WHERE updated_at = ''");
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO ai_prompts (
+        key,
+        name,
+        content,
+        description,
+        version,
+        is_active,
+        created_at,
+        updated_at,
+        updated_by,
+        last_tested_at
+      ) VALUES (?, ?, ?, ?, 1, 1, ?, ?, '', '')
+    `
+  ).run(
+    AI_JUDGE_PROMPT_KEY,
+    AI_JUDGE_PROMPT_NAME,
+    DEFAULT_AI_JUDGE_SYSTEM_PROMPT,
+    'DeepSeek AI 裁判结构化输出与毒舌评语系统提示词',
+    new Date().toISOString(),
+    new Date().toISOString()
+  );
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_record_interactions_record ON record_interactions(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_interactions_user ON record_interactions(user_id);
@@ -532,6 +595,7 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs(target_type, target_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_prompts_key_active ON ai_prompts(key, is_active);
     CREATE INDEX IF NOT EXISTS idx_sensitive_words_enabled ON sensitive_words(enabled);
     CREATE INDEX IF NOT EXISTS idx_suggestions_user ON suggestions(user_id);
     CREATE INDEX IF NOT EXISTS idx_checkins_user_date ON checkins(user_id, checkin_date);
@@ -1199,6 +1263,119 @@ export const getUserTotalScore = (userId: number): number => {
   return Number(row.total_score ?? 0);
 };
 
+export const listAiPrompts = (): StoredAiPrompt[] =>
+  db.prepare('SELECT * FROM ai_prompts ORDER BY key ASC, version DESC').all() as StoredAiPrompt[];
+
+export const getAiPrompt = (key: string): StoredAiPrompt | undefined =>
+  db.prepare('SELECT * FROM ai_prompts WHERE key = ? LIMIT 1').get(key) as StoredAiPrompt | undefined;
+
+export const getActiveAiPrompt = (key = AI_JUDGE_PROMPT_KEY): StoredAiPrompt | undefined =>
+  db.prepare('SELECT * FROM ai_prompts WHERE key = ? AND is_active = 1 LIMIT 1').get(key) as StoredAiPrompt | undefined;
+
+export const updateAiPromptLastTested = (key: string, now = new Date().toISOString()): void => {
+  db.prepare('UPDATE ai_prompts SET last_tested_at = ?, updated_at = updated_at WHERE key = ?').run(now, key);
+};
+
+export const saveAiPrompt = (input: {
+  key: string;
+  name?: string;
+  content: string;
+  description?: string;
+  isActive?: boolean;
+  updatedBy: string;
+}): StoredAiPrompt => {
+  const now = new Date().toISOString();
+  const existing = getAiPrompt(input.key);
+  if (!existing) {
+    db.prepare(
+      `
+        INSERT INTO ai_prompts (
+          key,
+          name,
+          content,
+          description,
+          version,
+          is_active,
+          created_at,
+          updated_at,
+          updated_by,
+          last_tested_at
+        ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, '')
+      `
+    ).run(
+      input.key,
+      input.name ?? input.key,
+      input.content,
+      input.description ?? '',
+      input.isActive === false ? 0 : 1,
+      now,
+      now,
+      input.updatedBy
+    );
+  } else {
+    db.prepare(
+      `
+        UPDATE ai_prompts
+        SET name = ?,
+            content = ?,
+            description = ?,
+            version = version + 1,
+            is_active = ?,
+            updated_at = ?,
+            updated_by = ?
+        WHERE key = ?
+      `
+    ).run(
+      input.name ?? existing.name,
+      input.content,
+      input.description ?? existing.description,
+      input.isActive === undefined ? existing.is_active : input.isActive ? 1 : 0,
+      now,
+      input.updatedBy,
+      input.key
+    );
+  }
+
+  return getAiPrompt(input.key) as StoredAiPrompt;
+};
+
+export const restoreDefaultAiPrompt = (updatedBy: string): StoredAiPrompt => {
+  const existing = getAiPrompt(AI_JUDGE_PROMPT_KEY);
+  const now = new Date().toISOString();
+  if (!existing) {
+    return saveAiPrompt({
+      key: AI_JUDGE_PROMPT_KEY,
+      name: AI_JUDGE_PROMPT_NAME,
+      content: DEFAULT_AI_JUDGE_SYSTEM_PROMPT,
+      description: 'DeepSeek AI 裁判结构化输出与毒舌评语系统提示词',
+      isActive: true,
+      updatedBy
+    });
+  }
+
+  db.prepare(
+    `
+      UPDATE ai_prompts
+      SET name = ?,
+          content = ?,
+          description = ?,
+          version = version + 1,
+          is_active = 1,
+          updated_at = ?,
+          updated_by = ?
+      WHERE key = ?
+    `
+  ).run(
+    AI_JUDGE_PROMPT_NAME,
+    DEFAULT_AI_JUDGE_SYSTEM_PROMPT,
+    'DeepSeek AI 裁判结构化输出与毒舌评语系统提示词',
+    now,
+    updatedBy,
+    AI_JUDGE_PROMPT_KEY
+  );
+  return getAiPrompt(AI_JUDGE_PROMPT_KEY) as StoredAiPrompt;
+};
+
 export const insertRecord = (
   input: {
     userId?: number | null;
@@ -1262,6 +1439,7 @@ export const insertRecord = (
       creativity_bonus,
       fish_power_score,
       score_version,
+      score_breakdown,
       title,
       system_comment,
       status,
@@ -1271,7 +1449,7 @@ export const insertRecord = (
       guild_contribution,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const guildContribution = input.guildId ? Number((score.fishPowerScore * 0.3).toFixed(1)) : 0;
 
@@ -1298,6 +1476,7 @@ export const insertRecord = (
     score.creativityBonus,
     score.fishPowerScore,
     score.scoreVersion,
+    JSON.stringify(score),
     input.title,
     input.systemComment,
     input.status,

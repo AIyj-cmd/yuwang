@@ -9,6 +9,7 @@ import type {
   SUPPORTED_LOCALES,
   TITLE_LEVELS
 } from '../shared/scoring';
+import type { ScoreBreakdown } from '../shared/aiJudgeTypes';
 
 export type OptionsResponse = {
   slackingTypes: typeof SLACKING_TYPES;
@@ -103,15 +104,7 @@ export type RecordSummary = {
   guildContribution: number;
   scoreVersion: string;
   createdAt: string;
-  breakdown: {
-    baseScore: number;
-    durationScore: number;
-    durationBaseScore: number;
-    durationMultiplier: number;
-    riskMultiplier: number;
-    disguiseBonus: number;
-    creativityBonus: number;
-  };
+  breakdown: ScoreBreakdown;
 };
 
 export type FishScaleWallet = {

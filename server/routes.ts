@@ -18,10 +18,12 @@ import {
   analyzeContentSafety,
   calculateScore,
   createSystemComment,
+  getDurationRule,
   getOptionLabel,
   getTitleForDurationScore,
   getTitleForTotalScore,
-  type LeaderboardType
+  type LeaderboardType,
+  type ScoreBreakdown
 } from '../shared/scoring.js';
 import { findSlackingTypeOption } from '../shared/slackingTypes.js';
 import { createUser, getUserFromRequest, isMuted, publicUserById, requireAdmin, requireAuth, verifyUser } from './auth.js';
@@ -47,6 +49,7 @@ import { CIRCLE_FEATURED_BOARDS, COMMENT_MAX_LENGTH, GROUP_CHALLENGES, GROUP_NAM
 import { MAX_TOPICS_PER_RECORD, TOPIC_PRIVACY_MESSAGE, normalizeTopicList, type Topic } from '../shared/topics.js';
 import { getMonthRange, getSeasonRange, getTodayRange, getWeekRange, type PeriodRange } from './time.js';
 import { registerAdminRoutes } from './adminRoutes.js';
+import { scoreRecordWithAiJudge } from './ai/judgeService.js';
 
 const optionKeys = (options: readonly { key: string }[]) => options.map((option) => option.key);
 
@@ -57,7 +60,7 @@ const createRecordSchema = z.object({
   slackingType: z.string().trim().max(MAX_ACTIVITY_TEXT_LENGTH).optional(),
   slackingTypeId: z.string().trim().max(MAX_ACTIVITY_TEXT_LENGTH).optional(),
   slackingTypeGroup: z.string().trim().max(40).optional(),
-  duration: z.enum(optionKeys(DURATIONS) as [string, ...string[]]),
+  duration: z.string().trim().min(1).max(40),
   risk: z.enum(optionKeys(RISKS) as [string, ...string[]]).optional(),
   disguise: z.enum(optionKeys(DISGUISES) as [string, ...string[]]).optional(),
   creativity: z.enum(optionKeys(CREATIVITY_LEVELS) as [string, ...string[]]).optional(),
@@ -261,6 +264,16 @@ const enabledSensitiveWords = (): string[] =>
       .all() as { word: string }[]
   ).map((row) => row.word);
 
+const parseScoreBreakdown = (value: unknown): Partial<ScoreBreakdown> => {
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<ScoreBreakdown>) : {};
+  } catch {
+    return {};
+  }
+};
+
 const publicRecord = (record: Record<string, unknown>) => {
   const userId = record.user_id === null || record.user_id === undefined ? null : Number(record.user_id);
   const user = userId ? publicUserById(userId) : null;
@@ -275,6 +288,8 @@ const publicRecord = (record: Record<string, unknown>) => {
     (scoreVersion === 'time_v2' || scoreVersion === 'duration_v3' ? baseScore : Number((baseScore * durationMultiplier).toFixed(1)));
   const activityText = normalizeActivityText(String(record.activity_text || slackingType.label));
   const storyText = String(record.story_text || record.description || '');
+  const storedBreakdown = parseScoreBreakdown(record.score_breakdown);
+  const durationLabel = storedBreakdown.durationLabel ?? getOptionLabel(DURATIONS, String(record.duration));
 
   return {
     id: Number(record.id),
@@ -289,7 +304,7 @@ const publicRecord = (record: Record<string, unknown>) => {
     activityTags: parseActivityTags(record.activity_tags),
     topics: getRecordTopics(Number(record.id)).map(publicTopic),
     duration: String(record.duration),
-    durationLabel: getOptionLabel(DURATIONS, String(record.duration)),
+    durationLabel,
     risk: String(record.risk),
     riskLabel: getOptionLabel(RISKS, String(record.risk)),
     disguise: String(record.disguise),
@@ -324,7 +339,8 @@ const publicRecord = (record: Record<string, unknown>) => {
       durationMultiplier,
       riskMultiplier: Number(record.risk_multiplier),
       disguiseBonus: Number(record.disguise_bonus),
-      creativityBonus: Number(record.creativity_bonus)
+      creativityBonus: Number(record.creativity_bonus),
+      ...storedBreakdown
     }
   };
 };
@@ -1522,11 +1538,17 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       });
     }
 
-    const scoreInput = { duration: parsed.data.duration };
-    const score = calculateScore(scoreInput);
+    const scoreInput = {
+      duration: parsed.data.duration,
+      activityText,
+      slackingType: activityText,
+      storyText
+    };
+    const aiScore = await scoreRecordWithAiJudge(scoreInput);
+    const score = aiScore.breakdown;
     const totalScore = (user ? getUserTotalScore(user.id) : getNicknameTotalScore(nickname)) + score.fishPowerScore;
-    const title = getTitleForDurationScore(parsed.data.duration);
-    const systemComment = createSystemComment(scoreInput);
+    const title = getTitleForTotalScore(score.fishPowerScore);
+    const systemComment = aiScore.comment;
     const status = safety.level === 'review' ? 'pending' : 'approved';
     const reviewNote = safety.warnings.join('、');
     const privateOnly = parsed.data.privateOnly || parsed.data.publish_scope === 'private';
@@ -1543,6 +1565,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
         slackingTypeId: activityText,
         slackingTypeGroup: 'activity',
         activityText,
+        duration: score.duration ?? parsed.data.duration,
         risk,
         disguise,
         creativity,

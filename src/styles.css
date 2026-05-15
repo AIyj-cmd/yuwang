@@ -1513,6 +1513,14 @@ textarea:focus {
   box-shadow: 3px 3px 0 var(--color-border);
 }
 
+.admin-test-empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .admin-shell {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
@@ -1929,6 +1937,58 @@ textarea:focus {
   background: var(--color-surface-soft);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.admin-success {
+  margin: 0;
+  padding: 10px 12px;
+  border: 2px solid var(--color-border);
+  background: var(--color-accent);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 2px 2px 0 var(--color-border);
+}
+
+.admin-prompt-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-prompt-item {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-border);
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-prompt-item.active {
+  background: var(--color-primary);
+}
+
+.admin-prompt-item span,
+.admin-prompt-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-prompt-editor {
+  min-height: 520px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  line-height: 1.55;
+}
+
+.admin-checkbox {
+  align-items: center;
 }
 
 @media (max-width: 1200px) {

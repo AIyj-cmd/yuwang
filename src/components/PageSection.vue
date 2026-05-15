@@ -173,7 +173,7 @@ const {
               <option v-for="item in options.durations" :key="item.key" :value="item.key">{{ translatedOptionLabel(item.key, item.label) }} · {{ item.score ?? item.baseScore }} {{ copy('分', 'pts') }}</option>
             </select>
             <small class="field-hint">
-              {{ copy('Fish Power Score 只由持续时间决定，故事再离谱也不加分，但可能会被鱼友们推上热榜。', 'Fish Power Score is decided only by duration. A wild story adds no score, but other users may push it onto hot lists.') }}
+              {{ copy('AI 裁判只判断烈度、结局和评语，最终鱼力值由后端固定规则结算。', 'AI judges intensity, outcome, and comment only. Final Fish Power is calculated by fixed backend rules.') }}
             </small>
           </label>
 
@@ -420,11 +420,12 @@ const {
 
         <div v-if="selectedRecord" class="result-body">
           <div class="score-block">
-            <span class="score-number">{{ selectedRecord.score.toFixed(1) }}</span>
-            <span class="score-label">Fish Power Score</span>
+            <span class="score-number">{{ selectedRecord.breakdown.displayScore !== undefined ? selectedRecord.breakdown.displayScore.toFixed(3) : selectedRecord.score.toFixed(1) }}</span>
+            <span class="score-label">{{ selectedRecord.breakdown.displayScore !== undefined ? copy('今日评分 / 10', 'Today Score / 10') : 'Fish Power Score' }}</span>
           </div>
           <div class="result-tags">
             <PxTag type="primary">{{ copy('称号', 'Title') }} {{ translatedTitle(selectedRecord.title) }}</PxTag>
+            <PxTag type="info">{{ copy('鱼力值', 'Fish Power') }} {{ selectedRecord.score.toFixed(1) }}</PxTag>
             <PxTag type="warning" v-if="lastResult">{{ copy('今日第', 'Today #') }} {{ lastResult.todayRank || '-' }} {{ copy('名', '') }}</PxTag>
             <PxTag type="success" v-if="lastResult">{{ copy('累计', 'Total') }} {{ lastResult.cumulativeScore.toFixed(1) }}</PxTag>
             <PxTag type="success" v-if="lastResult?.fishScaleReward">{{ copy('鱼鳞 +', 'Fish Scale +') }}{{ lastResult.fishScaleReward.awardedAmount }}</PxTag>
@@ -433,14 +434,32 @@ const {
           </div>
           <p v-if="lastResult?.fishScaleReward" class="status-line"><Coins :size="16" />{{ lastResult.fishScaleReward.message || copy(`本次摸鱼获得 +${lastResult.fishScaleReward.awardedAmount} 鱼鳞。`, `This record earned +${lastResult.fishScaleReward.awardedAmount} Fish Scale.`) }}</p>
           <p class="comment">{{ translatedSystemComment(selectedRecord.systemComment) }}</p>
-          <p class="scope-note">{{ copy('本次分数由持续时间档位计算。', 'This score is calculated from the duration tier.') }}</p>
+          <p class="scope-note">
+            {{
+              selectedRecord.scoreVersion.startsWith('ai_judge_v1')
+                ? copy('裁判评语由 AI 生成，鱼力值由后端固定规则结算。', 'The judge comment is AI-generated; Fish Power is calculated by fixed backend rules.')
+                : copy('本次分数由持续时间档位计算。', 'This score is calculated from the duration tier.')
+            }}
+          </p>
 
           <dl class="breakdown result-summary">
             <div><dt>{{ copy('持续时间', 'Duration') }}</dt><dd>{{ selectedRecord.durationLabel }}</dd></div>
             <div><dt>{{ copy('摸鱼事项', 'Activity') }}</dt><dd>{{ selectedRecord.activityText }}</dd></div>
             <div><dt>{{ copy('摸鱼故事', 'Story') }}</dt><dd>{{ selectedRecord.storyText || selectedRecord.description }}</dd></div>
-            <div><dt>{{ copy('持续时间分', 'Duration Score') }}</dt><dd>{{ selectedRecord.breakdown.durationScore ?? selectedRecord.breakdown.durationBaseScore }}</dd></div>
+            <template v-if="selectedRecord.scoreVersion.startsWith('ai_judge_v1')">
+              <div><dt>{{ copy('时长基础分', 'Duration Base') }}</dt><dd>{{ selectedRecord.breakdown.baseScore }}</dd></div>
+              <div><dt>{{ copy('烈度', 'Intensity') }}</dt><dd>{{ selectedRecord.breakdown.intensityLabel }} ×{{ selectedRecord.breakdown.intensityMultiplier }}</dd></div>
+              <div><dt>{{ copy('结局', 'Outcome') }}</dt><dd>{{ selectedRecord.breakdown.outcomeLabel }} +{{ selectedRecord.breakdown.outcomeBonus }}</dd></div>
+              <div><dt>{{ copy('特殊加成', 'Special Bonus') }}</dt><dd>+{{ selectedRecord.breakdown.specialBonusTotal ?? 0 }}</dd></div>
+              <div><dt>{{ copy('原始分', 'Raw Score') }}</dt><dd>{{ selectedRecord.breakdown.rawScore }}</dd></div>
+              <div><dt>{{ copy('显示分', 'Display Score') }}</dt><dd>{{ selectedRecord.breakdown.displayScore?.toFixed(3) }} / 10</dd></div>
+            </template>
+            <div v-else><dt>{{ copy('持续时间分', 'Duration Score') }}</dt><dd>{{ selectedRecord.breakdown.durationScore ?? selectedRecord.breakdown.durationBaseScore }}</dd></div>
           </dl>
+
+          <div v-if="selectedRecord.scoreVersion.startsWith('ai_judge_v1') && selectedRecord.breakdown.specialBonuses?.length" class="record-tags">
+            <span v-for="bonus in selectedRecord.breakdown.specialBonuses" :key="`${bonus.label}-${bonus.points}`">{{ bonus.label }} +{{ bonus.points }}</span>
+          </div>
 
           <div v-if="selectedRecord.topics?.length" class="topic-chip-list record-topic-list">
             <button v-for="topic in selectedRecord.topics" :key="topic.id" type="button" class="topic-chip" @click="openTopic(topic.slug)">#{{ topic.name }}</button>

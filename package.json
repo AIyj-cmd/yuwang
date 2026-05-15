@@ -11,6 +11,7 @@
     "build": "vue-tsc --noEmit && vite build && tsc -p tsconfig.server.json",
     "start": "node dist-server/server/index.js",
     "typecheck": "vue-tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "test:ai-judge": "tsx scripts/ai-judge-tests.ts",
     "api": "tsx server/index.ts",
     "admin:hash-password": "node scripts/hash-admin-password.mjs"
   },
@@ -25,6 +26,7 @@
     "bcryptjs": "^3.0.3",
     "fastify": "^5.8.5",
     "lucide-vue-next": "^1.0.0",
+    "openai": "^6.37.0",
     "vue": "^3.5.34",
     "vue-router": "^4.6.4",
     "zod": "^4.4.3"

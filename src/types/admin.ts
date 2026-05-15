@@ -45,15 +45,7 @@ export type AdminRecord = {
   scoreVersion: string;
   createdAt: string;
   updatedAt: string;
-  breakdown: {
-    baseScore: number;
-    durationScore: number;
-    durationBaseScore: number;
-    durationMultiplier: number;
-    riskMultiplier: number;
-    disguiseBonus: number;
-    creativityBonus: number;
-  };
+  breakdown: import('../../shared/aiJudgeTypes').ScoreBreakdown;
 };
 
 export type AdminWalletRow = {
@@ -226,4 +218,32 @@ export type AdminSafetyResponse = {
     records: unknown[];
     comments: unknown[];
   };
+};
+
+export type AdminAiPrompt = {
+  id: number;
+  key: string;
+  name: string;
+  content: string;
+  description: string;
+  version: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string;
+  lastTestedAt: string;
+};
+
+export type AdminAiPromptTestResponse = {
+  rawJson: string;
+  aiJson: unknown;
+  zod: {
+    success: boolean;
+    fallback: boolean;
+    fallbackReason: string;
+  };
+  breakdown: import('../../shared/aiJudgeTypes').ScoreBreakdown;
+  comment: string;
+  fallback: boolean;
+  fallbackReason: string;
 };

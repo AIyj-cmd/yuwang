@@ -56,6 +56,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'circles', name: 'admin-circles', component: () => import('../admin/AdminCirclesPage.vue') },
       { path: 'groups', name: 'admin-groups', component: () => import('../admin/AdminGroupsPage.vue') },
       { path: 'safety', name: 'admin-safety', component: () => import('../admin/AdminSafetyPage.vue') },
+      { path: 'ai-prompts', name: 'admin-ai-prompts', component: () => import('../admin/AdminAiPromptsPage.vue') },
       { path: 'settings', name: 'admin-settings', component: () => import('../admin/AdminSettingsPage.vue') },
       { path: 'audit-logs', name: 'admin-audit-logs', component: () => import('../admin/AdminAuditLogsPage.vue') }
     ]
