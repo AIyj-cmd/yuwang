@@ -10,7 +10,7 @@ import {
 import { findSlackingTypeOption } from '../shared/slackingTypes.js';
 import { OFFICIAL_CIRCLES, OFFICIAL_GUILDS, getCircleSlugsForRecord } from '../shared/social.js';
 import { createTopicSlug, type Topic } from '../shared/topics.js';
-import { getTodayRange } from './time.js';
+import { getTodayRange, getWeekRange, type PeriodRange } from './time.js';
 
 export type StoredRecord = {
   id: number;
@@ -121,6 +121,59 @@ export type RecordSubmissionFishScaleReward = {
 
 export const FISH_SCALE_INSUFFICIENT_MESSAGE = '鱼鳞不足，今天再摸一会儿？';
 
+export type NotificationType =
+  | 'record_like'
+  | 'record_comment'
+  | 'record_legend'
+  | 'wallet_reward'
+  | 'record_review'
+  | 'group_goal_completed';
+
+export type CreateNotificationInput = {
+  userId: number | null | undefined;
+  type: NotificationType;
+  title: string;
+  body?: string;
+  targetType?: string;
+  targetId?: number | null;
+  dedupeKey: string;
+  actorUserId?: number | null;
+};
+
+export type CreateNotificationResult = {
+  created: boolean;
+  id: number | null;
+  reason?: string;
+};
+
+export type GroupGoal = {
+  id: number;
+  group_id: number;
+  goal_type: string;
+  target_value: number;
+  period_key: string;
+  status: string;
+  reward_title: string;
+  created_at: string;
+  completed_at: string;
+};
+
+export type GroupGoalProgress = {
+  goal: GroupGoal;
+  period: PeriodRange;
+  currentValue: number;
+  targetValue: number;
+  percent: number;
+  completed: boolean;
+  contributions: {
+    userId: number;
+    username: string;
+    displayName: string;
+    recordCount: number;
+    score: number;
+  }[];
+};
+
 const FISH_SCALE_DAILY_CAPS = {
   submission: 50,
   interaction: 50,
@@ -139,6 +192,67 @@ const dataDir = join(process.cwd(), 'data');
 mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(join(dataDir, 'gongwei-yuwang.sqlite'));
+
+export const createNotificationIfNotExists = (input: CreateNotificationInput): CreateNotificationResult => {
+  try {
+    const userId = Number(input.userId ?? 0);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return { created: false, id: null, reason: 'invalid_user' };
+    }
+    if (input.actorUserId && Number(input.actorUserId) === userId) {
+      return { created: false, id: null, reason: 'self_action' };
+    }
+    const dedupeKey = input.dedupeKey.trim();
+    if (!dedupeKey) {
+      console.warn(`[notifications] skipped ${input.type}: dedupeKey is required`);
+      return { created: false, id: null, reason: 'missing_dedupe_key' };
+    }
+    const user = db.prepare('SELECT id FROM users WHERE id = ? LIMIT 1').get(userId);
+    if (!user) {
+      return { created: false, id: null, reason: 'unknown_user' };
+    }
+
+    const now = new Date().toISOString();
+    const result = db
+      .prepare(
+        `
+          INSERT OR IGNORE INTO notifications (
+            user_id,
+            type,
+            title,
+            body,
+            target_type,
+            target_id,
+            dedupe_key,
+            is_read,
+            created_at,
+            read_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, '')
+        `
+      )
+      .run(
+        userId,
+        input.type,
+        input.title.trim(),
+        input.body?.trim() ?? '',
+        input.targetType?.trim() ?? '',
+        input.targetId ?? null,
+        dedupeKey,
+        now
+      );
+
+    return {
+      created: Number(result.changes ?? 0) > 0,
+      id: Number(result.changes ?? 0) > 0 ? Number(result.lastInsertRowid) : null,
+      reason: Number(result.changes ?? 0) > 0 ? undefined : 'duplicate'
+    };
+  } catch (error) {
+    console.warn(`[notifications] failed to create ${input.type}:`, error);
+    return { created: false, id: null, reason: 'write_failed' };
+  }
+};
+
+export const createNotification = createNotificationIfNotExists;
 
 const getColumns = (table: string): Set<string> => {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
@@ -199,6 +313,22 @@ export const initDatabase = (): void => {
       related_id INTEGER,
       balance_after INTEGER NOT NULL,
       created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      target_type TEXT NOT NULL DEFAULT '',
+      target_id INTEGER,
+      dedupe_key TEXT NOT NULL DEFAULT '',
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      read_at TEXT NOT NULL DEFAULT '',
+      UNIQUE(user_id, dedupe_key),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
@@ -373,6 +503,20 @@ export const initDatabase = (): void => {
       shared_at TEXT NOT NULL,
       UNIQUE(record_id, group_id),
       FOREIGN KEY (record_id) REFERENCES slacking_records(id),
+      FOREIGN KEY (group_id) REFERENCES "groups"(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS group_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      goal_type TEXT NOT NULL,
+      target_value INTEGER NOT NULL,
+      period_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      reward_title TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      completed_at TEXT NOT NULL DEFAULT '',
+      UNIQUE(group_id, period_key, goal_type),
       FOREIGN KEY (group_id) REFERENCES "groups"(id)
     );
 
@@ -577,6 +721,8 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_user_created_at ON fish_scale_transactions(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_type_created_at ON fish_scale_transactions(type, created_at);
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_related ON fish_scale_transactions(related_type, related_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_created_at ON notifications(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
     CREATE INDEX IF NOT EXISTS idx_comments_record ON comments(record_id);
     CREATE INDEX IF NOT EXISTS idx_comments_status ON comments(status);
     CREATE INDEX IF NOT EXISTS idx_guild_members_guild ON guild_members(guild_id);
@@ -590,6 +736,8 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_record_groups_record ON record_groups(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_groups_group ON record_groups(group_id);
+    CREATE INDEX IF NOT EXISTS idx_group_goals_group_period ON group_goals(group_id, period_key);
+    CREATE INDEX IF NOT EXISTS idx_group_goals_status ON group_goals(status);
     CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
@@ -880,6 +1028,15 @@ export const creditFishScale = (input: {
     relatedId: input.relatedId,
     balanceAfter,
     createdAt: now
+  });
+  createNotificationIfNotExists({
+    userId: input.userId,
+    type: 'wallet_reward',
+    title: '鱼鳞到账',
+    body: `本次获得 +${amount} 鱼鳞，余额 ${balanceAfter}。`,
+    targetType: 'wallet_transaction',
+    targetId: transaction.id,
+    dedupeKey: `wallet_reward:${transaction.id}`
   });
   wallet = ensureUserWallet(input.userId);
 
@@ -1233,6 +1390,154 @@ export const refreshAllSocialAggregates = (): void => {
       WHERE group_members.group_id = "groups".id
     );
   `);
+};
+
+export const getGroupGoalPeriodKey = (range = getWeekRange()): string => `${range.start.slice(0, 10)}_${range.end.slice(0, 10)}`;
+
+const mapGroupGoal = (row: Record<string, unknown>): GroupGoal => ({
+  id: Number(row.id),
+  group_id: Number(row.group_id),
+  goal_type: String(row.goal_type ?? 'weekly_score'),
+  target_value: Number(row.target_value ?? 0),
+  period_key: String(row.period_key ?? ''),
+  status: String(row.status ?? 'active'),
+  reward_title: String(row.reward_title ?? ''),
+  created_at: String(row.created_at ?? ''),
+  completed_at: String(row.completed_at ?? '')
+});
+
+export const ensureCurrentGroupGoal = (groupId: number, now = new Date()): GroupGoal => {
+  const range = getWeekRange(now);
+  const periodKey = getGroupGoalPeriodKey(range);
+  const existing = db
+    .prepare('SELECT * FROM group_goals WHERE group_id = ? AND period_key = ? ORDER BY id ASC LIMIT 1')
+    .get(groupId, periodKey) as Record<string, unknown> | undefined;
+  if (existing) return mapGroupGoal(existing);
+
+  const createdAt = new Date().toISOString();
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO group_goals (
+        group_id,
+        goal_type,
+        target_value,
+        period_key,
+        status,
+        reward_title,
+        created_at,
+        completed_at
+      ) VALUES (?, 'weekly_score', 300, ?, 'active', '本周摸鱼协作完成', ?, '')
+    `
+  ).run(groupId, periodKey, createdAt);
+  return mapGroupGoal(
+    db.prepare('SELECT * FROM group_goals WHERE group_id = ? AND period_key = ? ORDER BY id ASC LIMIT 1').get(groupId, periodKey) as Record<string, unknown>
+  );
+};
+
+export const getGroupGoalProgress = (groupId: number, goal = ensureCurrentGroupGoal(groupId), period = getWeekRange()): GroupGoalProgress => {
+  const aggregate = db
+    .prepare(
+      `
+        SELECT
+          COALESCE(SUM(slacking_records.fish_power_score), 0) AS score,
+          COUNT(slacking_records.id) AS records
+        FROM record_groups
+        JOIN slacking_records ON slacking_records.id = record_groups.record_id
+        WHERE record_groups.group_id = ?
+          AND slacking_records.status = 'approved'
+          AND slacking_records.created_at >= ?
+          AND slacking_records.created_at < ?
+      `
+    )
+    .get(groupId, period.start, period.end) as { score: number; records: number };
+  const currentValue = goal.goal_type === 'weekly_records' ? Number(aggregate.records ?? 0) : Number(Number(aggregate.score ?? 0).toFixed(1));
+  const targetValue = Number(goal.target_value ?? 0);
+  const contributions = db
+    .prepare(
+      `
+        SELECT
+          users.id AS user_id,
+          users.username,
+          users.display_name,
+          COUNT(slacking_records.id) AS record_count,
+          COALESCE(SUM(slacking_records.fish_power_score), 0) AS score
+        FROM group_members
+        JOIN users ON users.id = group_members.user_id
+        LEFT JOIN record_groups ON record_groups.group_id = group_members.group_id
+        LEFT JOIN slacking_records ON slacking_records.id = record_groups.record_id
+          AND slacking_records.user_id = users.id
+          AND slacking_records.status = 'approved'
+          AND slacking_records.created_at >= ?
+          AND slacking_records.created_at < ?
+        WHERE group_members.group_id = ?
+        GROUP BY users.id
+        ORDER BY score DESC, record_count DESC, users.display_name ASC
+        LIMIT 10
+      `
+    )
+    .all(period.start, period.end, groupId) as Record<string, unknown>[];
+
+  return {
+    goal,
+    period,
+    currentValue,
+    targetValue,
+    percent: targetValue > 0 ? Math.min(100, Math.round((currentValue / targetValue) * 100)) : 0,
+    completed: goal.status === 'completed' || (targetValue > 0 && currentValue >= targetValue),
+    contributions: contributions.map((row) => ({
+      userId: Number(row.user_id),
+      username: String(row.username),
+      displayName: String(row.display_name),
+      recordCount: Number(row.record_count ?? 0),
+      score: Number(Number(row.score ?? 0).toFixed(1))
+    }))
+  };
+};
+
+export const getCurrentGroupGoalProgress = (groupId: number, now = new Date()): GroupGoalProgress => {
+  const range = getWeekRange(now);
+  return getGroupGoalProgress(groupId, ensureCurrentGroupGoal(groupId, now), range);
+};
+
+export const checkAndCompleteGroupGoalsForRecord = (recordId: number, groupIds: number[]): GroupGoalProgress[] => {
+  const uniqueGroupIds = [...new Set(groupIds.filter((id) => Number.isInteger(id) && id > 0))];
+  if (!uniqueGroupIds.length) return [];
+  const record = db
+    .prepare("SELECT id, status, created_at FROM slacking_records WHERE id = ? AND status = 'approved'")
+    .get(recordId) as { id: number; status: string; created_at: string } | undefined;
+  if (!record) return [];
+  const range = getWeekRange(new Date(record.created_at));
+  const currentRange = getWeekRange();
+  if (range.start !== currentRange.start || range.end !== currentRange.end) return [];
+
+  const completed: GroupGoalProgress[] = [];
+  for (const groupId of uniqueGroupIds) {
+    const goal = ensureCurrentGroupGoal(groupId);
+    if (goal.status === 'completed') continue;
+    const progress = getGroupGoalProgress(groupId, goal, currentRange);
+    if (!progress.completed) continue;
+    const now = new Date().toISOString();
+    const result = db
+      .prepare("UPDATE group_goals SET status = 'completed', completed_at = ? WHERE id = ? AND status != 'completed'")
+      .run(now, goal.id);
+    if (Number(result.changes ?? 0) <= 0) continue;
+    const updatedGoal = mapGroupGoal(db.prepare('SELECT * FROM group_goals WHERE id = ?').get(goal.id) as Record<string, unknown>);
+    const updatedProgress = getGroupGoalProgress(groupId, updatedGoal, currentRange);
+    const members = db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId) as { user_id: number }[];
+    for (const member of members) {
+      createNotificationIfNotExists({
+        userId: Number(member.user_id),
+        type: 'group_goal_completed',
+        title: '小组周目标完成',
+        body: `${updatedGoal.reward_title || '本周摸鱼协作完成'}：${updatedProgress.currentValue.toFixed(1)} / ${updatedProgress.targetValue}。`,
+        targetType: 'group',
+        targetId: groupId,
+        dedupeKey: `group_goal_completed:${groupId}:${updatedGoal.id}:${updatedGoal.period_key}`
+      });
+    }
+    completed.push(updatedProgress);
+  }
+  return completed;
 };
 
 export const getNicknameTotalScore = (nickname: string): number => {

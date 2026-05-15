@@ -152,6 +152,104 @@ export type WalletTransactionsResponse = {
   pageSize: number;
 };
 
+export type NotificationItem = {
+  id: number;
+  userId: number;
+  type: string;
+  title: string;
+  body: string;
+  targetType: string;
+  targetId: number | null;
+  dedupeKey: string;
+  isRead: boolean;
+  createdAt: string;
+  readAt: string;
+};
+
+export type NotificationsResponse = {
+  notifications: NotificationItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type NotificationUnreadCountResponse = {
+  count: number;
+};
+
+export type SearchUser = {
+  id: number;
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarSeed: string;
+  totalScore: number;
+  title: string;
+};
+
+export type SearchGroup = {
+  id: number;
+  name: string;
+  description: string;
+  visibility: string;
+  ownerUserId: number;
+  memberCount: number;
+  createdAt: string;
+};
+
+export type SearchResponse = {
+  query: string;
+  records: FeedRecord[];
+  topics: Topic[];
+  users: SearchUser[];
+  guilds: Guild[];
+  circles: Circle[];
+  groups: SearchGroup[];
+};
+
+export type RelatedRecordsResponse = {
+  records: FeedRecord[];
+};
+
+export type ProfileInsightTopValue = {
+  key: string;
+  label: string;
+  count: number;
+};
+
+export type ProfileInsights = {
+  username: string;
+  displayName: string;
+  totalRecords: number;
+  totalScore: number;
+  averageScore: number;
+  topSlackingType: ProfileInsightTopValue | null;
+  topDisguise: ProfileInsightTopValue | null;
+  highestRecord: RecordSummary | null;
+  weekActivity: {
+    records: number;
+    score: number;
+  };
+  monthActivity: {
+    records: number;
+    score: number;
+  };
+  interactions: {
+    likes: number;
+    comments: number;
+    legendNominations: number;
+  };
+  persona: {
+    key: string;
+    label: string;
+    description: string;
+  };
+};
+
+export type ProfileInsightsResponse = {
+  insights: ProfileInsights;
+};
+
 export type FeedTag = {
   id: number;
   name: string;
@@ -206,6 +304,7 @@ export type SubmitResponse = {
   title: string;
   systemComment: string;
   fishScaleReward: FishScaleReward | null;
+  completedGroupGoals?: GroupGoalProgress[];
   safety?: {
     level: string;
     sensitiveTerms: string[];
@@ -266,10 +365,23 @@ export type Comment = {
 };
 
 export type ShareCard = {
+  recordId?: number;
   title: string;
   subtitle: string;
   body: string;
   shareText: string;
+  score?: number;
+  titleLevel?: string;
+  systemComment?: string;
+  todayRank?: number | null;
+  isToday?: boolean;
+  rankLabel?: string;
+  rankIsRealtime?: boolean;
+  historicalHighlight?: string;
+  createdAt?: string;
+  topicTags?: string[];
+  safetyNotice?: string;
+  shareCount?: number;
 };
 
 export type SocialResponse = {
@@ -295,6 +407,7 @@ export type PopularTopicsResponse = {
 
 export type TopicDetailResponse = {
   topic: Topic;
+  filter?: string;
   records: FeedRecord[];
   popularTopics: Topic[];
 };
@@ -377,6 +490,35 @@ export type GroupChallenge = {
   reward: string;
 };
 
+export type GroupGoalProgress = {
+  goal: {
+    id: number;
+    groupId: number;
+    goalType: string;
+    targetValue: number;
+    periodKey: string;
+    status: string;
+    rewardTitle: string;
+    createdAt: string;
+    completedAt: string;
+  };
+  period: {
+    start: string;
+    end: string;
+  };
+  currentValue: number;
+  targetValue: number;
+  percent: number;
+  completed: boolean;
+  contributions: {
+    userId: number;
+    username: string;
+    displayName: string;
+    recordCount: number;
+    score: number;
+  }[];
+};
+
 export type GroupsResponse = {
   groups: Group[];
   challenges: GroupChallenge[];
@@ -386,6 +528,7 @@ export type GroupDetailResponse = {
   group: Group;
   members: unknown[];
   challenges: GroupChallenge[];
+  currentGoal?: GroupGoalProgress;
 };
 
 export type GroupChallengeResponse = {

@@ -22,9 +22,17 @@ const routes: RouteRecordRaw[] = [
   { path: '/result', name: 'result', component: ResultPage, meta: { section: 'result' } },
   { path: '/leaderboard', name: 'leaderboard', component: LeaderboardPage, meta: { section: 'leaderboard' } },
   { path: '/profile', name: 'profile', component: ProfilePage, meta: { section: 'profile' } },
+  { path: '/users/:username', name: 'user-profile', component: () => import('../pages/UserProfilePage.vue'), meta: { section: 'profile' } },
   { path: '/profile/wallet', name: 'wallet', component: WalletPage, meta: { section: 'wallet' } },
   { path: '/protection', name: 'protection', component: ProtectionPage, meta: { section: 'safety' } },
   { path: '/community', name: 'community', component: CommunityPage, meta: { section: 'community' } },
+  { path: '/records/:id', name: 'record-share', component: () => import('../pages/RecordSharePage.vue'), meta: { section: 'community' } },
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: () => import('../pages/NotificationsPage.vue'),
+    meta: { section: 'notifications', requiresAuth: true }
+  },
   { path: '/topics/:slug', name: 'topic-detail', component: TopicDetailPage, meta: { section: 'community' } },
   { path: '/guilds', name: 'guilds', component: GuildsPage, meta: { section: 'guilds' } },
   { path: '/guilds/:id', name: 'guild-detail', component: GuildDetailPage, meta: { section: 'guilds' } },
@@ -74,6 +82,7 @@ const legacyHashRoutes: Record<string, string> = {
   protection: '/protection',
   safety: '/protection',
   community: '/community',
+  notifications: '/notifications',
   guilds: '/guilds',
   circles: '/circles',
   groups: '/groups'
@@ -107,6 +116,9 @@ router.beforeEach(async (to) => {
     } catch {
       return true;
     }
+  }
+  if (to.meta.requiresAuth && !localStorage.getItem('gongwei-yuwang-token')) {
+    return { path: '/', replace: true };
   }
   return true;
 });

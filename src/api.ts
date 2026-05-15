@@ -171,12 +171,18 @@ export const postComment = async (recordId: number, content: string, token: stri
   );
 };
 
-export const shareRecord = async (recordId: number): Promise<ShareCard> => {
+export const fetchShareCard = async (recordId: number, token?: string | null): Promise<ShareCard> => {
+  return parseResponse<ShareCard>(
+    await fetch(`/api/records/${recordId}/share-card`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  );
+};
+
+export const shareRecord = async (recordId: number, action: 'generate' | 'copy_text' | 'share_link' = 'generate'): Promise<ShareCard> => {
   return parseResponse<ShareCard>(
     await fetch(`/api/records/${recordId}/share-card`, {
       method: 'POST',
       headers: headers(),
-      body: '{}'
+      body: JSON.stringify({ action })
     })
   );
 };
@@ -216,9 +222,10 @@ export const fetchPopularTopics = async (): Promise<PopularTopicsResponse> => {
   return parseResponse<PopularTopicsResponse>(await fetch('/api/topics/popular'));
 };
 
-export const fetchTopicDetail = async (slug: string, token?: string | null): Promise<TopicDetailResponse> => {
+export const fetchTopicDetail = async (slug: string, token?: string | null, filter = 'latest'): Promise<TopicDetailResponse> => {
+  const query = new URLSearchParams({ filter });
   return parseResponse<TopicDetailResponse>(
-    await fetch(`/api/topics/${encodeURIComponent(slug)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    await fetch(`/api/topics/${encodeURIComponent(slug)}?${query.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
   );
 };
 

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BadgeCheck,
   BarChart3,
+  Bell,
   Check,
   ClipboardCheck,
   Coins,
@@ -107,6 +108,7 @@ import { appContextKey } from './appContext';
 import { MAX_TOPICS_PER_RECORD, RECOMMENDED_TOPICS, normalizeTopicName, validateTopicName } from '../shared/topics';
 import type { Topic } from './types';
 import ThemeSwitcher from './components/ThemeSwitcher.vue';
+import { fetchNotificationUnreadCount } from './services/notificationApi';
 
 const messages = {
   'zh-CN': {
@@ -134,6 +136,7 @@ const messages = {
     password: '密码',
     displayName: '显示昵称',
     profile: '个人主页',
+    notifications: '通知中心',
     wallet: '鱼鳞钱包',
     logout: '退出',
     save: '保存',
@@ -196,6 +199,7 @@ const messages = {
     password: 'Password',
     displayName: 'Display Name',
     profile: 'Profile',
+    notifications: 'Notifications',
     wallet: 'Fish Scale Wallet',
     logout: 'Log Out',
     save: 'Save',
@@ -438,6 +442,7 @@ const sectionRouteMap: Record<string, string> = {
   result: '/result',
   leaderboard: '/leaderboard',
   profile: '/profile',
+  notifications: '/notifications',
   wallet: '/profile/wallet',
   safety: '/protection',
   protection: '/protection',
@@ -522,6 +527,7 @@ const authMode = ref<'login' | 'register'>('login');
 const profile = ref<ProfileResponse | null>(null);
 const walletData = ref<WalletResponse | null>(null);
 const walletTransactions = ref<WalletTransactionsResponse | null>(null);
+const notificationUnreadCount = ref(0);
 const adminQueue = ref<AdminQueueResponse | null>(null);
 const social = ref<SocialResponse | null>(null);
 const shareCard = ref<ShareCard | null>(null);
@@ -965,6 +971,18 @@ const loadWallet = async () => {
   }
 };
 
+const refreshNotificationUnreadCount = async () => {
+  if (!token.value) {
+    notificationUnreadCount.value = 0;
+    return;
+  }
+  try {
+    notificationUnreadCount.value = (await fetchNotificationUnreadCount(token.value)).count;
+  } catch {
+    notificationUnreadCount.value = 0;
+  }
+};
+
 const handleCheckin = async () => {
   if (!token.value) return setError(t('needLogin'));
   try {
@@ -1021,12 +1039,14 @@ const loadMe = async () => {
       await loadGroups();
       await loadCheckin();
       await loadWallet();
+      await refreshNotificationUnreadCount();
       if (response.user.isAdmin) await loadAdminQueue();
     }
   } catch {
     localStorage.removeItem('gongwei-yuwang-token');
     token.value = null;
     currentUser.value = null;
+    notificationUnreadCount.value = 0;
   }
 };
 
@@ -1069,6 +1089,7 @@ const logout = () => {
   profile.value = null;
   walletData.value = null;
   walletTransactions.value = null;
+  notificationUnreadCount.value = 0;
   badges.value = [];
   adminQueue.value = null;
   groupsData.value = null;
@@ -1345,6 +1366,7 @@ provide(appContextKey, {
   loading,
   locale,
   localizedLeaderboardTypes,
+  notificationUnreadCount,
   openProfileRecord,
   openTopic,
   options,
@@ -1352,6 +1374,7 @@ provide(appContextKey, {
   profile,
   profileForm,
   resetForm,
+  refreshNotificationUnreadCount,
   removeTopic,
   saveProfile,
   selectedBoard,
@@ -1400,6 +1423,7 @@ watch(communityFilter, () => {
 });
 
 watch(activeSection, (section) => {
+  if (token.value) void refreshNotificationUnreadCount();
   if (section === 'community') void loadCommunity();
   if (section === 'guilds') void loadGuilds();
   if (section === 'circles') void loadCircles();
@@ -1458,6 +1482,11 @@ onMounted(async () => {
             <button type="button" :class="{ active: activeSection === 'wallet' }" @click="jumpToSection('wallet')">
               <Coins :size="16" />
               <span>{{ t('wallet') }}</span>
+            </button>
+            <button type="button" :class="{ active: activeSection === 'notifications' }" @click="jumpToSection('notifications')">
+              <Bell :size="16" />
+              <span>{{ t('notifications') }}</span>
+              <small v-if="notificationUnreadCount > 0">{{ notificationUnreadCount }} {{ copy('未读', 'unread') }}</small>
             </button>
             <button type="button" @click="logout">
               <LogOut :size="16" />

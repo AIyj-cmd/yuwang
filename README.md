@@ -11,6 +11,11 @@
 - 排行榜：今日、周榜、月榜、赛季榜、伪装榜、会议榜和传奇榜，支持榜单切换与昵称筛选。
 - 账号与个人主页：注册登录、资料编辑、累计等级称号、徽章、近期记录和鱼鳞钱包。
 - 社区互动：社区广场、话题详情、点赞、收藏、投票、评论、举报、传奇提名和分享卡片。
+- 通知中心：站内通知覆盖点赞、评论、传奇提名、鱼鳞到账和记录审核状态，使用统一写入入口和 dedupe key 避免重复刷屏。
+- 搜索与内容发现：社区页提供全站轻量搜索，按记录、话题、用户、工会、圈子和公开小组分组展示；话题详情支持最新、热门、高分、传奇筛选；记录社交详情展示相关记录推荐。
+- 分享卡增强：分享卡展示标题、Fish Power Score、称号、系统点评、今日实时排名或历史高光、话题标签和匿名安全提示，支持生成分享卡、复制文案和复制公开分享链接。
+- 个人摸鱼画像：个人主页和公开用户页展示总次数、累计分、平均分、常用类型、常用伪装、最高分记录、本周 / 本月活跃和互动汇总，并用确定性规则生成摸鱼人格标签。
+- 小组周目标：小组详情展示当前周协作目标、进度、成员贡献和完成状态；记录提交或同步到小组后同步检查目标完成，并通过通知中心给成员发送完成通知。
 - 社交链路：工会大厅、圈子广场、我的小组、邀请码小组、小组挑战和贡献排行。
 - 安全与内容保护：敏感词、长度限制、疑似隐私内容审核、匿名化确认和持续安全提示。
 - 管理后台：记录审核、举报处理、评论管理、用户状态、钱包调整、话题、工会、圈子、小组、安全配置、站点配置和操作日志。
@@ -87,8 +92,11 @@ npm run admin:hash-password -- your-password
 - `/result`：本次得分结果
 - `/leaderboard`：排行榜
 - `/profile`、`/profile/wallet`：个人主页和鱼鳞钱包
+- `/users/:username`：公开个人主页，只展示已公开且审核通过的记录
+- `/notifications`：通知中心，页面文件为 `src/pages/NotificationsPage.vue`
 - `/protection`：安全与内容保护
 - `/community`、`/topics/:slug`：社区广场和话题详情
+- `/records/:id`：公开分享落地页，只允许访问公开且审核通过的记录
 - `/guilds`、`/guilds/:id`：工会大厅和工会详情
 - `/circles`、`/circles/:id`：圈子广场和圈子详情
 - `/groups`、`/groups/:id`：我的小组和小组详情
@@ -129,10 +137,15 @@ npm run admin:hash-password -- your-password
 - `GET /api/auth/me`
 - `PATCH /api/auth/me`
 - `GET /api/users/:username`
+- `GET /api/users/:username/insights`
 - `GET /api/wallet/me`
 - `GET /api/wallet/transactions`
 - `GET /api/checkins/me`
 - `POST /api/checkins`
+- `GET /api/notifications`
+- `GET /api/notifications/unread-count`
+- `POST /api/notifications/:id/read`
+- `POST /api/notifications/read-all`
 
 记录、排行和社区：
 
@@ -140,9 +153,11 @@ npm run admin:hash-password -- your-password
 - `GET /api/leaderboards?board=today|week|month|season|disguise|meeting|legendary`
 - `GET /api/community/feed`
 - `GET /api/community/hot`
+- `GET /api/search?q=关键词`
 - `GET /api/topics/popular`
-- `GET /api/topics/:slug`
+- `GET /api/topics/:slug?filter=latest|hot|high|legendary`
 - `GET /api/records/:id/social`
+- `GET /api/records/:id/related`
 - `POST /api/records/:id/interactions`
 - `POST /api/records/:id/comments`
 - `POST /api/records/:id/like`
@@ -150,7 +165,7 @@ npm run admin:hash-password -- your-password
 - `POST /api/records/:id/report`
 - `POST /api/records/:id/nominate-legend`
 - `GET /api/records/:id/share-card`
-- `POST /api/records/:id/share-card`
+- `POST /api/records/:id/share-card`，body 可传 `action=generate|copy_text|share_link`
 
 工会、圈子和小组：
 
@@ -169,6 +184,7 @@ npm run admin:hash-password -- your-password
 - `POST /api/groups`
 - `POST /api/groups/join-by-code`
 - `GET /api/groups/:id`
+- `GET /api/groups/:id/goals/current`
 - `GET /api/groups/:id/feed`
 - `GET /api/groups/:id/ranking`
 - `POST /api/groups/:id/challenges`
@@ -182,6 +198,18 @@ npm run admin:hash-password -- your-password
 - 数据库结构变更必须幂等，使用 `CREATE TABLE IF NOT EXISTS` 和缺失字段补齐方式，不能清空现有数据。
 - 客户端可以展示评分规则，但最终分数必须由后端根据枚举值计算，不能信任客户端提交的分数。
 - 记录、评论、举报、用户、工会、圈子和小组的状态字段需要兼容旧数据。
+- 通知系统只通过统一入口函数写入，互动、奖励、审核通知必须提供非空 `dedupe_key`；同一行为只通知一次，取消点赞后再次点赞不会重复通知。
+- 小组目标完成通知预留 `group_goal_completed` 类型，并在小组目标功能中接入同一个通知入口。
+- 搜索空查询返回空结果集合，不返回全站数据；搜索记录结果只展示 `approved` 且 `public` 的内容。
+- 用户搜索结果只返回用户名、显示名、头像种子、公开简介、累计分数和公开称号，不返回账号状态、管理员字段、密码或会话信息。
+- 当前搜索使用 SQLite `LIKE '%keyword%'` 的轻量实现，并限制每类结果数量，适合 MVP / 小规模数据；数据量增长后建议升级 SQLite FTS5 或外部搜索服务。
+- 分享卡今日排名只对当天记录展示，且在请求时实时调用排行榜同源排名逻辑计算，不写入数据库快照，排名可能随当天新记录变化。
+- 历史记录分享卡不显示今日排名，只展示记录创建日期、当时得分和历史高光文案。
+- 分享卡不支持图片上传、截图上传或文件上传；只有明确生成、复制文案或复制链接动作会增加 `share_count`，页面刷新和 GET 读取不会增加分享次数。
+- 个人摸鱼画像接口是公开接口，不需要登录；统计只基于该用户 `approved` 且 `public` 的记录，自己查看也不包含私密记录，不返回管理字段、账号状态字段或私密记录相关字段。
+- 小组周目标第一版使用 `getWeekRange` 的当前周口径，部署环境按 Asia/Shanghai 本地时间运行；`period_key` 使用 `YYYY-MM-DD_YYYY-MM-DD` 起止日期格式。
+- 小组周目标完成判定在记录提交、记录同步到小组或待审核记录通过时同步检查，只检查相关小组和当前周期 active 目标，不依赖 cron、后台 worker 或 WebSocket。
+- 小组目标展示进度和完成判定共用 `getGroupGoalProgress`；完成通知通过通知统一入口写入，dedupe key 为 `group_goal_completed:{groupId}:{goalId}:{periodKey}`，不会重复发送。
 - 不提供图片、截图或文件上传。
 - 不收集真实公司名、部门名、客户名、员工身份、真实地理位置等敏感身份信息。
 
@@ -212,3 +240,13 @@ curl http://localhost:3001/api/admin/dashboard/summary
 ```
 
 涉及前端页面时，还需要确认页面可正常加载、左侧导航切换只展示对应功能区、窄屏下文字和按钮不重叠。涉及登录、个人主页、互动或审核时，需要同时检查登录态和未登录态。管理后台页面不能由未登录管理员访问。
+
+通知中心新增后需要额外检查：未登录态不能读取通知；登录后能看到未读数量；点赞、评论、传奇提名、鱼鳞到账和审核状态变化能产生通知；同一行为不会重复通知；标记已读和全部已读会让未读数下降。
+
+搜索与内容发现新增后需要额外检查：空关键词只返回空数组；搜索不会展示 private、hidden 或 rejected 记录；用户搜索不会返回管理字段；话题页四种筛选可切换；记录社交详情能展示相关记录且不包含当前记录。
+
+分享卡增强后需要额外检查：提交结果页和社区记录能生成分享卡；复制文案和分享链接会增加分享次数；当天记录显示实时今日排名提示；历史记录不显示今日排名；未登录用户能打开公开分享页；私密、隐藏、拒绝记录不可公开访问。
+
+个人摸鱼画像新增后需要额外检查：有公开记录用户能看到完整画像；无公开记录用户看到空状态；画像统计只来自公开且审核通过的记录；刷新后数据一致；公开用户页不泄露私密、隐藏、拒绝记录。
+
+小组周目标新增后需要额外检查：小组详情能看到周目标和进度；提交或同步本周公开审核通过记录后进度变化；达标后状态变为 completed；小组成员收到且只收到一次目标完成通知；新一周使用新的 period key；老的小组、邀请码加入和小组 feed 不受影响。

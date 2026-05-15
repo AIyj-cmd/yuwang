@@ -11,6 +11,7 @@ const route = useRoute();
 const detail = ref<TopicDetailResponse | null>(null);
 const loading = ref(false);
 const error = ref('');
+const filter = ref<'latest' | 'hot' | 'high' | 'legendary'>('latest');
 
 const {
   authToken,
@@ -38,7 +39,7 @@ const load = async () => {
   loading.value = true;
   error.value = '';
   try {
-    detail.value = await fetchTopicDetail(slug.value, authToken.value);
+    detail.value = await fetchTopicDetail(slug.value, authToken.value, filter.value);
   } catch (err) {
     detail.value = null;
     error.value = err instanceof Error ? err.message : copy('话题加载失败。', 'Failed to load topic.');
@@ -54,6 +55,7 @@ const reloadAfter = async (action: (recordId: number) => Promise<void>, recordId
 
 onMounted(load);
 watch(slug, load);
+watch(filter, load);
 </script>
 
 <template>
@@ -72,6 +74,13 @@ watch(slug, load);
         <div class="module-intro">
           <strong>#{{ topic.name }}</strong>
           <span>{{ copy('这些记录都带着同一个匿名小标签。话题只做聚合，不参与评分、圈子积分或工会贡献。', 'These records share the same anonymous tag. Topics only aggregate content and do not affect scoring, circles, or guild contribution.') }}</span>
+        </div>
+
+        <div class="feed-filters">
+          <button type="button" :class="{ active: filter === 'latest' }" @click="filter = 'latest'">{{ copy('最新', 'Latest') }}</button>
+          <button type="button" :class="{ active: filter === 'hot' }" @click="filter = 'hot'">{{ copy('热门', 'Hot') }}</button>
+          <button type="button" :class="{ active: filter === 'high' }" @click="filter = 'high'">{{ copy('高分', 'High Score') }}</button>
+          <button type="button" :class="{ active: filter === 'legendary' }" @click="filter = 'legendary'">{{ copy('传奇', 'Legendary') }}</button>
         </div>
 
         <div v-if="popularTopics.length" class="popular-topic-strip">

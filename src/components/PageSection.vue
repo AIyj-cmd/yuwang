@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -22,10 +23,16 @@ import {
 } from 'lucide-vue-next';
 import { PxButton, PxCard, PxInput, PxTag } from '@mmt817/pixel-ui';
 import { TITLE_LEVELS } from '../../shared/scoring';
+import { shareRecord } from '../api';
 import { useAppContext } from '../appContext';
+import { useProfileInsights } from '../composables/useProfileInsights';
+import { useSearch } from '../composables/useSearch';
+import { fetchRelatedRecords } from '../services/discoveryApi';
+import type { FeedRecord } from '../types';
 
 const props = defineProps<{ section: string }>();
 const activeSection = computed(() => props.section);
+const router = useRouter();
 const {
   activeBoard,
   addTopic,
@@ -34,6 +41,7 @@ const {
   adminQueue,
   allProfileBadges,
   announcements,
+  authToken,
   canSubmit,
   checkin,
   checkinNote,
@@ -79,7 +87,6 @@ const {
   handlePrivateOnlyChange,
   handleReviewComment,
   handleReviewRecord,
-  handleShare,
   handleSubmit,
   inviteCode,
   isCurrentLevel,
@@ -138,6 +145,103 @@ const {
   walletData,
   walletTransactions
 } = useAppContext();
+
+const { searchQuery, searchResults, searchLoading, searchError, hasSearched, resultCount, runSearch, clearSearch } = useSearch(
+  () => authToken.value
+);
+const { profileInsights, profileInsightsLoading, loadProfileInsights } = useProfileInsights();
+const relatedRecords = ref<FeedRecord[]>([]);
+const relatedLoading = ref(false);
+
+const openUser = async (username: string) => {
+  await router.push(`/users/${encodeURIComponent(username)}`);
+};
+
+const openGuild = async (id: number) => {
+  await router.push(`/guilds/${id}`);
+};
+
+const openCircleRoute = async (id: number) => {
+  await router.push(`/circles/${id}`);
+};
+
+const openGroupRoute = async (id: number) => {
+  await router.push(`/groups/${id}`);
+};
+
+const shareUrlForRecord = (recordId: number) => `${window.location.origin}/records/${recordId}`;
+
+const copyToClipboard = async (text: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
+};
+
+const handleShareAction = async (action: 'generate' | 'copy_text' | 'share_link') => {
+  const record = selectedRecord.value;
+  if (!record) {
+    errorMessage.value = t('noRecord');
+    statusMessage.value = '';
+    return;
+  }
+  try {
+    const card = await shareRecord(record.id, action);
+    shareCard.value = card;
+    if (action === 'copy_text') {
+      await copyToClipboard(card.shareText);
+      statusMessage.value = copy('分享文案已复制。', 'Share text copied.');
+    } else if (action === 'share_link') {
+      await copyToClipboard(shareUrlForRecord(record.id));
+      statusMessage.value = copy('分享链接已复制。', 'Share link copied.');
+    } else {
+      statusMessage.value = copy('分享卡已生成。', 'Share card generated.');
+    }
+    errorMessage.value = '';
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : copy('分享失败', 'Share failed');
+    statusMessage.value = '';
+  }
+};
+
+const loadRelatedRecords = async (recordId?: number) => {
+  if (!recordId) {
+    relatedRecords.value = [];
+    return;
+  }
+  relatedLoading.value = true;
+  try {
+    relatedRecords.value = (await fetchRelatedRecords(recordId, authToken.value)).records;
+  } catch {
+    relatedRecords.value = [];
+  } finally {
+    relatedLoading.value = false;
+  }
+};
+
+watch(
+  () => selectedRecord.value?.id,
+  (recordId) => {
+    void loadRelatedRecords(recordId);
+  },
+  { immediate: true }
+);
+
+watch(
+  () => profile.value?.user.username,
+  (username) => {
+    void loadProfileInsights(username);
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -303,6 +407,54 @@ const {
                 <span>{{ t('badges') }}</span>
                 <strong>{{ unlockedBadges.length }} / {{ allProfileBadges.length }}</strong>
               </div>
+            </section>
+
+            <section class="profile-section profile-insights">
+              <div class="profile-section-head">
+                <strong>{{ copy('摸鱼画像', 'Slacking Persona') }}</strong>
+                <small>{{ copy('只统计公开且审核通过的记录', 'Only approved public records') }}</small>
+              </div>
+              <div v-if="profileInsightsLoading" class="loading-line">{{ copy('画像生成中...', 'Loading insights...') }}</div>
+              <template v-else-if="profileInsights">
+                <div class="module-intro">
+                  <strong>{{ profileInsights.persona.label }}</strong>
+                  <span>{{ profileInsights.persona.description }}</span>
+                </div>
+                <section v-if="profileInsights.totalRecords > 0" class="profile-section profile-summary">
+                  <div>
+                    <span>{{ copy('总摸鱼次数', 'Total Records') }}</span>
+                    <strong>{{ profileInsights.totalRecords }}</strong>
+                  </div>
+                  <div>
+                    <span>{{ copy('平均得分', 'Average Score') }}</span>
+                    <strong>{{ profileInsights.averageScore.toFixed(1) }}</strong>
+                  </div>
+                  <div>
+                    <span>{{ copy('本周活跃', 'This Week') }}</span>
+                    <strong>{{ profileInsights.weekActivity.records }} / {{ profileInsights.weekActivity.score.toFixed(1) }}</strong>
+                  </div>
+                  <div>
+                    <span>{{ copy('本月活跃', 'This Month') }}</span>
+                    <strong>{{ profileInsights.monthActivity.records }} / {{ profileInsights.monthActivity.score.toFixed(1) }}</strong>
+                  </div>
+                </section>
+                <div v-if="profileInsights.totalRecords > 0" class="record-tags">
+                  <span>{{ copy('常用类型', 'Top Type') }}：{{ profileInsights.topSlackingType?.label ?? '-' }}</span>
+                  <span>{{ copy('常用伪装', 'Top Disguise') }}：{{ profileInsights.topDisguise?.label ?? '-' }}</span>
+                  <span>{{ t('like') }} {{ profileInsights.interactions.likes }}</span>
+                  <span>{{ t('comments') }} {{ profileInsights.interactions.comments }}</span>
+                  <span>{{ copy('传奇', 'Legend') }} {{ profileInsights.interactions.legendNominations }}</span>
+                </div>
+                <button v-if="profileInsights.highestRecord" class="profile-record-button" type="button" @click="openProfileRecord(profileInsights.highestRecord.id)">
+                  <span>{{ copy('最高分记录', 'Highest Record') }} · {{ translatedTitle(profileInsights.highestRecord.title) }}</span>
+                  <strong>{{ profileInsights.highestRecord.score.toFixed(1) }}</strong>
+                  <small>{{ profileInsights.highestRecord.activityText }}</small>
+                </button>
+                <div v-if="profileInsights.totalRecords === 0" class="empty-list">
+                  {{ copy('公开水域还没有记录，提交一条公开匿名记录后画像会自动生成。', 'No public records yet. Submit an anonymous public record to generate insights.') }}
+                  <button class="profile-toggle-button" type="button" @click="router.push('/')">{{ copy('去提交', 'Submit') }}</button>
+                </div>
+              </template>
             </section>
 
             <section class="profile-section">
@@ -475,7 +627,9 @@ const {
             <button type="button" :class="{ active: social?.viewer.voted }" :title="copy('发起传奇提名将消耗 10 鱼鳞。', 'Starting a legend nomination costs 10 Fish Scale.')" @click="handleInteraction('vote')">
               <Crown :size="16" />{{ copy('传奇提名 · 10 鱼鳞', 'Nominate · 10 Scale') }} {{ selectedRecord.voteCount }}
             </button>
-            <button type="button" @click="handleShare"><Share2 :size="16" />{{ t('share') }}</button>
+            <button type="button" @click="handleShareAction('generate')"><Share2 :size="16" />{{ copy('生成分享卡', 'Generate Card') }}</button>
+            <button type="button" @click="handleShareAction('copy_text')">{{ copy('复制文案', 'Copy Text') }}</button>
+            <button type="button" @click="handleShareAction('share_link')">{{ copy('分享链接', 'Share Link') }}</button>
           </div>
 
           <dl v-if="selectedRecord.guildContribution > 0" class="breakdown">
@@ -501,8 +655,33 @@ const {
           <div class="share-card" v-if="shareCard">
             <strong>{{ locale === 'en-US' ? `${selectedRecord.nickname} scored ${selectedRecord.score.toFixed(1)} Fish Power` : shareCard.title }}</strong>
             <span>{{ locale === 'en-US' ? `${translatedTitle(selectedRecord.title)} · Gongwei Yuwang` : shareCard.subtitle }}</span>
+            <div class="share-card-meta">
+              <span>{{ shareCard.rankLabel || copy('历史高光', 'Highlight') }}</span>
+              <span v-if="shareCard.shareCount !== undefined">{{ copy('分享', 'Shares') }} {{ shareCard.shareCount }}</span>
+              <span v-if="shareCard.rankIsRealtime">{{ copy('今日排名会随当天新记录变化', 'Today rank may change as new records arrive') }}</span>
+            </div>
+            <div v-if="shareCard.topicTags?.length" class="record-tags">
+              <span v-for="tag in shareCard.topicTags" :key="tag">#{{ tag }}</span>
+            </div>
             <p>{{ locale === 'en-US' ? `I got ${selectedRecord.score.toFixed(1)} Fish Power on Gongwei Yuwang. This is anonymous entertainment, not a workplace rule-breaking guide.` : shareCard.shareText }}</p>
+            <small>{{ shareCard.safetyNotice || copy('匿名娱乐分享卡，不支持图片上传。', 'Anonymous entertainment card. No image upload.') }}</small>
           </div>
+          <section v-if="relatedLoading || relatedRecords.length" class="profile-section related-records">
+            <div class="profile-section-head">
+              <strong>{{ copy('你可能还想看', 'You May Also Like') }}</strong>
+              <small>{{ copy('按话题、类型、圈子和相近得分推荐', 'By topic, type, circle, and nearby score') }}</small>
+            </div>
+            <div v-if="relatedLoading" class="loading-line">{{ copy('推荐加载中...', 'Loading recommendations...') }}</div>
+            <div v-else class="record-card-list compact">
+              <article v-for="record in relatedRecords" :key="`related-${record.id}`" class="record-card compact-card">
+                <strong>{{ record.nickname }} · {{ record.score.toFixed(1) }}</strong>
+                <span>{{ record.activityText }} · {{ translatedTitle(record.title) }}</span>
+                <div class="record-actions">
+                  <button type="button" @click="openProfileRecord(record.id)">{{ copy('查看', 'Open') }}</button>
+                </div>
+              </article>
+            </div>
+          </section>
           <div class="comments-list" v-if="social?.comments.length">
             <div v-for="comment in social.comments" :key="comment.id" class="comment-item">
               <strong>{{ comment.nickname }}</strong>
@@ -529,6 +708,72 @@ const {
           <strong>{{ copy('这条鱼正在公共水域游动', 'This fish is swimming in public waters') }}</strong>
           <span>{{ copy('社区广场解决“我能看到什么”。不要写公司名，鱼也需要保护隐私。', 'Community Plaza answers “what can I see?” Do not write company names; fish need privacy too.') }}</span>
         </div>
+        <section class="module-section discovery-search">
+          <div class="profile-section-head">
+            <strong>{{ copy('搜索与发现', 'Search & Discovery') }}</strong>
+            <small>{{ copy('记录、话题、用户、工会、圈子、小组', 'Records, topics, users, guilds, circles, groups') }}</small>
+          </div>
+          <div class="feed-comment-row">
+            <PxInput
+              v-model="searchQuery"
+              :placeholder="copy('输入关键词，不会返回全站空搜索结果', 'Enter a keyword. Empty search returns nothing')"
+              clearable
+              @keyup.enter="runSearch()"
+            />
+            <button type="button" @click="runSearch()"><Search :size="14" />{{ copy('搜索', 'Search') }}</button>
+            <button v-if="hasSearched" type="button" @click="clearSearch">{{ copy('清空', 'Clear') }}</button>
+          </div>
+          <div v-if="searchLoading" class="loading-line">{{ copy('搜索中...', 'Searching...') }}</div>
+          <p v-else-if="searchError" class="error-line">{{ searchError }}</p>
+          <div v-else-if="hasSearched" class="search-results">
+            <div v-if="!searchResults.query" class="empty-list">{{ copy('先输入一个关键词，鱼塘不会因为空搜索就全量开闸。', 'Enter a keyword first. Empty search does not open the whole pond.') }}</div>
+            <div v-else-if="resultCount === 0" class="empty-list">{{ copy('没有找到匹配内容，可能这条鱼还没有留下水纹。', 'No matching content found yet.') }}</div>
+            <template v-else>
+              <section v-if="searchResults.records.length" class="search-result-group">
+                <strong>{{ copy('记录', 'Records') }}</strong>
+                <button v-for="record in searchResults.records" :key="`search-record-${record.id}`" type="button" @click="openProfileRecord(record.id)">
+                  <span>{{ record.activityText }}</span>
+                  <small>{{ record.nickname }} · {{ record.score.toFixed(1) }} · {{ translatedTitle(record.title) }}</small>
+                </button>
+              </section>
+              <section v-if="searchResults.topics.length" class="search-result-group">
+                <strong>{{ copy('话题', 'Topics') }}</strong>
+                <button v-for="topic in searchResults.topics" :key="`search-topic-${topic.id}`" type="button" @click="openTopic(topic.slug)">
+                  <span>#{{ topic.name }}</span>
+                  <small>{{ topic.usage_count }} {{ copy('次使用', 'uses') }}</small>
+                </button>
+              </section>
+              <section v-if="searchResults.users.length" class="search-result-group">
+                <strong>{{ copy('用户', 'Users') }}</strong>
+                <button v-for="user in searchResults.users" :key="`search-user-${user.id}`" type="button" @click="openUser(user.username)">
+                  <span>{{ user.displayName }} @{{ user.username }}</span>
+                  <small>{{ translatedTitle(user.title) }} · {{ user.totalScore.toFixed(1) }}</small>
+                </button>
+              </section>
+              <section v-if="searchResults.guilds.length" class="search-result-group">
+                <strong>{{ copy('工会', 'Guilds') }}</strong>
+                <button v-for="guild in searchResults.guilds" :key="`search-guild-${guild.id}`" type="button" @click="openGuild(guild.id)">
+                  <span>{{ translatedGuildName(guild) }}</span>
+                  <small>{{ guild.memberCount }} {{ copy('人', 'members') }} · {{ guild.totalContribution.toFixed(1) }}</small>
+                </button>
+              </section>
+              <section v-if="searchResults.circles.length" class="search-result-group">
+                <strong>{{ copy('圈子', 'Circles') }}</strong>
+                <button v-for="circle in searchResults.circles" :key="`search-circle-${circle.id}`" type="button" @click="openCircleRoute(circle.id)">
+                  <span>{{ translatedCircleName(circle) }}</span>
+                  <small>{{ circle.recordCount }} {{ copy('条记录', 'records') }}</small>
+                </button>
+              </section>
+              <section v-if="searchResults.groups.length" class="search-result-group">
+                <strong>{{ copy('小组', 'Groups') }}</strong>
+                <button v-for="group in searchResults.groups" :key="`search-group-${group.id}`" type="button" @click="openGroupRoute(group.id)">
+                  <span>{{ group.name }}</span>
+                  <small>{{ group.visibility }} · {{ group.memberCount }} {{ copy('人', 'members') }}</small>
+                </button>
+              </section>
+            </template>
+          </div>
+        </section>
         <div class="feed-filters">
           <button type="button" :class="{ active: communityFilter === 'latest' }" @click="communityFilter = 'latest'">{{ copy('最新摸鱼', 'Latest') }}</button>
           <button type="button" :class="{ active: communityFilter === 'hot' }" @click="communityFilter = 'hot'">{{ copy('今日热门', 'Hot Today') }}</button>
@@ -737,6 +982,25 @@ const {
           </section>
           <section class="module-section">
             <div class="profile-section-head"><strong>{{ copy('小组详情', 'Group Details') }}</strong><small>{{ selectedGroup?.group.name ?? copy('选择一个小组', 'Select a group') }}</small></div>
+            <div v-if="selectedGroup?.currentGoal" class="group-goal-card">
+              <div class="profile-section-head">
+                <strong>{{ copy('本周协作目标', 'Weekly Goal') }}</strong>
+                <small>{{ selectedGroup.currentGoal.goal.periodKey }}</small>
+              </div>
+              <div class="module-intro">
+                <strong>{{ selectedGroup.currentGoal.completed ? copy('目标已完成', 'Goal Complete') : copy('累计 Fish Power Score', 'Total Fish Power Score') }}</strong>
+                <span>{{ selectedGroup.currentGoal.currentValue.toFixed(1) }} / {{ selectedGroup.currentGoal.targetValue }} · {{ selectedGroup.currentGoal.percent }}% · {{ selectedGroup.currentGoal.goal.rewardTitle }}</span>
+              </div>
+              <div class="goal-progress-bar" :aria-label="copy('小组目标进度', 'Group goal progress')">
+                <span :style="{ width: `${selectedGroup.currentGoal.percent}%` }"></span>
+              </div>
+              <ol v-if="selectedGroup.currentGoal.contributions.length" class="compact-ranking">
+                <li v-for="member in selectedGroup.currentGoal.contributions" :key="member.userId">
+                  <span>{{ member.displayName }} · {{ member.recordCount }} {{ copy('条', 'records') }}</span>
+                  <strong>{{ member.score.toFixed(1) }}</strong>
+                </li>
+              </ol>
+            </div>
             <div v-if="selectedGroup" class="task-list">
               <article v-for="challenge in selectedGroup.challenges" :key="challenge.name">
                 <strong>{{ translatedChallenge(challenge).name }}</strong>

@@ -17,6 +17,8 @@ import { normalizeTopicName, validateTopicName } from '../shared/topics.js';
 import {
   FISH_SCALE_INSUFFICIENT_MESSAGE,
   adjustFishScale,
+  checkAndCompleteGroupGoalsForRecord,
+  createNotification,
   db,
   getAiPrompt,
   getFishScaleWallet,
@@ -418,6 +420,7 @@ const saveSetting = (key: string, value: string): void => {
 const updateStatus = (target: 'record' | 'comment', id: number, status: string, note: string, adminUsername: string, hiddenReason = ''): SqlRow | undefined => {
   const now = new Date().toISOString();
   if (target === 'record') {
+    const before = db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(id) as SqlRow | undefined;
     db.prepare(
       `
         UPDATE slacking_records
@@ -430,7 +433,35 @@ const updateStatus = (target: 'record' | 'comment', id: number, status: string, 
         WHERE id = ?
       `
     ).run(status, note, adminUsername, now, hiddenReason, now, id);
+    if (before?.user_id && String(before.status ?? '') !== status && ['approved', 'hidden', 'rejected'].includes(status)) {
+      const title =
+        status === 'approved'
+          ? '记录审核通过'
+          : status === 'hidden'
+            ? '记录已被隐藏'
+            : '记录审核未通过';
+      const body =
+        note ||
+        hiddenReason ||
+        (status === 'approved' ? '这条记录已进入公共水域。' : '这条记录没有公开展示，请继续保持匿名和娱乐边界。');
+      createNotification({
+        userId: Number(before.user_id),
+        type: 'record_review',
+        title,
+        body,
+        targetType: 'record',
+        targetId: id,
+        dedupeKey: `record_review:${id}:${status}`
+      });
+    }
     refreshAllSocialAggregates();
+    if (before && status === 'approved' && String(before.status ?? '') !== 'approved') {
+      const groups = db.prepare('SELECT group_id FROM record_groups WHERE record_id = ?').all(id) as { group_id: number }[];
+      checkAndCompleteGroupGoalsForRecord(
+        id,
+        groups.map((group) => Number(group.group_id))
+      );
+    }
     return db.prepare('SELECT slacking_records.*, users.username FROM slacking_records LEFT JOIN users ON users.id = slacking_records.user_id WHERE slacking_records.id = ?').get(id) as SqlRow | undefined;
   }
 
@@ -456,6 +487,16 @@ const updateStatus = (target: 'record' | 'comment', id: number, status: string, 
         reason: 'record_commented',
         relatedType: 'comment',
         relatedId: id
+      });
+      createNotification({
+        userId: Number(record.user_id),
+        actorUserId: commentAuthorId,
+        type: 'record_comment',
+        title: '你的摸鱼记录有新评论',
+        body: '一条先前进入审核的评论已通过，现在显示在你的记录下。',
+        targetType: 'record',
+        targetId: Number(before.record_id),
+        dedupeKey: `record_comment:${id}`
       });
     }
   }
