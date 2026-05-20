@@ -10,7 +10,6 @@ import {
   LEADERBOARD_TYPES,
   MAX_DESCRIPTION_LENGTH,
   RISKS,
-  SAFETY_NOTICE,
   SENSITIVE_TERMS,
   SLACKING_TYPES,
   SUPPORTED_LOCALES,
@@ -26,7 +25,7 @@ import {
   type ScoreBreakdown
 } from '../shared/scoring.js';
 import { findSlackingTypeOption } from '../shared/slackingTypes.js';
-import { createUser, getUserFromRequest, isMuted, publicUserById, requireAdmin, requireAuth, verifyUser } from './auth.js';
+import { createUser, getUserFromRequest, isMuted, publicUserById, requireAdmin, requireAuth, verifyUser, type AuthUser } from './auth.js';
 import {
   FISH_SCALE_INSUFFICIENT_MESSAGE,
   checkAndCompleteGroupGoalsForRecord,
@@ -53,6 +52,7 @@ import { MAX_TOPICS_PER_RECORD, TOPIC_PRIVACY_MESSAGE, normalizeTopicList, type 
 import { getMonthRange, getSeasonRange, getTodayRange, getWeekRange, type PeriodRange } from './time.js';
 import { registerAdminRoutes } from './adminRoutes.js';
 import { scoreRecordWithAiJudge } from './ai/judgeService.js';
+import { getSiteSettings } from './siteSettings.js';
 
 const optionKeys = (options: readonly { key: string }[]) => options.map((option) => option.key);
 
@@ -289,6 +289,11 @@ const parseScoreBreakdown = (value: unknown): Partial<ScoreBreakdown> => {
     return {};
   }
 };
+
+const publicAuthUser = (user: AuthUser): AuthUser => ({
+  ...user,
+  isAdmin: false
+});
 
 const publicRecord = (record: Record<string, unknown>) => {
   const userId = record.user_id === null || record.user_id === undefined ? null : Number(record.user_id);
@@ -826,6 +831,7 @@ const emptySearchResults = (query = '') => ({
 const randomInviteCode = (): string => Math.random().toString(36).slice(2, 8).toUpperCase();
 
 const createShareCard = (record: ReturnType<typeof publicRecord>) => {
+  const settings = getSiteSettings();
   const today = getTodayRange();
   const isToday = record.createdAt >= today.start && record.createdAt < today.end;
   const todayRank = isToday ? getRecordTodayRank({ created_at: record.createdAt, fish_power_score: record.score }, today) : null;
@@ -857,7 +863,7 @@ const createShareCard = (record: ReturnType<typeof publicRecord>) => {
     historicalHighlight,
     createdAt: record.createdAt,
     topicTags,
-    safetyNotice: '匿名娱乐分享卡，不包含图片上传、截图上传或真实身份信息。',
+    safetyNotice: settings.safetyNotice,
     shareCount: record.shareCount
   };
 };
@@ -958,22 +964,25 @@ const getPersonaForInsights = (input: {
 export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get('/api/health', async () => ({ ok: true }));
 
-  app.get('/api/options', async () => ({
-    slackingTypes: SLACKING_TYPES,
-    durations: DURATIONS,
-    durationScoreRules: DURATION_SCORE_RULES,
-    risks: RISKS,
-    disguises: DISGUISES,
-    creativityLevels: CREATIVITY_LEVELS,
-    leaderboardTypes: LEADERBOARD_TYPES,
-    titleLevels: TITLE_LEVELS,
-    sensitiveTerms: SENSITIVE_TERMS,
-    maxActivityTextLength: MAX_ACTIVITY_TEXT_LENGTH,
-    maxDescriptionLength: MAX_DESCRIPTION_LENGTH,
-    safetyNotice: SAFETY_NOTICE,
-    badges: BADGE_DEFINITIONS,
-    supportedLocales: SUPPORTED_LOCALES
-  }));
+  app.get('/api/options', async () => {
+    const settings = getSiteSettings();
+    return {
+      slackingTypes: SLACKING_TYPES,
+      durations: DURATIONS,
+      durationScoreRules: DURATION_SCORE_RULES,
+      risks: RISKS,
+      disguises: DISGUISES,
+      creativityLevels: CREATIVITY_LEVELS,
+      leaderboardTypes: LEADERBOARD_TYPES,
+      titleLevels: TITLE_LEVELS,
+      sensitiveTerms: SENSITIVE_TERMS,
+      maxActivityTextLength: MAX_ACTIVITY_TEXT_LENGTH,
+      maxDescriptionLength: MAX_DESCRIPTION_LENGTH,
+      safetyNotice: settings.safetyNotice,
+      badges: BADGE_DEFINITIONS,
+      supportedLocales: SUPPORTED_LOCALES
+    };
+  });
 
   app.post('/api/auth/register', async (request, reply) => {
     const parsed = authSchema.safeParse(request.body);
@@ -987,7 +996,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
         locale: parsed.data.locale
       });
       getFishScaleWallet(result.user.id);
-      return reply.code(201).send(result);
+      return reply.code(201).send({ ...result, user: publicAuthUser(result.user) });
     } catch {
       return reply.code(409).send({ message: '用户名已存在。' });
     }
@@ -998,12 +1007,12 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     if (!parsed.success) return reply.code(400).send({ message: '登录信息无效。' });
     const result = verifyUser(parsed.data.username, parsed.data.password);
     if (!result) return reply.code(401).send({ message: '用户名或密码不正确。' });
-    return result;
+    return { ...result, user: publicAuthUser(result.user) };
   });
 
   app.get('/api/auth/me', async (request) => {
     const user = getUserFromRequest(request);
-    return { user, badges: user ? getBadgesForUser(user.id) : [] };
+    return { user: user ? publicAuthUser(user) : null, badges: user ? getBadgesForUser(user.id) : [] };
   });
 
   app.get('/api/wallet/me', async (request, reply) => {
@@ -1494,10 +1503,11 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const parsed = feedSchema.safeParse(request.query);
     if (!parsed.success) return reply.code(400).send({ message: '社区筛选参数无效。' });
     const user = getUserFromRequest(request);
+    const settings = getSiteSettings();
     return {
       filter: parsed.data.filter,
       records: getCommunityFeed(parsed.data.filter, user?.id),
-      safetyNotice: SAFETY_NOTICE
+      safetyNotice: settings.safetyNotice
     };
   });
 
@@ -1520,6 +1530,9 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/api/records/:id/nominate-legend', async (request, reply) => {
     const user = requireAuth(request, reply);
     if (!user) return;
+    if (!getSiteSettings().legendNominationOpen) {
+      return reply.code(403).send({ message: '传奇提名功能当前暂未开放。' });
+    }
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '记录 ID 无效。' });
     const record = db.prepare('SELECT id FROM slacking_records WHERE id = ?').get(params.data.id);
@@ -1780,6 +1793,9 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/api/groups', async (request, reply) => {
     const user = requireAuth(request, reply);
     if (!user) return;
+    if (!getSiteSettings().groupCreationOpen) {
+      return reply.code(403).send({ message: '小组创建功能当前暂未开放。' });
+    }
     const parsed = groupSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ message: '小组信息无效。' });
     const safety = analyzeContentSafety(`${parsed.data.name} ${parsed.data.description}`);
@@ -2023,6 +2039,13 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const risk = parsed.data.risk ?? RISKS[1].key;
     const disguise = parsed.data.disguise ?? DISGUISES[0].key;
     const creativity = parsed.data.creativity ?? CREATIVITY_LEVELS[0].key;
+    const privateOnly = parsed.data.privateOnly || parsed.data.publish_scope === 'private';
+    const publishToCommunity = parsed.data.publish_scope === 'private' ? false : parsed.data.publishToCommunity;
+    const visibility = privateOnly || !publishToCommunity ? 'private' : 'public';
+    const settings = getSiteSettings();
+    if (!settings.communityOpen && visibility === 'public') {
+      return reply.code(403).send({ message: '社区当前暂未开放。' });
+    }
     const normalizedTopics = normalizeTopicList(parsed.data.topics, enabledSensitiveWords());
     if (normalizedTopics.error) {
       return reply.code(400).send({
@@ -2048,14 +2071,18 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     };
     const aiScore = await scoreRecordWithAiJudge(scoreInput);
     const score = aiScore.breakdown;
+    const isNonSlackingEvent = score.valid === false && score.reason === 'not_slacking_event';
     const totalScore = (user ? getUserTotalScore(user.id) : getNicknameTotalScore(nickname)) + score.fishPowerScore;
     const title = getTitleForTotalScore(score.fishPowerScore);
     const systemComment = aiScore.comment;
-    const status = safety.level === 'review' ? 'pending' : 'approved';
-    const reviewNote = safety.warnings.join('、');
-    const privateOnly = parsed.data.privateOnly || parsed.data.publish_scope === 'private';
-    const publishToCommunity = parsed.data.publish_scope === 'private' ? false : parsed.data.publishToCommunity;
-    const visibility = privateOnly || !publishToCommunity ? 'private' : 'public';
+    // AI valid=false/not_slacking_event is kept review-only: it is not a rewardable slacking record.
+    const status =
+      isNonSlackingEvent || safety.level === 'review'
+        ? 'pending'
+        : settings.defaultRecordStatus === 'pending'
+          ? 'pending'
+          : 'approved';
+    const reviewNote = isNonSlackingEvent ? 'not_slacking_event' : safety.warnings.join('\u3001');
     const groupIds = user && !privateOnly ? userGroupIds(user.id, parsed.data.groupIds) : [];
 
     const record = insertRecord(
@@ -2088,7 +2115,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     );
 
     const todayRank = status === 'approved' ? getRecordTodayRank(record, getTodayRange()) : 0;
-    const fishScaleReward = user
+    const fishScaleReward = user && !isNonSlackingEvent
       ? grantRecordSubmissionFishScale({
           userId: user.id,
           recordId: record.id,
@@ -2202,6 +2229,9 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const params = idParamSchema.safeParse(request.params);
     const parsed = interactionSchema.safeParse(request.body);
     if (!params.success || !parsed.success) return reply.code(400).send({ message: '互动参数无效。' });
+    if (parsed.data.action === 'vote' && !getSiteSettings().legendNominationOpen) {
+      return reply.code(403).send({ message: '传奇提名功能当前暂未开放。' });
+    }
 
     const record = db.prepare('SELECT id FROM slacking_records WHERE id = ?').get(params.data.id);
     if (!record) return reply.code(404).send({ message: '记录不存在。' });
@@ -2269,6 +2299,9 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/api/records/:id/comments', async (request, reply) => {
     const user = requireAuth(request, reply);
     if (!user) return;
+    if (!getSiteSettings().commentsOpen) {
+      return reply.code(403).send({ message: '评论功能当前暂未开放。' });
+    }
     if (isMuted(user)) return reply.code(403).send({ message: '账号当前处于禁言状态，暂时不能发表评论。' });
     const params = idParamSchema.safeParse(request.params);
     const parsed = commentSchema.safeParse(request.body);
@@ -2297,6 +2330,9 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/api/records/:id/comment', async (request, reply) => {
     const user = requireAuth(request, reply);
     if (!user) return;
+    if (!getSiteSettings().commentsOpen) {
+      return reply.code(403).send({ message: '评论功能当前暂未开放。' });
+    }
     if (isMuted(user)) return reply.code(403).send({ message: '账号当前处于禁言状态，暂时不能发表评论。' });
     const params = idParamSchema.safeParse(request.params);
     const parsed = commentSchema.safeParse(request.body);

@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import Fastify from 'fastify';
 import { DEFAULT_AI_JUDGE_SYSTEM_PROMPT } from '../shared/aiJudgePrompt.js';
-import { AI_JUDGE_PROMPT_KEY } from '../shared/aiJudgeTypes.js';
+import { AI_JUDGE_FALLBACK_SCORE_VERSION, AI_JUDGE_PROMPT_KEY } from '../shared/aiJudgeTypes.js';
 import { getDurationRule, normalizeDurationKey } from '../shared/scoring.js';
 import { parseJudgeJson, JudgeFallbackError } from '../server/ai/deepseekClient.js';
 import { deterministicScore, generateAiJudgeResult, isPromptUsable } from '../server/ai/judgeService.js';
@@ -14,6 +17,14 @@ const prompt = {
   content: DEFAULT_AI_JUDGE_SYSTEM_PROMPT,
   version: '1'
 };
+
+const closeServer = (server: Server): Promise<void> =>
+  new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
 
 const input = {
   duration: '1-2小时',
@@ -157,6 +168,22 @@ for (const reason of ['invalid_json', 'empty_response', 'timeout', 'schema_error
   assert.equal(result.fallbackReason, reason, `${reason} falls back`);
 }
 
+const timeoutFallbackScore = deterministicScore(input, {
+  ...generation,
+  fallback: true,
+  fallbackReason: 'timeout' as const
+}).breakdown;
+assert.equal(timeoutFallbackScore.fallback, true, 'fallback score marks fallback');
+assert.equal(timeoutFallbackScore.fallbackReason, 'timeout', 'fallback score keeps reason');
+assert.equal(timeoutFallbackScore.scoreVersion, AI_JUDGE_FALLBACK_SCORE_VERSION, 'fallback score version is stored');
+
+const fallbackWithoutReason = deterministicScore(input, {
+  ...generation,
+  fallback: true,
+  fallbackReason: undefined
+}).breakdown;
+assert.equal(fallbackWithoutReason.fallbackReason, 'schema_error', 'fallback without reason gets traceable default reason');
+
 const nonSlacking = deterministicScore(
   { ...input, activityText: '今天认真上班了', storyText: '今天认真上班了，没有摸鱼。' },
   {
@@ -178,6 +205,17 @@ assert.equal(nonSlacking.fishPowerScore, 0, 'non-slacking event scores zero');
 const invalidDuration = deterministicScore({ ...input, duration: 'unknown-duration' }, generation).breakdown;
 assert.equal(invalidDuration.valid, false, 'invalid duration is invalid');
 assert.equal(invalidDuration.fishPowerScore, 0, 'invalid duration scores zero');
+
+const invalidDurationFallback = deterministicScore(
+  { ...input, duration: 'unknown-duration' },
+  {
+    ...generation,
+    fallback: true,
+    fallbackReason: 'missing_api_key' as const
+  }
+).breakdown;
+assert.equal(invalidDurationFallback.scoreVersion, AI_JUDGE_FALLBACK_SCORE_VERSION, 'invalid duration preserves fallback score version');
+assert.equal(invalidDurationFallback.fallbackReason, 'missing_api_key', 'invalid duration preserves fallback reason');
 
 assert.equal(isPromptUsable(DEFAULT_AI_JUDGE_SYSTEM_PROMPT), true, 'default prompt is usable');
 assert.equal(isPromptUsable('only comment'), false, 'broken prompt is rejected');
@@ -205,6 +243,134 @@ database.restoreDefaultAiPrompt('test');
 assert.equal(database.getAiPrompt(AI_JUDGE_PROMPT_KEY)?.content, DEFAULT_AI_JUDGE_SYSTEM_PROMPT, 'restore default prompt');
 const afterCount = Number((database.db.prepare('SELECT COUNT(*) AS count FROM slacking_records').get() as { count: number }).count);
 assert.equal(afterCount, beforeCount, 'prompt operations do not write records');
+
+const routesUrl = pathToFileURL(join(oldCwd, 'server/routes.ts')).href;
+const { registerRoutes } = (await import(routesUrl)) as typeof import('../server/routes.js');
+const app = Fastify({ logger: false });
+await registerRoutes(app);
+
+const routeOldKey = process.env.DEEPSEEK_API_KEY;
+const routeOldProvider = process.env.AI_JUDGE_PROVIDER;
+const routeOldBaseUrl = process.env.DEEPSEEK_BASE_URL;
+const routeOldTimeoutMs = process.env.DEEPSEEK_TIMEOUT_MS;
+delete process.env.DEEPSEEK_API_KEY;
+process.env.AI_JUDGE_PROVIDER = 'deepseek';
+
+const registerResponse = await app.inject({
+  method: 'POST',
+  url: '/api/auth/register',
+  payload: {
+    username: 'judgeuser',
+    password: 'password123',
+    displayName: 'Judge User'
+  }
+});
+assert.equal(registerResponse.statusCode, 201, 'test user can register');
+const authPayload = JSON.parse(registerResponse.payload) as { token: string };
+
+const recordResponse = await app.inject({
+  method: 'POST',
+  url: '/api/records',
+  headers: {
+    authorization: `Bearer ${authPayload.token}`
+  },
+  payload: {
+    nickname: 'Judge User',
+    activityText: 'not slacking',
+    storyText: 'today I worked hard and did not slack',
+    duration: '1-2h',
+    anonymized: true
+  }
+});
+assert.equal(recordResponse.statusCode, 201, 'POST /api/records succeeds without DeepSeek API key');
+const recordPayload = JSON.parse(recordResponse.payload) as {
+  record: {
+    status: string;
+    scoreVersion: string;
+    breakdown: {
+      fallback?: boolean;
+      fallbackReason?: string;
+      valid?: boolean;
+      reason?: string;
+    };
+  };
+  fishScaleReward: unknown;
+};
+assert.equal(recordPayload.record.breakdown.fallback, true, 'record fallback flag is stored');
+assert.equal(recordPayload.record.breakdown.fallbackReason, 'missing_api_key', 'record fallback reason is stored');
+assert.equal(recordPayload.record.scoreVersion, AI_JUDGE_FALLBACK_SCORE_VERSION, 'record fallback score version is stored');
+assert.equal(recordPayload.record.status, 'pending', 'non-slacking fallback records are pending');
+assert.equal(recordPayload.record.breakdown.valid, false, 'non-slacking fallback is invalid');
+assert.equal(recordPayload.record.breakdown.reason, 'not_slacking_event', 'non-slacking reason is stored');
+assert.equal(recordPayload.fishScaleReward, null, 'non-slacking record does not get fish-scale reward');
+const fishScaleTransactionCount = Number((database.db.prepare('SELECT COUNT(*) AS count FROM fish_scale_transactions').get() as { count: number }).count);
+assert.equal(fishScaleTransactionCount, 0, 'non-slacking record creates no fish-scale transactions');
+
+const timeoutServer = createServer(() => {
+  // Keep the socket open long enough for the OpenAI client timeout to fire.
+});
+timeoutServer.unref();
+await new Promise<void>((resolve) => timeoutServer.listen(0, '127.0.0.1', resolve));
+const timeoutAddress = timeoutServer.address() as AddressInfo;
+process.env.DEEPSEEK_API_KEY = 'test-key';
+process.env.DEEPSEEK_BASE_URL = `http://127.0.0.1:${timeoutAddress.port}`;
+process.env.DEEPSEEK_TIMEOUT_MS = '25';
+
+let timeoutResponse: { statusCode: number; payload: string } | undefined;
+try {
+  timeoutResponse = await app.inject({
+    method: 'POST',
+    url: '/api/records',
+    headers: {
+      authorization: `Bearer ${authPayload.token}`
+    },
+    payload: {
+      nickname: 'Judge User',
+      activityText: 'pretended to review docs',
+      storyText: 'watched a training video while pretending to review docs',
+      duration: '30-60',
+      anonymized: true
+    }
+  });
+} finally {
+  await closeServer(timeoutServer);
+}
+assert.ok(timeoutResponse, 'timeout response returned');
+assert.equal(timeoutResponse.statusCode, 201, 'POST /api/records succeeds after DeepSeek timeout');
+const timeoutPayload = JSON.parse(timeoutResponse.payload) as {
+  record: {
+    scoreVersion: string;
+    breakdown: {
+      fallback?: boolean;
+      fallbackReason?: string;
+    };
+  };
+};
+assert.equal(timeoutPayload.record.breakdown.fallback, true, 'timeout record fallback flag is stored');
+assert.equal(timeoutPayload.record.breakdown.fallbackReason, 'timeout', 'timeout record fallback reason is stored');
+assert.equal(timeoutPayload.record.scoreVersion, AI_JUDGE_FALLBACK_SCORE_VERSION, 'timeout record fallback score version is stored');
+
+await app.close();
+if (routeOldKey === undefined) {
+  delete process.env.DEEPSEEK_API_KEY;
+} else {
+  process.env.DEEPSEEK_API_KEY = routeOldKey;
+}
+if (routeOldProvider === undefined) {
+  delete process.env.AI_JUDGE_PROVIDER;
+} else {
+  process.env.AI_JUDGE_PROVIDER = routeOldProvider;
+}
+if (routeOldBaseUrl === undefined) {
+  delete process.env.DEEPSEEK_BASE_URL;
+} else {
+  process.env.DEEPSEEK_BASE_URL = routeOldBaseUrl;
+}
+if (routeOldTimeoutMs === undefined) {
+  delete process.env.DEEPSEEK_TIMEOUT_MS;
+} else {
+  process.env.DEEPSEEK_TIMEOUT_MS = routeOldTimeoutMs;
+}
 process.chdir(oldCwd);
 
 console.log('ai judge tests passed');
