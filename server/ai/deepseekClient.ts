@@ -69,6 +69,43 @@ export const parseJudgeJson = (rawText: string): ParsedAiJudgeResult => {
   return result.data;
 };
 
+const getErrorField = (error: unknown, field: 'name' | 'message' | 'code' | 'type'): string => {
+  if (typeof error !== 'object' || error === null || !(field in error)) return '';
+  const value = (error as Record<string, unknown>)[field];
+  return typeof value === 'string' ? value : '';
+};
+
+const getErrorCause = (error: unknown): unknown => {
+  if (typeof error !== 'object' || error === null || !('cause' in error)) return null;
+  return (error as { cause?: unknown }).cause;
+};
+
+const isTimeoutError = (error: unknown): boolean => {
+  const maybeStatus = typeof error === 'object' && error !== null && 'status' in error ? Number((error as { status?: number }).status) : 0;
+  if (maybeStatus === 408) return true;
+
+  const fingerprint = [
+    getErrorField(error, 'name'),
+    getErrorField(error, 'message'),
+    getErrorField(error, 'code'),
+    getErrorField(error, 'type'),
+    getErrorField(getErrorCause(error), 'name'),
+    getErrorField(getErrorCause(error), 'message'),
+    getErrorField(getErrorCause(error), 'code'),
+    getErrorField(getErrorCause(error), 'type')
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    fingerprint.includes('timeout') ||
+    fingerprint.includes('timed out') ||
+    fingerprint.includes('etimedout') ||
+    fingerprint.includes('aborterror')
+  );
+};
+
 export const callDeepSeekJudge = async (input: {
   judgeInput: AiJudgeInput;
   systemPrompt: string;
@@ -97,9 +134,7 @@ export const callDeepSeekJudge = async (input: {
     return { rawText, parsed: parseJudgeJson(rawText), model };
   } catch (error) {
     if (error instanceof JudgeFallbackError) throw error;
-    const maybeStatus = typeof error === 'object' && error !== null && 'status' in error ? Number((error as { status?: number }).status) : 0;
-    const maybeCode = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: string }).code) : '';
-    if (maybeStatus === 408 || maybeCode.toLowerCase().includes('timeout')) {
+    if (isTimeoutError(error)) {
       throw new JudgeFallbackError('timeout');
     }
     throw new JudgeFallbackError('empty_response');
@@ -133,4 +168,3 @@ export const fallbackJudgeResult = (input: AiJudgeInput, reason: AiJudgeFallback
     comment: '这次裁判席先按保守档结算：你像是摸了，但证据朴素得有点省电。先记一笔安全分，等你下次把荒诞细节交代明白。'
   };
 };
-

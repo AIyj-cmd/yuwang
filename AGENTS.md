@@ -260,3 +260,13 @@ npm run build
 - 云存储和文件上传。
 - 真实公司、客户、地理位置或身份信息采集。
 - 微服务拆分和消息队列。
+
+## Command Output
+
+Protect context usage. **Any command with unknown or potentially large output must be byte-capped.**
+
+Default pattern:
+
+```bash
+COMMAND 2>&1 | head -c 4000
+```

@@ -174,7 +174,7 @@ export const deterministicScore = (
   const normalizedDuration = normalizeDurationKey(input.duration);
   const durationRule = getDurationRule(input.duration);
   const fallback = generation.fallback;
-  const fallbackReason = generation.fallbackReason;
+  const fallbackReason = generation.fallbackReason ?? (fallback ? 'schema_error' : undefined);
   const baseMeta = {
     aiProvider: generation.aiProvider,
     aiModel: generation.aiModel,
@@ -206,7 +206,7 @@ export const deterministicScore = (
       rawScore: 0,
       displayScore: 0,
       fishPowerScore: 0,
-      scoreVersion: AI_JUDGE_SCORE_VERSION,
+      scoreVersion: fallback ? AI_JUDGE_FALLBACK_SCORE_VERSION : AI_JUDGE_SCORE_VERSION,
       valid: false,
       reason: 'invalid_duration',
       comment: '这个时长格式不对，裁判席没法结算。摸鱼可以随性，交卷别乱填。',
