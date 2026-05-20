@@ -29,6 +29,24 @@
 
 建议使用 Node.js 24 或更新版本运行项目，当前代码依赖内置 `node:sqlite`。
 
+## 前端结构说明
+
+`src/App.vue` 现在只承担应用壳层职责：顶部导航、本地菜单 UI 状态、`RouterView`、全局上下文 provide 和启动编排接线。全局业务逻辑按职责拆分到以下文件：
+
+- `src/i18n/messages.ts`：集中维护简体中文 / 英文翻译字典，以及选项、称号、徽章、工会、圈子、公告和系统评论的英文映射。
+- `src/i18n/useLocale.ts`：封装 `locale`、`setLocale`、`t`、`copy`、语言 localStorage 持久化和翻译辅助函数，不引入 `vue-i18n`。
+- `src/composables/useAppState.ts`：集中维护 App 级 ref / reactive 状态、表单状态、computed 派生值和非 API 的轻量工具函数。
+- `src/composables/useAppActions.ts`：集中维护调用 `src/api.ts` 的前端动作编排，包括登录、注册、登出、提交记录、排行榜、社区 feed、互动、工会、圈子、小组、钱包、签到和反馈等流程。
+- `src/composables/useAppProvider.ts`：集中生成 `appContextKey` 的 provide 对象，保持子页面 `useAppContext()` 注入方式不变。
+- `src/composables/useAppBootstrap.ts`：集中维护 App 启动时初始化请求，以及排行榜、社区筛选和路由 section 变化时的刷新触发。
+
+维护约定：
+
+- 修改翻译文案优先更新 `src/i18n/messages.ts`，修改语言读写行为优先更新 `src/i18n/useLocale.ts`。
+- 修改全局状态或 computed 优先更新 `src/composables/useAppState.ts`，修改 API 编排优先更新 `src/composables/useAppActions.ts`。
+- 新增需要子页面注入的上下文时，同步更新 `src/composables/useAppProvider.ts`，避免把 provide 对象重新堆回 `App.vue`。
+- 前端结构调整不应改变 `src/api.ts` 请求路径、普通用户 token 登录方式、管理后台 httpOnly cookie session 或路由守卫行为。
+
 ## 快速开始
 
 ```bash
