@@ -18,16 +18,21 @@ import {
   analyzeContentSafety,
   calculateScore,
   createSystemComment,
+  getDurationRule,
   getOptionLabel,
   getTitleForDurationScore,
   getTitleForTotalScore,
-  type LeaderboardType
+  type LeaderboardType,
+  type ScoreBreakdown
 } from '../shared/scoring.js';
 import { findSlackingTypeOption } from '../shared/slackingTypes.js';
 import { createUser, getUserFromRequest, isMuted, publicUserById, requireAdmin, requireAuth, verifyUser } from './auth.js';
 import {
   FISH_SCALE_INSUFFICIENT_MESSAGE,
+  checkAndCompleteGroupGoalsForRecord,
+  createNotification,
   db,
+  getCurrentGroupGoalProgress,
   getFishScaleWallet,
   getNicknameTotalScore,
   getPopularTopics,
@@ -47,6 +52,7 @@ import { CIRCLE_FEATURED_BOARDS, COMMENT_MAX_LENGTH, GROUP_CHALLENGES, GROUP_NAM
 import { MAX_TOPICS_PER_RECORD, TOPIC_PRIVACY_MESSAGE, normalizeTopicList, type Topic } from '../shared/topics.js';
 import { getMonthRange, getSeasonRange, getTodayRange, getWeekRange, type PeriodRange } from './time.js';
 import { registerAdminRoutes } from './adminRoutes.js';
+import { scoreRecordWithAiJudge } from './ai/judgeService.js';
 
 const optionKeys = (options: readonly { key: string }[]) => options.map((option) => option.key);
 
@@ -57,7 +63,7 @@ const createRecordSchema = z.object({
   slackingType: z.string().trim().max(MAX_ACTIVITY_TEXT_LENGTH).optional(),
   slackingTypeId: z.string().trim().max(MAX_ACTIVITY_TEXT_LENGTH).optional(),
   slackingTypeGroup: z.string().trim().max(40).optional(),
-  duration: z.enum(optionKeys(DURATIONS) as [string, ...string[]]),
+  duration: z.string().trim().min(1).max(40),
   risk: z.enum(optionKeys(RISKS) as [string, ...string[]]).optional(),
   disguise: z.enum(optionKeys(DISGUISES) as [string, ...string[]]).optional(),
   creativity: z.enum(optionKeys(CREATIVITY_LEVELS) as [string, ...string[]]).optional(),
@@ -107,8 +113,17 @@ const interactionSchema = z.object({
 });
 const commentSchema = z.object({ content: z.string().trim().min(2).max(COMMENT_MAX_LENGTH) });
 const reportSchema = z.object({ reason: z.string().trim().min(2).max(120).default('疑似包含未匿名化信息') });
+const shareCardActionSchema = z.object({
+  action: z.enum(['generate', 'copy_text', 'share_link']).default('generate')
+});
 const feedSchema = z.object({
   filter: z.enum(['latest', 'hot', 'high', 'legendary']).default('latest')
+});
+const topicDetailQuerySchema = z.object({
+  filter: z.enum(['latest', 'hot', 'high', 'legendary']).default('latest')
+});
+const searchQuerySchema = z.object({
+  q: z.string().trim().max(60).default('')
 });
 const groupSchema = z.object({
   name: z.string().trim().min(2).max(GROUP_NAME_MAX_LENGTH),
@@ -118,6 +133,10 @@ const groupSchema = z.object({
 const walletTransactionsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(100).default(30)
+});
+const notificationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  page_size: z.coerce.number().int().min(1).max(50).default(20)
 });
 const groupChallengeSchema = z.object({
   challengeName: z.string().trim().min(1).max(80)
@@ -261,6 +280,16 @@ const enabledSensitiveWords = (): string[] =>
       .all() as { word: string }[]
   ).map((row) => row.word);
 
+const parseScoreBreakdown = (value: unknown): Partial<ScoreBreakdown> => {
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<ScoreBreakdown>) : {};
+  } catch {
+    return {};
+  }
+};
+
 const publicRecord = (record: Record<string, unknown>) => {
   const userId = record.user_id === null || record.user_id === undefined ? null : Number(record.user_id);
   const user = userId ? publicUserById(userId) : null;
@@ -275,6 +304,8 @@ const publicRecord = (record: Record<string, unknown>) => {
     (scoreVersion === 'time_v2' || scoreVersion === 'duration_v3' ? baseScore : Number((baseScore * durationMultiplier).toFixed(1)));
   const activityText = normalizeActivityText(String(record.activity_text || slackingType.label));
   const storyText = String(record.story_text || record.description || '');
+  const storedBreakdown = parseScoreBreakdown(record.score_breakdown);
+  const durationLabel = storedBreakdown.durationLabel ?? getOptionLabel(DURATIONS, String(record.duration));
 
   return {
     id: Number(record.id),
@@ -289,7 +320,7 @@ const publicRecord = (record: Record<string, unknown>) => {
     activityTags: parseActivityTags(record.activity_tags),
     topics: getRecordTopics(Number(record.id)).map(publicTopic),
     duration: String(record.duration),
-    durationLabel: getOptionLabel(DURATIONS, String(record.duration)),
+    durationLabel,
     risk: String(record.risk),
     riskLabel: getOptionLabel(RISKS, String(record.risk)),
     disguise: String(record.disguise),
@@ -324,7 +355,8 @@ const publicRecord = (record: Record<string, unknown>) => {
       durationMultiplier,
       riskMultiplier: Number(record.risk_multiplier),
       disguiseBonus: Number(record.disguise_bonus),
-      creativityBonus: Number(record.creativity_bonus)
+      creativityBonus: Number(record.creativity_bonus),
+      ...storedBreakdown
     }
   };
 };
@@ -519,6 +551,14 @@ const publicFeedRecord = (record: Record<string, unknown>, userId?: number) => {
   };
 };
 
+const canViewRecord = (record: Record<string, unknown>, user?: { id: number; isAdmin?: boolean } | null): boolean => {
+  const isPublic = String(record.status ?? 'approved') === 'approved' && String(record.visibility ?? 'public') === 'public';
+  if (isPublic) return true;
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  return Number(record.user_id ?? 0) === user.id;
+};
+
 const getCommunityFeed = (filter: 'latest' | 'hot' | 'high' | 'legendary', userId?: number) => {
   const orderBy =
     filter === 'hot'
@@ -551,6 +591,13 @@ const getRecordAuthorId = (recordId: number): number | null => {
   return row?.user_id ? Number(row.user_id) : null;
 };
 
+const getUserDisplayLabel = (userId: number): string => {
+  const row = db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(userId) as
+    | { display_name: string; username: string }
+    | undefined;
+  return row?.display_name || row?.username || '一位鱼友';
+};
+
 const awardRecordLikeFishScale = (recordId: number, actorUserId: number): void => {
   const authorId = getRecordAuthorId(recordId);
   if (!authorId || authorId === actorUserId) return;
@@ -560,6 +607,16 @@ const awardRecordLikeFishScale = (recordId: number, actorUserId: number): void =
     reason: 'record_liked',
     relatedType: `record_like:${actorUserId}`,
     relatedId: recordId
+  });
+  createNotification({
+    userId: authorId,
+    actorUserId,
+    type: 'record_like',
+    title: '你的摸鱼记录被点赞',
+    body: `${getUserDisplayLabel(actorUserId)} 给你的匿名记录点了赞。`,
+    targetType: 'record',
+    targetId: recordId,
+    dedupeKey: `record_like:${recordId}:${actorUserId}`
   });
 };
 
@@ -573,6 +630,16 @@ const awardRecordCommentFishScale = (recordId: number, commentId: number, actorU
     relatedType: 'comment',
     relatedId: commentId
   });
+  createNotification({
+    userId: authorId,
+    actorUserId,
+    type: 'record_comment',
+    title: '你的摸鱼记录有新评论',
+    body: `${getUserDisplayLabel(actorUserId)} 留下了一条评论，请继续保持匿名水域秩序。`,
+    targetType: 'record',
+    targetId: recordId,
+    dedupeKey: `record_comment:${commentId}`
+  });
 };
 
 const awardLegendNominationFishScale = (recordId: number, actorUserId: number): void => {
@@ -584,6 +651,16 @@ const awardLegendNominationFishScale = (recordId: number, actorUserId: number): 
     reason: 'legend_nomination_received',
     relatedType: `record_legend:${actorUserId}`,
     relatedId: recordId
+  });
+  createNotification({
+    userId: authorId,
+    actorUserId,
+    type: 'record_legend',
+    title: '你的记录被传奇提名',
+    body: `${getUserDisplayLabel(actorUserId)} 把这条摸鱼样本推进了传奇观察区。`,
+    targetType: 'record',
+    targetId: recordId,
+    dedupeKey: `record_legend:${recordId}:${actorUserId}`
   });
 };
 
@@ -697,14 +774,93 @@ const publicGroup = (row: Record<string, unknown>, userId?: number) => {
   };
 };
 
+const publicGroupGoalProgress = (progress: ReturnType<typeof getCurrentGroupGoalProgress>) => ({
+  goal: {
+    id: progress.goal.id,
+    groupId: progress.goal.group_id,
+    goalType: progress.goal.goal_type,
+    targetValue: progress.goal.target_value,
+    periodKey: progress.goal.period_key,
+    status: progress.goal.status,
+    rewardTitle: progress.goal.reward_title,
+    createdAt: progress.goal.created_at,
+    completedAt: progress.goal.completed_at
+  },
+  period: progress.period,
+  currentValue: progress.currentValue,
+  targetValue: progress.targetValue,
+  percent: progress.percent,
+  completed: progress.completed,
+  contributions: progress.contributions
+});
+
+const escapeLike = (value: string): string => value.replace(/[\\%_]/g, (item) => `\\${item}`);
+
+const publicSearchUser = (row: Record<string, unknown>) => ({
+  id: Number(row.id),
+  username: String(row.username),
+  displayName: String(row.display_name),
+  bio: String(row.bio ?? ''),
+  avatarSeed: String(row.avatar_seed ?? ''),
+  totalScore: Number(row.total_score ?? 0),
+  title: getTitleForTotalScore(Number(row.total_score ?? 0))
+});
+
+const getTopicOrderBy = (filter: 'latest' | 'hot' | 'high' | 'legendary'): string => {
+  if (filter === 'hot') return '(slacking_records.like_count * 2 + slacking_records.comment_count * 3 + slacking_records.legend_nomination_count * 8) DESC, slacking_records.created_at DESC';
+  if (filter === 'high') return 'slacking_records.fish_power_score DESC, slacking_records.created_at DESC';
+  if (filter === 'legendary') return 'slacking_records.legend_selected DESC, slacking_records.legend_nomination_count DESC, slacking_records.vote_count DESC, slacking_records.created_at DESC';
+  return 'slacking_records.created_at DESC';
+};
+
+const emptySearchResults = (query = '') => ({
+  query,
+  records: [],
+  topics: [],
+  users: [],
+  guilds: [],
+  circles: [],
+  groups: []
+});
+
 const randomInviteCode = (): string => Math.random().toString(36).slice(2, 8).toUpperCase();
 
-const createShareCard = (record: ReturnType<typeof publicRecord>) => ({
-  title: `${record.nickname} 获得 ${record.score.toFixed(1)} Fish Power Score`,
-  subtitle: `${record.title} · ${record.activityText}`,
-  body: record.systemComment,
-  shareText: `我在工位鱼王获得 ${record.score.toFixed(1)} Fish Power Score，称号「${record.title}」。`
-});
+const createShareCard = (record: ReturnType<typeof publicRecord>) => {
+  const today = getTodayRange();
+  const isToday = record.createdAt >= today.start && record.createdAt < today.end;
+  const todayRank = isToday ? getRecordTodayRank({ created_at: record.createdAt, fish_power_score: record.score }, today) : null;
+  const topicTags = record.topics.map((topic) => topic.name).slice(0, 4);
+  const dateLabel = record.createdAt ? record.createdAt.slice(0, 10) : '';
+  const rankLabel = isToday && todayRank ? `今日第 ${todayRank} 名` : `历史高光 · ${dateLabel}`;
+  const historicalHighlight =
+    isToday && todayRank
+      ? '今日排名会随当天新记录变化'
+      : record.legendNominationCount > 0
+        ? `历史记录 · 获得 ${record.legendNominationCount} 次传奇提名`
+        : `历史记录 · 当时得分 ${record.score.toFixed(1)}`;
+  const topicLine = topicTags.length ? `#${topicTags.join(' #')}` : '匿名摸鱼样本';
+  const shareText = `我在工位鱼王拿到 ${record.score.toFixed(1)} Fish Power Score，称号「${record.title}」。${rankLabel}，${topicLine}。${record.systemComment} 本平台仅供娱乐，请勿提交真实隐私或公司机密。`;
+
+  return {
+    recordId: record.id,
+    title: `${record.nickname} 获得 ${record.score.toFixed(1)} Fish Power Score`,
+    subtitle: `${record.title} · ${record.activityText}`,
+    body: record.systemComment,
+    shareText,
+    score: record.score,
+    titleLevel: record.title,
+    systemComment: record.systemComment,
+    todayRank,
+    isToday,
+    rankLabel,
+    rankIsRealtime: isToday,
+    historicalHighlight,
+    createdAt: record.createdAt,
+    topicTags,
+    safetyNotice: '匿名娱乐分享卡，不包含图片上传、截图上传或真实身份信息。',
+    shareCount: record.shareCount
+  };
+};
 
 const getBadgesForUser = (userId: number) => {
   const stats = db
@@ -741,6 +897,62 @@ const getBadgesForUser = (userId: number) => {
     ...badge,
     unlocked: unlocked.has(badge.key)
   }));
+};
+
+const getPublicUserScore = (userId: number): number => {
+  const row = db
+    .prepare("SELECT COALESCE(SUM(fish_power_score), 0) AS total FROM slacking_records WHERE user_id = ? AND status = 'approved' AND visibility = 'public'")
+    .get(userId) as { total: number };
+  return Number(row.total ?? 0);
+};
+
+const getPersonaForInsights = (input: {
+  totalRecords: number;
+  topTypeKey: string;
+  topDisguiseKey: string;
+  comments: number;
+  legendNominations: number;
+}) => {
+  if (input.topTypeKey.includes('meeting')) {
+    return {
+      key: 'meeting-ghost',
+      label: '会议幽灵',
+      description: '常在会议水域低速漂移，表情稳定，灵魂轻微离席。'
+    };
+  }
+  if (input.topDisguiseKey.includes('excel')) {
+    return {
+      key: 'excel-meditator',
+      label: 'Excel 冥想师',
+      description: '擅长把精神放空伪装成表格研究，单元格里自有潮汐。'
+    };
+  }
+  if (input.legendNominations > 0) {
+    return {
+      key: 'desk-stealth-mage',
+      label: '工位隐身术士',
+      description: '记录已经被传奇观察区盯上，隐身术带一点节目效果。'
+    };
+  }
+  if (input.comments > 0) {
+    return {
+      key: 'tea-room-strategist',
+      label: '茶水间战略家',
+      description: '不只自己漂，还能在评论区留下稳定水纹。'
+    };
+  }
+  if (input.totalRecords === 0) {
+    return {
+      key: 'new-fry',
+      label: '浅水观察员',
+      description: '画像还在空白水域，提交公开记录后会开始成形。'
+    };
+  }
+  return {
+    key: 'document-diver',
+    label: '文档潜水员',
+    description: '在文档、需求和精神游离之间保持低调呼吸。'
+  };
 };
 
 export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
@@ -813,6 +1025,77 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     return listFishScaleTransactions({ userId: user.id, page: parsed.data.page, pageSize: parsed.data.page_size });
   });
 
+  app.get('/api/notifications', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const parsed = notificationsQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ message: '通知参数无效。' });
+    const page = parsed.data.page;
+    const pageSize = parsed.data.page_size;
+    const rows = db
+      .prepare(
+        `
+          SELECT *
+          FROM notifications
+          WHERE user_id = ?
+          ORDER BY created_at DESC, id DESC
+          LIMIT ? OFFSET ?
+        `
+      )
+      .all(user.id, pageSize, (page - 1) * pageSize) as Record<string, unknown>[];
+    const total = Number((db.prepare('SELECT COUNT(*) AS count FROM notifications WHERE user_id = ?').get(user.id) as { count: number }).count ?? 0);
+    return {
+      notifications: rows.map((row) => ({
+        id: Number(row.id),
+        userId: Number(row.user_id),
+        type: String(row.type),
+        title: String(row.title),
+        body: String(row.body ?? ''),
+        targetType: String(row.target_type ?? ''),
+        targetId: row.target_id === null || row.target_id === undefined ? null : Number(row.target_id),
+        dedupeKey: String(row.dedupe_key ?? ''),
+        isRead: Boolean(row.is_read),
+        createdAt: String(row.created_at),
+        readAt: String(row.read_at ?? '')
+      })),
+      total,
+      page,
+      pageSize
+    };
+  });
+
+  app.get('/api/notifications/unread-count', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const row = db.prepare('SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND is_read = 0').get(user.id) as { count: number };
+    return { count: Number(row.count ?? 0) };
+  });
+
+  app.post('/api/notifications/:id/read', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const params = idParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: '通知 ID 无效。' });
+    const now = new Date().toISOString();
+    db.prepare("UPDATE notifications SET is_read = 1, read_at = CASE WHEN read_at = '' THEN ? ELSE read_at END WHERE id = ? AND user_id = ?").run(
+      now,
+      params.data.id,
+      user.id
+    );
+    return { ok: true };
+  });
+
+  app.post('/api/notifications/read-all', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const now = new Date().toISOString();
+    db.prepare("UPDATE notifications SET is_read = 1, read_at = CASE WHEN read_at = '' THEN ? ELSE read_at END WHERE user_id = ? AND is_read = 0").run(
+      now,
+      user.id
+    );
+    return { ok: true };
+  });
+
   app.patch('/api/auth/me', async (request, reply) => {
     const user = requireAuth(request, reply);
     if (!user) return;
@@ -832,17 +1115,137 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     return { user: publicUserById(user.id), badges: getBadgesForUser(user.id) };
   });
 
+  app.get('/api/users/:username/insights', async (request, reply) => {
+    const username = String((request.params as { username: string }).username);
+    const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as Record<string, unknown> | undefined;
+    if (!row) return reply.code(404).send({ message: '用户不存在。' });
+    const userId = Number(row.id);
+    const baseWhere = "user_id = ? AND status = 'approved' AND visibility = 'public'";
+    const summary = db
+      .prepare(
+        `
+          SELECT
+            COUNT(*) AS total_records,
+            COALESCE(SUM(fish_power_score), 0) AS total_score,
+            COALESCE(AVG(fish_power_score), 0) AS average_score,
+            COALESCE(SUM(like_count), 0) AS likes,
+            COALESCE(SUM(comment_count), 0) AS comments,
+            COALESCE(SUM(legend_nomination_count), 0) AS legend_nominations
+          FROM slacking_records
+          WHERE ${baseWhere}
+        `
+      )
+      .get(userId) as {
+        total_records: number;
+        total_score: number;
+        average_score: number;
+        likes: number;
+        comments: number;
+        legend_nominations: number;
+      };
+    const topType = db
+      .prepare(
+        `
+          SELECT COALESCE(NULLIF(slacking_type_id, ''), slacking_type) AS key, COUNT(*) AS count
+          FROM slacking_records
+          WHERE ${baseWhere}
+          GROUP BY COALESCE(NULLIF(slacking_type_id, ''), slacking_type)
+          ORDER BY count DESC, key ASC
+          LIMIT 1
+        `
+      )
+      .get(userId) as { key: string; count: number } | undefined;
+    const topDisguise = db
+      .prepare(
+        `
+          SELECT disguise AS key, COUNT(*) AS count
+          FROM slacking_records
+          WHERE ${baseWhere}
+          GROUP BY disguise
+          ORDER BY count DESC, key ASC
+          LIMIT 1
+        `
+      )
+      .get(userId) as { key: string; count: number } | undefined;
+    const highest = db
+      .prepare(`SELECT * FROM slacking_records WHERE ${baseWhere} ORDER BY fish_power_score DESC, created_at DESC LIMIT 1`)
+      .get(userId) as Record<string, unknown> | undefined;
+    const week = getWeekRange();
+    const month = getMonthRange();
+    const periodStats = (range: PeriodRange) =>
+      db
+        .prepare(
+          `
+            SELECT COUNT(*) AS records, COALESCE(SUM(fish_power_score), 0) AS score
+            FROM slacking_records
+            WHERE ${baseWhere}
+              AND created_at >= ?
+              AND created_at < ?
+          `
+        )
+        .get(userId, range.start, range.end) as { records: number; score: number };
+    const weekActivity = periodStats(week);
+    const monthActivity = periodStats(month);
+    const topTypeOption = topType ? findSlackingTypeOption(topType.key) : null;
+    const persona = getPersonaForInsights({
+      totalRecords: Number(summary.total_records ?? 0),
+      topTypeKey: topType?.key ?? '',
+      topDisguiseKey: topDisguise?.key ?? '',
+      comments: Number(summary.comments ?? 0),
+      legendNominations: Number(summary.legend_nominations ?? 0)
+    });
+
+    return {
+      insights: {
+        username: String(row.username),
+        displayName: String(row.display_name),
+        totalRecords: Number(summary.total_records ?? 0),
+        totalScore: Number(Number(summary.total_score ?? 0).toFixed(1)),
+        averageScore: Number(Number(summary.average_score ?? 0).toFixed(1)),
+        topSlackingType: topType
+          ? {
+              key: String(topType.key),
+              label: topTypeOption?.label ?? String(topType.key),
+              count: Number(topType.count ?? 0)
+            }
+          : null,
+        topDisguise: topDisguise
+          ? {
+              key: String(topDisguise.key),
+              label: getOptionLabel(DISGUISES, String(topDisguise.key)),
+              count: Number(topDisguise.count ?? 0)
+            }
+          : null,
+        highestRecord: highest ? publicRecord(highest) : null,
+        weekActivity: {
+          records: Number(weekActivity.records ?? 0),
+          score: Number(Number(weekActivity.score ?? 0).toFixed(1))
+        },
+        monthActivity: {
+          records: Number(monthActivity.records ?? 0),
+          score: Number(Number(monthActivity.score ?? 0).toFixed(1))
+        },
+        interactions: {
+          likes: Number(summary.likes ?? 0),
+          comments: Number(summary.comments ?? 0),
+          legendNominations: Number(summary.legend_nominations ?? 0)
+        },
+        persona
+      }
+    };
+  });
+
   app.get('/api/users/:username', async (request, reply) => {
     const username = String((request.params as { username: string }).username);
     const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as Record<string, unknown> | undefined;
     if (!row) return reply.code(404).send({ message: '用户不存在。' });
     const userId = Number(row.id);
     const records = db
-      .prepare("SELECT * FROM slacking_records WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 10")
+      .prepare("SELECT * FROM slacking_records WHERE user_id = ? AND status = 'approved' AND visibility = 'public' ORDER BY created_at DESC LIMIT 10")
       .all(userId) as Record<string, unknown>[];
     return {
       user: publicUserById(userId),
-      totalScore: Number(getUserTotalScore(userId).toFixed(1)),
+      totalScore: Number(getPublicUserScore(userId).toFixed(1)),
       badges: getBadgesForUser(userId),
       records: records.map(publicRecord)
     };
@@ -962,12 +1365,108 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     topics: getPopularTopics(12).map(publicTopic)
   }));
 
+  app.get('/api/search', async (request, reply) => {
+    const parsed = searchQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ message: '搜索参数无效。' });
+    const query = parsed.data.q.trim();
+    if (query.length < 1) return emptySearchResults('');
+
+    const user = getUserFromRequest(request);
+    const like = `%${escapeLike(query)}%`;
+    const records = db
+      .prepare(
+        `
+          SELECT slacking_records.*
+          FROM slacking_records
+          LEFT JOIN users ON users.id = slacking_records.user_id
+          WHERE slacking_records.status = 'approved'
+            AND slacking_records.visibility = 'public'
+            AND (
+              slacking_records.title LIKE ? ESCAPE '\\'
+              OR slacking_records.activity_text LIKE ? ESCAPE '\\'
+              OR slacking_records.story_text LIKE ? ESCAPE '\\'
+              OR slacking_records.description LIKE ? ESCAPE '\\'
+              OR slacking_records.nickname LIKE ? ESCAPE '\\'
+              OR users.username LIKE ? ESCAPE '\\'
+              OR users.display_name LIKE ? ESCAPE '\\'
+              OR EXISTS (
+                SELECT 1
+                FROM record_topics
+                JOIN topics ON topics.id = record_topics.topic_id
+                WHERE record_topics.record_id = slacking_records.id
+                  AND topics.status = 'active'
+                  AND topics.name LIKE ? ESCAPE '\\'
+              )
+            )
+          ORDER BY slacking_records.created_at DESC
+          LIMIT 6
+        `
+      )
+      .all(like, like, like, like, like, like, like, like) as Record<string, unknown>[];
+
+    const topics = db
+      .prepare("SELECT * FROM topics WHERE status = 'active' AND (name LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\') ORDER BY usage_count DESC, updated_at DESC LIMIT 6")
+      .all(like, like) as Topic[];
+    const users = db
+      .prepare(
+        `
+          SELECT id, username, display_name, bio, avatar_seed, total_score
+          FROM users
+          WHERE username LIKE ? ESCAPE '\\'
+             OR display_name LIKE ? ESCAPE '\\'
+             OR bio LIKE ? ESCAPE '\\'
+          ORDER BY total_score DESC, display_name ASC
+          LIMIT 6
+        `
+      )
+      .all(like, like, like) as Record<string, unknown>[];
+    const guilds = db
+      .prepare("SELECT * FROM guilds WHERE status = 'active' AND (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\') ORDER BY total_contribution DESC LIMIT 6")
+      .all(like, like) as Record<string, unknown>[];
+    const circles = db
+      .prepare("SELECT * FROM circles WHERE status = 'active' AND (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\') ORDER BY record_count DESC LIMIT 6")
+      .all(like, like) as Record<string, unknown>[];
+    const groups = db
+      .prepare(
+        `
+          SELECT id, name, description, visibility, owner_user_id, member_count, created_at
+          FROM "groups"
+          WHERE status = 'active'
+            AND visibility = 'public'
+            AND (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')
+          ORDER BY member_count DESC, created_at DESC
+          LIMIT 6
+        `
+      )
+      .all(like, like) as Record<string, unknown>[];
+
+    return {
+      query,
+      records: records.map((row) => publicFeedRecord(row, user?.id)),
+      topics: topics.map(publicTopic),
+      users: users.map(publicSearchUser),
+      guilds: guilds.map((row) => publicGuild(row, user?.id)),
+      circles: circles.map((row) => publicCircle(row, user?.id)),
+      groups: groups.map((row) => ({
+        id: Number(row.id),
+        name: String(row.name),
+        description: String(row.description ?? ''),
+        visibility: String(row.visibility ?? 'public'),
+        ownerUserId: Number(row.owner_user_id),
+        memberCount: Number(row.member_count ?? 0),
+        createdAt: String(row.created_at ?? '')
+      }))
+    };
+  });
+
   app.get('/api/topics/:slug', async (request, reply) => {
     const parsed = topicParamSchema.safeParse(request.params);
-    if (!parsed.success) return reply.code(400).send({ message: '话题参数无效。' });
+    const query = topicDetailQuerySchema.safeParse(request.query);
+    if (!parsed.success || !query.success) return reply.code(400).send({ message: '话题参数无效。' });
     const topic = db.prepare("SELECT * FROM topics WHERE slug = ? AND status = 'active'").get(parsed.data.slug) as Topic | undefined;
     if (!topic) return reply.code(404).send({ message: '话题不存在或已隐藏。' });
     const user = getUserFromRequest(request);
+    const orderBy = getTopicOrderBy(query.data.filter);
     const rows = db
       .prepare(
         `
@@ -977,7 +1476,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
           WHERE record_topics.topic_id = ?
             AND slacking_records.status = 'approved'
             AND slacking_records.visibility = 'public'
-          ORDER BY slacking_records.created_at DESC
+          ORDER BY ${orderBy}
           LIMIT 50
         `
       )
@@ -985,6 +1484,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
 
     return {
       topic: publicTopic(topic),
+      filter: query.data.filter,
       records: rows.map((row) => publicFeedRecord(row, user?.id)),
       popularTopics: getPopularTopics(10).map(publicTopic)
     };
@@ -1379,7 +1879,22 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
         `
       )
       .all(params.data.id) as Record<string, unknown>[];
-    return { group: publicGroup(group, user.id), members, challenges: GROUP_CHALLENGES };
+    return {
+      group: publicGroup(group, user.id),
+      members,
+      challenges: GROUP_CHALLENGES,
+      currentGoal: publicGroupGoalProgress(getCurrentGroupGoalProgress(params.data.id))
+    };
+  });
+
+  app.get('/api/groups/:id/goals/current', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const params = idParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: '小组 ID 无效。' });
+    const member = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(params.data.id, user.id);
+    if (!member) return reply.code(403).send({ message: '你还没有加入这个小组。' });
+    return { currentGoal: publicGroupGoalProgress(getCurrentGroupGoalProgress(params.data.id)) };
   });
 
   app.post('/api/groups/:id/challenges', async (request, reply) => {
@@ -1482,8 +1997,11 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     if (!member) return reply.code(403).send({ message: '你还没有加入这个小组。' });
     const record = db.prepare('SELECT id FROM slacking_records WHERE id = ? AND user_id = ?').get(parsed.data.recordId, user.id);
     if (!record) return reply.code(404).send({ message: '只能同步自己的记录。' });
-    db.prepare('INSERT OR IGNORE INTO record_groups (record_id, group_id, shared_at) VALUES (?, ?, ?)').run(parsed.data.recordId, params.data.id, new Date().toISOString());
-    return { ok: true };
+    const result = db
+      .prepare('INSERT OR IGNORE INTO record_groups (record_id, group_id, shared_at) VALUES (?, ?, ?)')
+      .run(parsed.data.recordId, params.data.id, new Date().toISOString());
+    const completedGroupGoals = Number(result.changes ?? 0) > 0 ? checkAndCompleteGroupGoalsForRecord(parsed.data.recordId, [params.data.id]) : [];
+    return { ok: true, completedGroupGoals: completedGroupGoals.map(publicGroupGoalProgress) };
   });
 
   app.post('/api/records', async (request, reply) => {
@@ -1522,11 +2040,17 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       });
     }
 
-    const scoreInput = { duration: parsed.data.duration };
-    const score = calculateScore(scoreInput);
+    const scoreInput = {
+      duration: parsed.data.duration,
+      activityText,
+      slackingType: activityText,
+      storyText
+    };
+    const aiScore = await scoreRecordWithAiJudge(scoreInput);
+    const score = aiScore.breakdown;
     const totalScore = (user ? getUserTotalScore(user.id) : getNicknameTotalScore(nickname)) + score.fishPowerScore;
-    const title = getTitleForDurationScore(parsed.data.duration);
-    const systemComment = createSystemComment(scoreInput);
+    const title = getTitleForTotalScore(score.fishPowerScore);
+    const systemComment = aiScore.comment;
     const status = safety.level === 'review' ? 'pending' : 'approved';
     const reviewNote = safety.warnings.join('、');
     const privateOnly = parsed.data.privateOnly || parsed.data.publish_scope === 'private';
@@ -1543,6 +2067,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
         slackingTypeId: activityText,
         slackingTypeGroup: 'activity',
         activityText,
+        duration: score.duration ?? parsed.data.duration,
         risk,
         disguise,
         creativity,
@@ -1570,6 +2095,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
           fishPowerScore: score.fishPowerScore
         })
       : null;
+    const completedGroupGoals = checkAndCompleteGroupGoalsForRecord(record.id, groupIds);
 
     return reply.code(201).send({
       record: publicRecord(record as unknown as Record<string, unknown>),
@@ -1578,6 +2104,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       title,
       systemComment,
       fishScaleReward,
+      completedGroupGoals: completedGroupGoals.map(publicGroupGoalProgress),
       safety,
       leaderboards: {
         today: getLeaderboardRows('today'),
@@ -1595,9 +2122,78 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '记录 ID 无效。' });
     const user = getUserFromRequest(request);
+    const record = db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown> | undefined;
+    if (!record || !canViewRecord(record, user)) return reply.code(404).send({ message: '记录不存在或不可公开访问。' });
     const social = getSocialSummary(params.data.id, user?.id);
     if (!social) return reply.code(404).send({ message: '记录不存在。' });
     return social;
+  });
+
+  app.get('/api/records/:id/related', async (request, reply) => {
+    const params = idParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: '记录 ID 无效。' });
+    const user = getUserFromRequest(request);
+    const record = db
+      .prepare("SELECT * FROM slacking_records WHERE id = ? AND status = 'approved' AND visibility = 'public'")
+      .get(params.data.id) as Record<string, unknown> | undefined;
+    if (!record) return reply.code(404).send({ message: '记录不存在或不可公开推荐。' });
+    const slackingType = String(record.slacking_type_id || record.slacking_type || '');
+    const score = Number(record.fish_power_score ?? 0);
+    const guildId = record.guild_id === null || record.guild_id === undefined ? null : Number(record.guild_id);
+    const rows = db
+      .prepare(
+        `
+          SELECT DISTINCT slacking_records.*
+          FROM slacking_records
+          WHERE slacking_records.id != ?
+            AND slacking_records.status = 'approved'
+            AND slacking_records.visibility = 'public'
+            AND (
+              COALESCE(NULLIF(slacking_records.slacking_type_id, ''), slacking_records.slacking_type) = ?
+              OR COALESCE(slacking_records.guild_id, -1) = COALESCE(?, -1)
+              OR ABS(slacking_records.fish_power_score - ?) <= 50
+              OR EXISTS (
+                SELECT 1
+                FROM record_topics current_topics
+                JOIN record_topics candidate_topics ON candidate_topics.topic_id = current_topics.topic_id
+                WHERE current_topics.record_id = ?
+                  AND candidate_topics.record_id = slacking_records.id
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM record_circles current_circles
+                JOIN record_circles candidate_circles ON candidate_circles.circle_id = current_circles.circle_id
+                WHERE current_circles.record_id = ?
+                  AND candidate_circles.record_id = slacking_records.id
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM record_groups current_groups
+                JOIN record_groups candidate_groups ON candidate_groups.group_id = current_groups.group_id
+                WHERE current_groups.record_id = ?
+                  AND candidate_groups.record_id = slacking_records.id
+              )
+            )
+          ORDER BY
+            CASE WHEN COALESCE(NULLIF(slacking_records.slacking_type_id, ''), slacking_records.slacking_type) = ? THEN 0 ELSE 1 END,
+            ABS(slacking_records.fish_power_score - ?) ASC,
+            slacking_records.like_count DESC,
+            slacking_records.created_at DESC
+          LIMIT 5
+        `
+      )
+      .all(
+        params.data.id,
+        slackingType,
+        guildId,
+        score,
+        params.data.id,
+        params.data.id,
+        params.data.id,
+        slackingType,
+        score
+      ) as Record<string, unknown>[];
+    return { records: rows.map((row) => publicFeedRecord(row, user?.id)) };
   });
 
   app.post('/api/records/:id/interactions', async (request, reply) => {
@@ -1732,16 +2328,19 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get('/api/records/:id/share-card', async (request, reply) => {
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '记录 ID 无效。' });
+    const user = getUserFromRequest(request);
     const record = db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown> | undefined;
-    if (!record) return reply.code(404).send({ message: '记录不存在。' });
+    if (!record || !canViewRecord(record, user)) return reply.code(404).send({ message: '记录不存在或不可公开访问。' });
     return createShareCard(publicRecord(record));
   });
 
   app.post('/api/records/:id/share-card', async (request, reply) => {
     const params = idParamSchema.safeParse(request.params);
-    if (!params.success) return reply.code(400).send({ message: '记录 ID 无效。' });
+    const parsed = shareCardActionSchema.safeParse(request.body ?? {});
+    if (!params.success || !parsed.success) return reply.code(400).send({ message: '分享动作无效。' });
+    const user = getUserFromRequest(request);
     const record = db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown> | undefined;
-    if (!record) return reply.code(404).send({ message: '记录不存在。' });
+    if (!record || !canViewRecord(record, user)) return reply.code(404).send({ message: '记录不存在或不可公开访问。' });
     db.prepare('UPDATE slacking_records SET share_count = share_count + 1, updated_at = ? WHERE id = ?').run(new Date().toISOString(), params.data.id);
     const updated = db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>;
     return createShareCard(publicRecord(updated));

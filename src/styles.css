@@ -1179,6 +1179,73 @@ textarea:focus {
   gap: 12px;
 }
 
+.search-results {
+  display: grid;
+  gap: 10px;
+}
+
+.search-result-group {
+  display: grid;
+  gap: 7px;
+}
+
+.search-result-group > strong {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.search-result-group button {
+  display: grid;
+  gap: 3px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-border);
+  text-align: left;
+}
+
+.search-result-group button span,
+.search-result-group button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-group button span {
+  font-weight: 900;
+}
+
+.search-result-group button small {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.group-goal-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface-soft);
+}
+
+.goal-progress-bar {
+  height: 14px;
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.goal-progress-bar span {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  background: var(--color-primary);
+}
+
 .record-card {
   display: grid;
   gap: 10px;
@@ -1186,6 +1253,66 @@ textarea:focus {
   border: 2px solid var(--color-border);
   background: var(--color-surface);
   box-shadow: 3px 3px 0 var(--color-border);
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 3px 3px 0 var(--color-border);
+}
+
+.notification-card.unread {
+  background: var(--color-accent);
+}
+
+.notification-card strong,
+.notification-card span,
+.notification-card small {
+  display: block;
+}
+
+.notification-card span {
+  margin-top: 4px;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.notification-card small {
+  margin-top: 6px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.notification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.notification-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-border);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .record-card header {
@@ -1249,6 +1376,20 @@ textarea:focus {
   color: var(--color-text);
   font-size: 12px;
   font-weight: 900;
+}
+
+.share-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.share-card small {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 .record-topic-list {
@@ -1511,6 +1652,14 @@ textarea:focus {
   border: 3px solid var(--color-border);
   background: var(--color-primary);
   box-shadow: 3px 3px 0 var(--color-border);
+}
+
+.admin-test-empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .admin-shell {
@@ -1929,6 +2078,58 @@ textarea:focus {
   background: var(--color-surface-soft);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.admin-success {
+  margin: 0;
+  padding: 10px 12px;
+  border: 2px solid var(--color-border);
+  background: var(--color-accent);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 2px 2px 0 var(--color-border);
+}
+
+.admin-prompt-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-prompt-item {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-border);
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-prompt-item.active {
+  background: var(--color-primary);
+}
+
+.admin-prompt-item span,
+.admin-prompt-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-prompt-editor {
+  min-height: 520px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  line-height: 1.55;
+}
+
+.admin-checkbox {
+  align-items: center;
 }
 
 @media (max-width: 1200px) {

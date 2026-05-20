@@ -1,5 +1,7 @@
 import type {
   AdminAuditLog,
+  AdminAiPrompt,
+  AdminAiPromptTestResponse,
   AdminComment,
   AdminDashboardResponse,
   AdminEntity,
@@ -179,6 +181,24 @@ export const saveAdminSensitiveWords = (words: AdminSensitiveWord[]) =>
   });
 export const saveAdminSafetyRules = (payload: Partial<AdminSettings>) =>
   requestJson<{ rules: AdminSettings }>('/api/admin/safety/rules', { method: 'PUT', body: JSON.stringify(payload) });
+
+export const fetchAdminAiPrompts = () => requestJson<{ prompts: AdminAiPrompt[] }>('/api/admin/ai-prompts');
+export const fetchAdminAiPrompt = (key: string) =>
+  requestJson<{ prompt: AdminAiPrompt; defaultContent: string }>(`/api/admin/ai-prompts/${encodeURIComponent(key)}`);
+export const saveAdminAiPrompt = (key: string, payload: Partial<AdminAiPrompt> & { content: string }) =>
+  requestJson<{ prompt: AdminAiPrompt }>(`/api/admin/ai-prompts/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+export const testAdminAiPrompt = (key: string, payload: Record<string, unknown>) =>
+  requestJson<AdminAiPromptTestResponse>(`/api/admin/ai-prompts/${encodeURIComponent(key)}/test`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+export const restoreDefaultAdminAiPrompt = (key: string) =>
+  requestJson<{ prompt: AdminAiPrompt; defaultContent: string }>(`/api/admin/ai-prompts/${encodeURIComponent(key)}/restore-default`, {
+    method: 'POST'
+  });
 
 export const fetchAdminSettings = () => requestJson<{ settings: AdminSettings }>('/api/admin/settings');
 export const saveAdminSettings = (payload: Partial<AdminSettings>) =>

@@ -8,18 +8,27 @@ import {
   RISKS,
   SAFETY_NOTICE,
   analyzeContentSafety,
-  getOptionLabel
+  getOptionLabel,
+  type ScoreBreakdown
 } from '../shared/scoring.js';
+import { AI_JUDGE_PROMPT_KEY, AI_JUDGE_PROMPT_NAME, DEFAULT_AI_JUDGE_SYSTEM_PROMPT } from '../shared/aiJudgePrompt.js';
 import { CIRCLE_FEATURED_BOARDS, COMMENT_MAX_LENGTH, GROUP_NAME_MAX_LENGTH, getGuildLevel } from '../shared/social.js';
 import { normalizeTopicName, validateTopicName } from '../shared/topics.js';
 import {
   FISH_SCALE_INSUFFICIENT_MESSAGE,
   adjustFishScale,
+  checkAndCompleteGroupGoalsForRecord,
+  createNotification,
   db,
+  getAiPrompt,
   getFishScaleWallet,
+  listAiPrompts,
   grantInteractionFishScale,
   grantLegendSelectedFishScale,
   makeUniqueTopicSlug,
+  restoreDefaultAiPrompt,
+  saveAiPrompt,
+  updateAiPromptLastTested,
   refreshAllSocialAggregates,
   refreshRecordInteractionCounts
 } from './database.js';
@@ -34,6 +43,7 @@ import {
   writeAdminAuditLog
 } from './adminAuth.js';
 import { getTodayRange } from './time.js';
+import { deterministicScore, generateAiJudgeResult, isPromptUsable } from './ai/judgeService.js';
 
 const idParamSchema = z.object({ id: z.coerce.number().int().positive() });
 const pageQuerySchema = z.object({
@@ -138,6 +148,20 @@ const sensitiveWordSchema = z.object({
   enabled: z.boolean().default(true)
 });
 const sensitiveWordsSchema = z.object({ words: z.array(sensitiveWordSchema).max(200) });
+const promptKeyParamSchema = z.object({ key: z.string().trim().min(1).max(80) });
+const aiPromptSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  content: z.string().trim().min(1).max(12000),
+  description: z.string().trim().max(300).optional(),
+  isActive: z.boolean().optional()
+});
+const aiPromptTestSchema = z.object({
+  content: z.string().trim().max(12000).optional(),
+  duration: z.string().trim().min(1).max(40).default('1-2小时'),
+  activityText: z.string().trim().min(1).max(80).default('开会时假装记笔记'),
+  storyText: z.string().trim().min(1).max(300).default('两小时会议里一边点头一边研究今晚吃什么，领导坐在对面。'),
+  extraNote: z.string().trim().max(160).default('')
+});
 
 type SqlRow = Record<string, unknown>;
 type SqlParam = string | number | null;
@@ -195,6 +219,30 @@ const parseActivityTags = (value: unknown): string[] => {
   }
 };
 
+const parseScoreBreakdown = (value: unknown): Partial<ScoreBreakdown> => {
+  if (typeof value !== 'string' || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<ScoreBreakdown>) : {};
+  } catch {
+    return {};
+  }
+};
+
+const adminPrompt = (row: SqlRow) => ({
+  id: Number(row.id),
+  key: String(row.key ?? ''),
+  name: String(row.name ?? ''),
+  content: String(row.content ?? ''),
+  description: String(row.description ?? ''),
+  version: Number(row.version ?? 1),
+  isActive: Boolean(row.is_active),
+  createdAt: String(row.created_at ?? ''),
+  updatedAt: String(row.updated_at ?? ''),
+  updatedBy: String(row.updated_by ?? ''),
+  lastTestedAt: String(row.last_tested_at ?? '')
+});
+
 const adminRecord = (row: SqlRow) => ({
   id: Number(row.id),
   userId: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
@@ -205,7 +253,7 @@ const adminRecord = (row: SqlRow) => ({
   activityText: String(row.activity_text || row.slacking_type || ''),
   activityTags: parseActivityTags(row.activity_tags),
   duration: String(row.duration ?? ''),
-  durationLabel: getOptionLabel(DURATIONS, String(row.duration ?? '')),
+  durationLabel: String(parseScoreBreakdown(row.score_breakdown).durationLabel ?? getOptionLabel(DURATIONS, String(row.duration ?? ''))),
   risk: String(row.risk ?? ''),
   riskLabel: getOptionLabel(RISKS, String(row.risk ?? '')),
   disguise: String(row.disguise ?? ''),
@@ -248,7 +296,8 @@ const adminRecord = (row: SqlRow) => ({
     durationMultiplier: Number(row.duration_multiplier ?? 0),
     riskMultiplier: Number(row.risk_multiplier ?? 0),
     disguiseBonus: Number(row.disguise_bonus ?? 0),
-    creativityBonus: Number(row.creativity_bonus ?? 0)
+    creativityBonus: Number(row.creativity_bonus ?? 0),
+    ...parseScoreBreakdown(row.score_breakdown)
   }
 });
 
@@ -371,6 +420,7 @@ const saveSetting = (key: string, value: string): void => {
 const updateStatus = (target: 'record' | 'comment', id: number, status: string, note: string, adminUsername: string, hiddenReason = ''): SqlRow | undefined => {
   const now = new Date().toISOString();
   if (target === 'record') {
+    const before = db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(id) as SqlRow | undefined;
     db.prepare(
       `
         UPDATE slacking_records
@@ -383,7 +433,35 @@ const updateStatus = (target: 'record' | 'comment', id: number, status: string, 
         WHERE id = ?
       `
     ).run(status, note, adminUsername, now, hiddenReason, now, id);
+    if (before?.user_id && String(before.status ?? '') !== status && ['approved', 'hidden', 'rejected'].includes(status)) {
+      const title =
+        status === 'approved'
+          ? '记录审核通过'
+          : status === 'hidden'
+            ? '记录已被隐藏'
+            : '记录审核未通过';
+      const body =
+        note ||
+        hiddenReason ||
+        (status === 'approved' ? '这条记录已进入公共水域。' : '这条记录没有公开展示，请继续保持匿名和娱乐边界。');
+      createNotification({
+        userId: Number(before.user_id),
+        type: 'record_review',
+        title,
+        body,
+        targetType: 'record',
+        targetId: id,
+        dedupeKey: `record_review:${id}:${status}`
+      });
+    }
     refreshAllSocialAggregates();
+    if (before && status === 'approved' && String(before.status ?? '') !== 'approved') {
+      const groups = db.prepare('SELECT group_id FROM record_groups WHERE record_id = ?').all(id) as { group_id: number }[];
+      checkAndCompleteGroupGoalsForRecord(
+        id,
+        groups.map((group) => Number(group.group_id))
+      );
+    }
     return db.prepare('SELECT slacking_records.*, users.username FROM slacking_records LEFT JOIN users ON users.id = slacking_records.user_id WHERE slacking_records.id = ?').get(id) as SqlRow | undefined;
   }
 
@@ -409,6 +487,16 @@ const updateStatus = (target: 'record' | 'comment', id: number, status: string, 
         reason: 'record_commented',
         relatedType: 'comment',
         relatedId: id
+      });
+      createNotification({
+        userId: Number(record.user_id),
+        actorUserId: commentAuthorId,
+        type: 'record_comment',
+        title: '你的摸鱼记录有新评论',
+        body: '一条先前进入审核的评论已通过，现在显示在你的记录下。',
+        targetType: 'record',
+        targetId: Number(before.record_id),
+        dedupeKey: `record_comment:${id}`
       });
     }
   }
@@ -1495,6 +1583,122 @@ export const registerAdminRoutes = async (app: FastifyInstance): Promise<void> =
       after
     });
     return { rules: after };
+  });
+
+  app.get('/api/admin/ai-prompts', async (request, reply) => {
+    const session = requireAdminSession(request, reply);
+    if (!session) return;
+    return { prompts: listAiPrompts().map((row) => adminPrompt(row as unknown as SqlRow)) };
+  });
+
+  app.get('/api/admin/ai-prompts/:key', async (request, reply) => {
+    const session = requireAdminSession(request, reply);
+    if (!session) return;
+    const params = promptKeyParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: 'Prompt key 无效。' });
+    const prompt = getAiPrompt(params.data.key);
+    if (!prompt) return reply.code(404).send({ message: 'Prompt 不存在。' });
+    return { prompt: adminPrompt(prompt as unknown as SqlRow), defaultContent: DEFAULT_AI_JUDGE_SYSTEM_PROMPT };
+  });
+
+  app.put('/api/admin/ai-prompts/:key', async (request, reply) => {
+    const session = requireAdminSession(request, reply);
+    if (!session) return;
+    const params = promptKeyParamSchema.safeParse(request.params);
+    const parsed = aiPromptSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) return reply.code(400).send({ message: 'Prompt 内容无效。' });
+    if (!isPromptUsable(parsed.data.content)) {
+      return reply.code(400).send({ message: 'Prompt 至少需要描述 valid 和 comment 字段，否则 AI 裁判输出无法被系统校验。' });
+    }
+
+    const before = getAiPrompt(params.data.key);
+    const prompt = saveAiPrompt({
+      key: params.data.key,
+      name: parsed.data.name ?? (params.data.key === AI_JUDGE_PROMPT_KEY ? AI_JUDGE_PROMPT_NAME : params.data.key),
+      content: parsed.data.content,
+      description: parsed.data.description,
+      isActive: parsed.data.isActive,
+      updatedBy: session.username
+    });
+    writeAdminAuditLog(request, {
+      adminUsername: session.username,
+      action: 'ai_prompt_update',
+      targetType: 'ai_prompt',
+      targetId: params.data.key,
+      before,
+      after: prompt
+    });
+    return { prompt: adminPrompt(prompt as unknown as SqlRow) };
+  });
+
+  app.post('/api/admin/ai-prompts/:key/test', async (request, reply) => {
+    const session = requireAdminSession(request, reply);
+    if (!session) return;
+    const params = promptKeyParamSchema.safeParse(request.params);
+    const parsed = aiPromptTestSchema.safeParse(request.body);
+    if (!params.success || !parsed.success) return reply.code(400).send({ message: 'Prompt 测试输入无效。' });
+
+    const stored = getAiPrompt(params.data.key);
+    const content = parsed.data.content?.trim() || stored?.content || DEFAULT_AI_JUDGE_SYSTEM_PROMPT;
+    const promptVersion = parsed.data.content?.trim() ? 'test' : stored?.version ?? 1;
+    const generation = await generateAiJudgeResult(
+      {
+        duration: parsed.data.duration,
+        activityText: parsed.data.activityText,
+        slackingType: parsed.data.activityText,
+        storyText: parsed.data.storyText,
+        extraNote: parsed.data.extraNote
+      },
+      {
+        prompt: {
+          key: params.data.key,
+          content,
+          version: promptVersion
+        }
+      }
+    );
+    const scored = deterministicScore(
+      {
+        duration: parsed.data.duration,
+        activityText: parsed.data.activityText,
+        slackingType: parsed.data.activityText,
+        storyText: parsed.data.storyText,
+        extraNote: parsed.data.extraNote
+      },
+      generation
+    );
+    if (stored) updateAiPromptLastTested(params.data.key);
+    return {
+      rawJson: generation.rawText,
+      aiJson: generation.judgeResult,
+      zod: {
+        success: !generation.fallback,
+        fallback: generation.fallback,
+        fallbackReason: generation.fallbackReason ?? ''
+      },
+      breakdown: scored.breakdown,
+      comment: scored.comment,
+      fallback: generation.fallback,
+      fallbackReason: generation.fallbackReason ?? ''
+    };
+  });
+
+  app.post('/api/admin/ai-prompts/:key/restore-default', async (request, reply) => {
+    const session = requireAdminSession(request, reply);
+    if (!session) return;
+    const params = promptKeyParamSchema.safeParse(request.params);
+    if (!params.success || params.data.key !== AI_JUDGE_PROMPT_KEY) return reply.code(400).send({ message: '只能恢复默认 AI 裁判 Prompt。' });
+    const before = getAiPrompt(params.data.key);
+    const prompt = restoreDefaultAiPrompt(session.username);
+    writeAdminAuditLog(request, {
+      adminUsername: session.username,
+      action: 'ai_prompt_restore_default',
+      targetType: 'ai_prompt',
+      targetId: params.data.key,
+      before,
+      after: prompt
+    });
+    return { prompt: adminPrompt(prompt as unknown as SqlRow), defaultContent: DEFAULT_AI_JUDGE_SYSTEM_PROMPT };
   });
 
   app.get('/api/admin/settings', async (request, reply) => {

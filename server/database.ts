@@ -2,10 +2,15 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { ScoreBreakdown } from '../shared/scoring.js';
+import {
+  AI_JUDGE_PROMPT_KEY,
+  AI_JUDGE_PROMPT_NAME,
+  DEFAULT_AI_JUDGE_SYSTEM_PROMPT
+} from '../shared/aiJudgePrompt.js';
 import { findSlackingTypeOption } from '../shared/slackingTypes.js';
 import { OFFICIAL_CIRCLES, OFFICIAL_GUILDS, getCircleSlugsForRecord } from '../shared/social.js';
 import { createTopicSlug, type Topic } from '../shared/topics.js';
-import { getTodayRange } from './time.js';
+import { getTodayRange, getWeekRange, type PeriodRange } from './time.js';
 
 export type StoredRecord = {
   id: number;
@@ -31,6 +36,7 @@ export type StoredRecord = {
   creativity_bonus: number;
   fish_power_score: number;
   score_version: string;
+  score_breakdown: string;
   title: string;
   system_comment: string;
   status: 'approved' | 'published' | 'pending' | 'hidden' | 'rejected';
@@ -54,6 +60,20 @@ export type StoredRecord = {
 };
 
 export type StoredTopic = Topic;
+
+export type StoredAiPrompt = {
+  id: number;
+  key: string;
+  name: string;
+  content: string;
+  description: string;
+  version: number;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+  updated_by: string;
+  last_tested_at: string;
+};
 
 export type FishScaleTransactionType = 'earn_submission' | 'earn_interaction' | 'spend' | 'admin_adjustment';
 export type FishScaleEarnCategory = 'submission' | 'interaction';
@@ -101,6 +121,59 @@ export type RecordSubmissionFishScaleReward = {
 
 export const FISH_SCALE_INSUFFICIENT_MESSAGE = '鱼鳞不足，今天再摸一会儿？';
 
+export type NotificationType =
+  | 'record_like'
+  | 'record_comment'
+  | 'record_legend'
+  | 'wallet_reward'
+  | 'record_review'
+  | 'group_goal_completed';
+
+export type CreateNotificationInput = {
+  userId: number | null | undefined;
+  type: NotificationType;
+  title: string;
+  body?: string;
+  targetType?: string;
+  targetId?: number | null;
+  dedupeKey: string;
+  actorUserId?: number | null;
+};
+
+export type CreateNotificationResult = {
+  created: boolean;
+  id: number | null;
+  reason?: string;
+};
+
+export type GroupGoal = {
+  id: number;
+  group_id: number;
+  goal_type: string;
+  target_value: number;
+  period_key: string;
+  status: string;
+  reward_title: string;
+  created_at: string;
+  completed_at: string;
+};
+
+export type GroupGoalProgress = {
+  goal: GroupGoal;
+  period: PeriodRange;
+  currentValue: number;
+  targetValue: number;
+  percent: number;
+  completed: boolean;
+  contributions: {
+    userId: number;
+    username: string;
+    displayName: string;
+    recordCount: number;
+    score: number;
+  }[];
+};
+
 const FISH_SCALE_DAILY_CAPS = {
   submission: 50,
   interaction: 50,
@@ -119,6 +192,67 @@ const dataDir = join(process.cwd(), 'data');
 mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(join(dataDir, 'gongwei-yuwang.sqlite'));
+
+export const createNotificationIfNotExists = (input: CreateNotificationInput): CreateNotificationResult => {
+  try {
+    const userId = Number(input.userId ?? 0);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return { created: false, id: null, reason: 'invalid_user' };
+    }
+    if (input.actorUserId && Number(input.actorUserId) === userId) {
+      return { created: false, id: null, reason: 'self_action' };
+    }
+    const dedupeKey = input.dedupeKey.trim();
+    if (!dedupeKey) {
+      console.warn(`[notifications] skipped ${input.type}: dedupeKey is required`);
+      return { created: false, id: null, reason: 'missing_dedupe_key' };
+    }
+    const user = db.prepare('SELECT id FROM users WHERE id = ? LIMIT 1').get(userId);
+    if (!user) {
+      return { created: false, id: null, reason: 'unknown_user' };
+    }
+
+    const now = new Date().toISOString();
+    const result = db
+      .prepare(
+        `
+          INSERT OR IGNORE INTO notifications (
+            user_id,
+            type,
+            title,
+            body,
+            target_type,
+            target_id,
+            dedupe_key,
+            is_read,
+            created_at,
+            read_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, '')
+        `
+      )
+      .run(
+        userId,
+        input.type,
+        input.title.trim(),
+        input.body?.trim() ?? '',
+        input.targetType?.trim() ?? '',
+        input.targetId ?? null,
+        dedupeKey,
+        now
+      );
+
+    return {
+      created: Number(result.changes ?? 0) > 0,
+      id: Number(result.changes ?? 0) > 0 ? Number(result.lastInsertRowid) : null,
+      reason: Number(result.changes ?? 0) > 0 ? undefined : 'duplicate'
+    };
+  } catch (error) {
+    console.warn(`[notifications] failed to create ${input.type}:`, error);
+    return { created: false, id: null, reason: 'write_failed' };
+  }
+};
+
+export const createNotification = createNotificationIfNotExists;
 
 const getColumns = (table: string): Set<string> => {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
@@ -179,6 +313,22 @@ export const initDatabase = (): void => {
       related_id INTEGER,
       balance_after INTEGER NOT NULL,
       created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      target_type TEXT NOT NULL DEFAULT '',
+      target_id INTEGER,
+      dedupe_key TEXT NOT NULL DEFAULT '',
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      read_at TEXT NOT NULL DEFAULT '',
+      UNIQUE(user_id, dedupe_key),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
@@ -356,6 +506,20 @@ export const initDatabase = (): void => {
       FOREIGN KEY (group_id) REFERENCES "groups"(id)
     );
 
+    CREATE TABLE IF NOT EXISTS group_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      goal_type TEXT NOT NULL,
+      target_value INTEGER NOT NULL,
+      period_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      reward_title TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      completed_at TEXT NOT NULL DEFAULT '',
+      UNIQUE(group_id, period_key, goal_type),
+      FOREIGN KEY (group_id) REFERENCES "groups"(id)
+    );
+
     CREATE TABLE IF NOT EXISTS reactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       target_type TEXT NOT NULL,
@@ -398,6 +562,20 @@ export const initDatabase = (): void => {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_prompts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      version INTEGER NOT NULL DEFAULT 1,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL DEFAULT '',
+      last_tested_at TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS sensitive_words (
@@ -460,6 +638,7 @@ export const initDatabase = (): void => {
   addColumnIfMissing('slacking_records', 'duration_score', 'REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('slacking_records', 'duration_base_score', 'REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('slacking_records', 'score_version', "TEXT NOT NULL DEFAULT 'legacy_type_v1'");
+  addColumnIfMissing('slacking_records', 'score_breakdown', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('slacking_records', 'status', "TEXT NOT NULL DEFAULT 'approved'");
   addColumnIfMissing('slacking_records', 'review_note', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('slacking_records', 'visibility', "TEXT NOT NULL DEFAULT 'public'");
@@ -496,6 +675,11 @@ export const initDatabase = (): void => {
   addColumnIfMissing('topics', 'updated_at', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('"groups"', 'status', "TEXT NOT NULL DEFAULT 'active'");
   addColumnIfMissing('"groups"', 'updated_at', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('ai_prompts', 'description', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('ai_prompts', 'version', 'INTEGER NOT NULL DEFAULT 1');
+  addColumnIfMissing('ai_prompts', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+  addColumnIfMissing('ai_prompts', 'updated_by', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('ai_prompts', 'last_tested_at', "TEXT NOT NULL DEFAULT ''");
   db.exec("UPDATE slacking_records SET slacking_type_id = slacking_type WHERE slacking_type_id = ''");
   db.exec("UPDATE slacking_records SET activity_text = slacking_type WHERE activity_text = ''");
   db.exec("UPDATE slacking_records SET story_text = description WHERE story_text = ''");
@@ -507,6 +691,29 @@ export const initDatabase = (): void => {
   db.exec("UPDATE circles SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE topics SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE \"groups\" SET updated_at = created_at WHERE updated_at = ''");
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO ai_prompts (
+        key,
+        name,
+        content,
+        description,
+        version,
+        is_active,
+        created_at,
+        updated_at,
+        updated_by,
+        last_tested_at
+      ) VALUES (?, ?, ?, ?, 1, 1, ?, ?, '', '')
+    `
+  ).run(
+    AI_JUDGE_PROMPT_KEY,
+    AI_JUDGE_PROMPT_NAME,
+    DEFAULT_AI_JUDGE_SYSTEM_PROMPT,
+    'DeepSeek AI 裁判结构化输出与毒舌评语系统提示词',
+    new Date().toISOString(),
+    new Date().toISOString()
+  );
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_record_interactions_record ON record_interactions(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_interactions_user ON record_interactions(user_id);
@@ -514,6 +721,8 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_user_created_at ON fish_scale_transactions(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_type_created_at ON fish_scale_transactions(type, created_at);
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_related ON fish_scale_transactions(related_type, related_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_created_at ON notifications(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
     CREATE INDEX IF NOT EXISTS idx_comments_record ON comments(record_id);
     CREATE INDEX IF NOT EXISTS idx_comments_status ON comments(status);
     CREATE INDEX IF NOT EXISTS idx_guild_members_guild ON guild_members(guild_id);
@@ -527,11 +736,14 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_record_groups_record ON record_groups(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_groups_group ON record_groups(group_id);
+    CREATE INDEX IF NOT EXISTS idx_group_goals_group_period ON group_goals(group_id, period_key);
+    CREATE INDEX IF NOT EXISTS idx_group_goals_status ON group_goals(status);
     CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs(target_type, target_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_prompts_key_active ON ai_prompts(key, is_active);
     CREATE INDEX IF NOT EXISTS idx_sensitive_words_enabled ON sensitive_words(enabled);
     CREATE INDEX IF NOT EXISTS idx_suggestions_user ON suggestions(user_id);
     CREATE INDEX IF NOT EXISTS idx_checkins_user_date ON checkins(user_id, checkin_date);
@@ -816,6 +1028,15 @@ export const creditFishScale = (input: {
     relatedId: input.relatedId,
     balanceAfter,
     createdAt: now
+  });
+  createNotificationIfNotExists({
+    userId: input.userId,
+    type: 'wallet_reward',
+    title: '鱼鳞到账',
+    body: `本次获得 +${amount} 鱼鳞，余额 ${balanceAfter}。`,
+    targetType: 'wallet_transaction',
+    targetId: transaction.id,
+    dedupeKey: `wallet_reward:${transaction.id}`
   });
   wallet = ensureUserWallet(input.userId);
 
@@ -1171,6 +1392,154 @@ export const refreshAllSocialAggregates = (): void => {
   `);
 };
 
+export const getGroupGoalPeriodKey = (range = getWeekRange()): string => `${range.start.slice(0, 10)}_${range.end.slice(0, 10)}`;
+
+const mapGroupGoal = (row: Record<string, unknown>): GroupGoal => ({
+  id: Number(row.id),
+  group_id: Number(row.group_id),
+  goal_type: String(row.goal_type ?? 'weekly_score'),
+  target_value: Number(row.target_value ?? 0),
+  period_key: String(row.period_key ?? ''),
+  status: String(row.status ?? 'active'),
+  reward_title: String(row.reward_title ?? ''),
+  created_at: String(row.created_at ?? ''),
+  completed_at: String(row.completed_at ?? '')
+});
+
+export const ensureCurrentGroupGoal = (groupId: number, now = new Date()): GroupGoal => {
+  const range = getWeekRange(now);
+  const periodKey = getGroupGoalPeriodKey(range);
+  const existing = db
+    .prepare('SELECT * FROM group_goals WHERE group_id = ? AND period_key = ? ORDER BY id ASC LIMIT 1')
+    .get(groupId, periodKey) as Record<string, unknown> | undefined;
+  if (existing) return mapGroupGoal(existing);
+
+  const createdAt = new Date().toISOString();
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO group_goals (
+        group_id,
+        goal_type,
+        target_value,
+        period_key,
+        status,
+        reward_title,
+        created_at,
+        completed_at
+      ) VALUES (?, 'weekly_score', 300, ?, 'active', '本周摸鱼协作完成', ?, '')
+    `
+  ).run(groupId, periodKey, createdAt);
+  return mapGroupGoal(
+    db.prepare('SELECT * FROM group_goals WHERE group_id = ? AND period_key = ? ORDER BY id ASC LIMIT 1').get(groupId, periodKey) as Record<string, unknown>
+  );
+};
+
+export const getGroupGoalProgress = (groupId: number, goal = ensureCurrentGroupGoal(groupId), period = getWeekRange()): GroupGoalProgress => {
+  const aggregate = db
+    .prepare(
+      `
+        SELECT
+          COALESCE(SUM(slacking_records.fish_power_score), 0) AS score,
+          COUNT(slacking_records.id) AS records
+        FROM record_groups
+        JOIN slacking_records ON slacking_records.id = record_groups.record_id
+        WHERE record_groups.group_id = ?
+          AND slacking_records.status = 'approved'
+          AND slacking_records.created_at >= ?
+          AND slacking_records.created_at < ?
+      `
+    )
+    .get(groupId, period.start, period.end) as { score: number; records: number };
+  const currentValue = goal.goal_type === 'weekly_records' ? Number(aggregate.records ?? 0) : Number(Number(aggregate.score ?? 0).toFixed(1));
+  const targetValue = Number(goal.target_value ?? 0);
+  const contributions = db
+    .prepare(
+      `
+        SELECT
+          users.id AS user_id,
+          users.username,
+          users.display_name,
+          COUNT(slacking_records.id) AS record_count,
+          COALESCE(SUM(slacking_records.fish_power_score), 0) AS score
+        FROM group_members
+        JOIN users ON users.id = group_members.user_id
+        LEFT JOIN record_groups ON record_groups.group_id = group_members.group_id
+        LEFT JOIN slacking_records ON slacking_records.id = record_groups.record_id
+          AND slacking_records.user_id = users.id
+          AND slacking_records.status = 'approved'
+          AND slacking_records.created_at >= ?
+          AND slacking_records.created_at < ?
+        WHERE group_members.group_id = ?
+        GROUP BY users.id
+        ORDER BY score DESC, record_count DESC, users.display_name ASC
+        LIMIT 10
+      `
+    )
+    .all(period.start, period.end, groupId) as Record<string, unknown>[];
+
+  return {
+    goal,
+    period,
+    currentValue,
+    targetValue,
+    percent: targetValue > 0 ? Math.min(100, Math.round((currentValue / targetValue) * 100)) : 0,
+    completed: goal.status === 'completed' || (targetValue > 0 && currentValue >= targetValue),
+    contributions: contributions.map((row) => ({
+      userId: Number(row.user_id),
+      username: String(row.username),
+      displayName: String(row.display_name),
+      recordCount: Number(row.record_count ?? 0),
+      score: Number(Number(row.score ?? 0).toFixed(1))
+    }))
+  };
+};
+
+export const getCurrentGroupGoalProgress = (groupId: number, now = new Date()): GroupGoalProgress => {
+  const range = getWeekRange(now);
+  return getGroupGoalProgress(groupId, ensureCurrentGroupGoal(groupId, now), range);
+};
+
+export const checkAndCompleteGroupGoalsForRecord = (recordId: number, groupIds: number[]): GroupGoalProgress[] => {
+  const uniqueGroupIds = [...new Set(groupIds.filter((id) => Number.isInteger(id) && id > 0))];
+  if (!uniqueGroupIds.length) return [];
+  const record = db
+    .prepare("SELECT id, status, created_at FROM slacking_records WHERE id = ? AND status = 'approved'")
+    .get(recordId) as { id: number; status: string; created_at: string } | undefined;
+  if (!record) return [];
+  const range = getWeekRange(new Date(record.created_at));
+  const currentRange = getWeekRange();
+  if (range.start !== currentRange.start || range.end !== currentRange.end) return [];
+
+  const completed: GroupGoalProgress[] = [];
+  for (const groupId of uniqueGroupIds) {
+    const goal = ensureCurrentGroupGoal(groupId);
+    if (goal.status === 'completed') continue;
+    const progress = getGroupGoalProgress(groupId, goal, currentRange);
+    if (!progress.completed) continue;
+    const now = new Date().toISOString();
+    const result = db
+      .prepare("UPDATE group_goals SET status = 'completed', completed_at = ? WHERE id = ? AND status != 'completed'")
+      .run(now, goal.id);
+    if (Number(result.changes ?? 0) <= 0) continue;
+    const updatedGoal = mapGroupGoal(db.prepare('SELECT * FROM group_goals WHERE id = ?').get(goal.id) as Record<string, unknown>);
+    const updatedProgress = getGroupGoalProgress(groupId, updatedGoal, currentRange);
+    const members = db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId) as { user_id: number }[];
+    for (const member of members) {
+      createNotificationIfNotExists({
+        userId: Number(member.user_id),
+        type: 'group_goal_completed',
+        title: '小组周目标完成',
+        body: `${updatedGoal.reward_title || '本周摸鱼协作完成'}：${updatedProgress.currentValue.toFixed(1)} / ${updatedProgress.targetValue}。`,
+        targetType: 'group',
+        targetId: groupId,
+        dedupeKey: `group_goal_completed:${groupId}:${updatedGoal.id}:${updatedGoal.period_key}`
+      });
+    }
+    completed.push(updatedProgress);
+  }
+  return completed;
+};
+
 export const getNicknameTotalScore = (nickname: string): number => {
   const row = db
     .prepare(
@@ -1197,6 +1566,119 @@ export const getUserTotalScore = (userId: number): number => {
     )
     .get(userId) as { total_score: number };
   return Number(row.total_score ?? 0);
+};
+
+export const listAiPrompts = (): StoredAiPrompt[] =>
+  db.prepare('SELECT * FROM ai_prompts ORDER BY key ASC, version DESC').all() as StoredAiPrompt[];
+
+export const getAiPrompt = (key: string): StoredAiPrompt | undefined =>
+  db.prepare('SELECT * FROM ai_prompts WHERE key = ? LIMIT 1').get(key) as StoredAiPrompt | undefined;
+
+export const getActiveAiPrompt = (key = AI_JUDGE_PROMPT_KEY): StoredAiPrompt | undefined =>
+  db.prepare('SELECT * FROM ai_prompts WHERE key = ? AND is_active = 1 LIMIT 1').get(key) as StoredAiPrompt | undefined;
+
+export const updateAiPromptLastTested = (key: string, now = new Date().toISOString()): void => {
+  db.prepare('UPDATE ai_prompts SET last_tested_at = ?, updated_at = updated_at WHERE key = ?').run(now, key);
+};
+
+export const saveAiPrompt = (input: {
+  key: string;
+  name?: string;
+  content: string;
+  description?: string;
+  isActive?: boolean;
+  updatedBy: string;
+}): StoredAiPrompt => {
+  const now = new Date().toISOString();
+  const existing = getAiPrompt(input.key);
+  if (!existing) {
+    db.prepare(
+      `
+        INSERT INTO ai_prompts (
+          key,
+          name,
+          content,
+          description,
+          version,
+          is_active,
+          created_at,
+          updated_at,
+          updated_by,
+          last_tested_at
+        ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, '')
+      `
+    ).run(
+      input.key,
+      input.name ?? input.key,
+      input.content,
+      input.description ?? '',
+      input.isActive === false ? 0 : 1,
+      now,
+      now,
+      input.updatedBy
+    );
+  } else {
+    db.prepare(
+      `
+        UPDATE ai_prompts
+        SET name = ?,
+            content = ?,
+            description = ?,
+            version = version + 1,
+            is_active = ?,
+            updated_at = ?,
+            updated_by = ?
+        WHERE key = ?
+      `
+    ).run(
+      input.name ?? existing.name,
+      input.content,
+      input.description ?? existing.description,
+      input.isActive === undefined ? existing.is_active : input.isActive ? 1 : 0,
+      now,
+      input.updatedBy,
+      input.key
+    );
+  }
+
+  return getAiPrompt(input.key) as StoredAiPrompt;
+};
+
+export const restoreDefaultAiPrompt = (updatedBy: string): StoredAiPrompt => {
+  const existing = getAiPrompt(AI_JUDGE_PROMPT_KEY);
+  const now = new Date().toISOString();
+  if (!existing) {
+    return saveAiPrompt({
+      key: AI_JUDGE_PROMPT_KEY,
+      name: AI_JUDGE_PROMPT_NAME,
+      content: DEFAULT_AI_JUDGE_SYSTEM_PROMPT,
+      description: 'DeepSeek AI 裁判结构化输出与毒舌评语系统提示词',
+      isActive: true,
+      updatedBy
+    });
+  }
+
+  db.prepare(
+    `
+      UPDATE ai_prompts
+      SET name = ?,
+          content = ?,
+          description = ?,
+          version = version + 1,
+          is_active = 1,
+          updated_at = ?,
+          updated_by = ?
+      WHERE key = ?
+    `
+  ).run(
+    AI_JUDGE_PROMPT_NAME,
+    DEFAULT_AI_JUDGE_SYSTEM_PROMPT,
+    'DeepSeek AI 裁判结构化输出与毒舌评语系统提示词',
+    now,
+    updatedBy,
+    AI_JUDGE_PROMPT_KEY
+  );
+  return getAiPrompt(AI_JUDGE_PROMPT_KEY) as StoredAiPrompt;
 };
 
 export const insertRecord = (
@@ -1262,6 +1744,7 @@ export const insertRecord = (
       creativity_bonus,
       fish_power_score,
       score_version,
+      score_breakdown,
       title,
       system_comment,
       status,
@@ -1271,7 +1754,7 @@ export const insertRecord = (
       guild_contribution,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const guildContribution = input.guildId ? Number((score.fishPowerScore * 0.3).toFixed(1)) : 0;
 
@@ -1298,6 +1781,7 @@ export const insertRecord = (
     score.creativityBonus,
     score.fishPowerScore,
     score.scoreVersion,
+    JSON.stringify(score),
     input.title,
     input.systemComment,
     input.status,
