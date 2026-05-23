@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>工位鱼王 · 工会页视觉稿（战队主场概念）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* pond 主题 token，来自 src/styles/themes.css */
+    --bg: #eef3f7;
+    --surface: #fffefc;
+    --surface-soft: #f7fafc;
+    --text: #18202a;
+    --muted: #536172;
+    --border: #18202a;
+    --border-soft: #d1d8e0;
+    --primary: #ffe66d;
+    --accent: #d8fff4;
+    --warning: #fff7cc;
+    --danger: #ffe4e6;
+    --danger-text: #b91c1c;
+    --rank: #ffb4a2;
+    --disabled: #e5e7eb;
+    --ink-bg: #18202a;
+    --ink-text: #ffe66d;
+    --pixel: 'Press Start 2P', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    --read: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--read);
+    color: var(--text);
+    background-color: var(--bg);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18'><path d='M0 0H18' stroke='%2318202a' stroke-opacity='0.06' stroke-width='1'/><path d='M0 0V18' stroke='%2318202a' stroke-opacity='0.06' stroke-width='1'/></svg>");
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 60px;
+  }
+
+  .pixel { font-family: var(--pixel); }
+
+  /* ---------- 预览控制条（非产品 UI） ---------- */
+  .preview-bar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 20px;
+    background: var(--ink-bg);
+    border-bottom: 3px solid var(--border);
+  }
+  .preview-bar .pv-label {
+    font-family: var(--pixel);
+    font-size: 9px;
+    line-height: 1.6;
+    color: var(--ink-text);
+    letter-spacing: 0.04em;
+  }
+  .preview-bar .pv-sub { color: #9aa6b4; font-size: 12px; font-weight: 700; }
+  .pv-toggle { display: flex; gap: 0; margin-left: auto; }
+  .pv-toggle button {
+    font-family: var(--read);
+    font-size: 12px;
+    font-weight: 900;
+    padding: 8px 14px;
+    border: 2px solid var(--ink-text);
+    background: transparent;
+    color: var(--ink-text);
+    cursor: pointer;
+  }
+  .pv-toggle button + button { border-left: none; }
+  .pv-toggle button.active { background: var(--ink-text); color: var(--ink-bg); }
+
+  /* ---------- 简化顶部导航（仅做语境） ---------- */
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 16px 24px 0;
+  }
+  .nav .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 900;
+    font-size: 15px;
+    padding: 8px 12px;
+    border: 2px solid var(--border);
+    background: var(--primary);
+    box-shadow: 3px 3px 0 var(--border);
+  }
+  .nav .brand .fish {
+    display: grid; place-items: center;
+    width: 22px; height: 22px;
+    background: var(--ink-bg); color: var(--ink-text);
+    font-size: 12px;
+  }
+  .nav .nav-links { display: flex; gap: 18px; font-size: 13px; font-weight: 800; color: var(--muted); }
+  .nav .nav-links .on { color: var(--text); border-bottom: 3px solid var(--primary); padding-bottom: 3px; }
+
+  .page { max-width: 1180px; margin: 0 auto; padding: 20px 24px 0; }
+
+  /* 概念注释 */
+  .concept-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    border: 2px dashed var(--border-soft);
+    background: var(--surface);
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 700;
+    line-height: 1.6;
+  }
+  .concept-note b { color: var(--text); }
+
+  /* 通用像素小标签 */
+  .kicker {
+    font-family: var(--pixel);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 8px;
+    border: 2px solid var(--border);
+    font-size: 11px; font-weight: 900;
+    background: var(--surface);
+  }
+  .chip.is-live { background: var(--primary); }
+  .chip.is-seat { background: var(--warning); }
+  .chip.is-mine { background: var(--accent); }
+
+  /* ========================================================
+     状态 A — 招募大厅
+     ======================================================== */
+  .recruit-hero {
+    border: 3px solid var(--border);
+    background: var(--ink-bg);
+    box-shadow: 6px 6px 0 var(--border);
+    padding: 28px 26px;
+    margin-bottom: 18px;
+  }
+  .recruit-hero .kicker { color: #8d99a8; }
+  .recruit-hero h1 {
+    margin: 10px 0 8px;
+    font-size: 30px;
+    font-weight: 950;
+    color: #fff;
+    line-height: 1.25;
+  }
+  .recruit-hero h1 em { font-style: normal; color: var(--ink-text); }
+  .recruit-hero p {
+    color: #c4ccd6;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.6;
+    max-width: 540px;
+  }
+  .recruit-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .recruit-meta span {
+    font-size: 11px; font-weight: 900;
+    padding: 6px 10px;
+    border: 2px solid #3a4452;
+    color: #e6ebf1;
+  }
+  .recruit-meta span b { color: var(--ink-text); font-family: var(--pixel); font-size: 10px; margin-right: 4px; }
+
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin: 22px 0 12px; flex-wrap: wrap;
+  }
+  .section-head h2 { font-size: 17px; font-weight: 950; }
+  .section-head .hint { font-size: 12px; font-weight: 800; color: var(--muted); }
+
+  .guild-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .guild-pick {
+    display: flex;
+    flex-direction: column;
+    border: 3px solid var(--border);
+    background: var(--surface);
+    box-shadow: 5px 5px 0 var(--border);
+  }
+  .guild-pick.is-featured { box-shadow: 5px 5px 0 var(--primary); }
+  .guild-pick__top { display: flex; gap: 14px; padding: 16px 16px 12px; }
+  .guild-pick__emblem {
+    flex: none;
+    display: grid; place-items: center;
+    width: 66px; height: 66px;
+    border: 3px solid var(--border);
+    font-size: 30px; font-weight: 950;
+  }
+  .guild-pick__head { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .guild-pick__namerow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .guild-pick__namerow h3 { font-size: 17px; font-weight: 950; }
+  .guild-pick__tagline {
+    font-size: 12.5px; font-weight: 900; color: var(--text);
+    border-left: 3px solid var(--border); padding-left: 8px;
+  }
+  .guild-pick__desc {
+    padding: 0 16px;
+    font-size: 12.5px; font-weight: 700; color: var(--muted); line-height: 1.6;
+  }
+  .guild-pick__stats {
+    display: flex; gap: 10px;
+    margin: 12px 16px;
+  }
+  .guild-pick__stats .stat {
+    flex: 1;
+    border: 2px solid var(--border);
+    background: var(--surface-soft);
+    padding: 8px 10px;
+  }
+  .guild-pick__stats .stat .num {
+    font-family: var(--pixel); font-size: 17px; color: var(--text);
+  }
+  .guild-pick__stats .stat .lab {
+    display: block; margin-top: 5px;
+    font-size: 10px; font-weight: 900; color: var(--muted);
+  }
+  .guild-pick__stats .stat.seat { background: var(--warning); }
+  .guild-pick__stats .stat.seat .num { font-family: var(--read); font-size: 13px; font-weight: 950; }
+
+  .join-btn {
+    font-family: var(--read);
+    font-size: 13px; font-weight: 950;
+    padding: 13px;
+    margin: 0 16px 16px;
+    border: 3px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 3px 3px 0 var(--border);
+    cursor: pointer;
+    text-align: center;
+  }
+  .join-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--border); }
+  .join-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--border); }
+  .join-btn.primary { background: var(--primary); }
+
+  .hall-foot {
+    margin: 18px 0 26px;
+    padding: 12px 14px;
+    border: 2px solid var(--border-soft);
+    background: var(--surface);
+    font-size: 12px; font-weight: 800; color: var(--muted);
+    display: flex; gap: 8px; align-items: center;
+  }
+  .hall-foot .dot { width: 8px; height: 8px; background: var(--rank); border: 2px solid var(--border); flex: none; }
+
+  /* ========================================================
+     状态 B — 工会主场
+     ======================================================== */
+  .home-hero {
+    border: 3px solid var(--border);
+    background: var(--ink-bg);
+    box-shadow: 6px 6px 0 var(--border);
+    padding: 22px 24px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .home-hero__emblem {
+    flex: none;
+    display: grid; place-items: center;
+    width: 96px; height: 96px;
+    border: 3px solid var(--border);
+    background: var(--accent);
+    font-size: 46px; font-weight: 950; color: var(--text);
+  }
+  .home-hero__id { flex: 1 1 240px; min-width: 0; }
+  .home-hero__id .kicker { color: #8d99a8; }
+  .home-hero__id h1 { margin: 8px 0 8px; font-size: 27px; font-weight: 950; color: #fff; }
+  .home-hero__id .meta { display: flex; gap: 8px; flex-wrap: wrap; }
+  .home-hero__id .meta .chip { background: transparent; color: #e6ebf1; border-color: #3a4452; }
+  .home-hero__id .meta .chip.lvl { background: var(--primary); color: var(--text); border-color: var(--border); }
+  .home-hero__score {
+    flex: none;
+    display: flex; gap: 12px;
+  }
+  .home-hero__score .box {
+    border: 3px solid var(--border);
+    background: var(--surface);
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 110px;
+  }
+  .home-hero__score .box.hl { background: var(--primary); }
+  .home-hero__score .box .num { font-family: var(--pixel); font-size: 22px; color: var(--text); }
+  .home-hero__score .box .lab { display: block; margin-top: 7px; font-size: 10px; font-weight: 900; color: var(--muted); }
+
+  /* 你的贡献条 */
+  .you-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .you-strip .you-tile {
+    border: 3px solid var(--border);
+    background: var(--surface);
+    box-shadow: 4px 4px 0 var(--border);
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .you-strip .you-tile .badge {
+    flex: none;
+    display: grid; place-items: center;
+    width: 40px; height: 40px;
+    border: 2px solid var(--border);
+    background: var(--accent);
+    font-family: var(--pixel); font-size: 12px;
+  }
+  .you-strip .you-tile .badge.b2 { background: var(--rank); }
+  .you-strip .you-tile .badge.b3 { background: var(--warning); }
+  .you-strip .you-tile .num { font-family: var(--pixel); font-size: 17px; }
+  .you-strip .you-tile .lab { display: block; margin-top: 5px; font-size: 11px; font-weight: 900; color: var(--muted); }
+
+  /* 主场两栏 */
+  .home-grid {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .panel {
+    border: 3px solid var(--border);
+    background: var(--surface);
+    box-shadow: 5px 5px 0 var(--border);
+  }
+  .panel__head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 3px solid var(--border);
+    background: var(--surface-soft);
+  }
+  .panel__head h3 { font-size: 14px; font-weight: 950; }
+  .panel__head .tag { font-family: var(--pixel); font-size: 8px; color: var(--muted); letter-spacing: 0.06em; }
+  .panel__body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .col { display: flex; flex-direction: column; gap: 16px; }
+
+  /* 成员贡献榜 */
+  .rank-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border: 2px solid var(--border);
+    background: var(--surface);
+  }
+  .rank-row.me { background: var(--accent); }
+  .rank-row .no {
+    flex: none;
+    display: grid; place-items: center;
+    width: 30px; height: 30px;
+    border: 2px solid var(--border);
+    background: var(--surface-soft);
+    font-family: var(--pixel); font-size: 11px;
+  }
+  .rank-row .no.m1 { background: var(--primary); }
+  .rank-row .no.m2 { background: var(--rank); }
+  .rank-row .no.m3 { background: var(--warning); }
+  .rank-row .who { flex: 1; min-width: 0; }
+  .rank-row .who .nm { font-size: 13.5px; font-weight: 950; }
+  .rank-row .who .nm .self { font-size: 10px; color: var(--muted); margin-left: 5px; }
+  .rank-row .who .sub { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .rank-row .sc { font-family: var(--pixel); font-size: 14px; flex: none; }
+
+  /* 集体动态 */
+  .feed-item {
+    border: 2px solid var(--border);
+    background: var(--surface);
+    padding: 10px 12px;
+  }
+  .feed-item .fi-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .feed-item .fi-top .who { font-size: 13px; font-weight: 950; }
+  .feed-item .fi-top .sc { font-family: var(--pixel); font-size: 12px; }
+  .feed-item .act { margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--text); line-height: 1.55; }
+  .feed-item .fi-foot { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .feed-item .fi-foot .mini {
+    font-size: 10px; font-weight: 900;
+    padding: 3px 7px; border: 2px solid var(--border);
+    background: var(--surface-soft);
+  }
+  .feed-item .fi-foot .mini.gain { background: var(--accent); }
+
+  /* 工会任务 */
+  .quest {
+    border: 2px solid var(--border);
+    background: var(--surface);
+    padding: 11px 12px;
+  }
+  .quest .q-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .quest .q-top strong { font-size: 13px; font-weight: 950; }
+  .quest .q-top .q-state {
+    font-size: 9px; font-family: var(--pixel);
+    padding: 4px 6px; border: 2px solid var(--border); background: var(--warning);
+  }
+  .quest .q-desc { margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--muted); line-height: 1.55; }
+
+  /* 换工会 */
+  .switch {
+    margin: 16px 0 28px;
+    border: 3px solid var(--border);
+    background: var(--surface);
+  }
+  .switch > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 13px 16px;
+    font-size: 13px; font-weight: 950;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .switch > summary::-webkit-details-marker { display: none; }
+  .switch > summary .arr { font-family: var(--pixel); font-size: 11px; }
+  .switch[open] > summary { border-bottom: 3px solid var(--border); background: var(--surface-soft); }
+  .switch__body { padding: 12px 16px 16px; }
+  .switch__warn {
+    font-size: 11.5px; font-weight: 800; color: var(--danger-text);
+    background: var(--danger); border: 2px solid var(--border);
+    padding: 8px 10px; margin-bottom: 12px;
+  }
+  .switch__list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .switch-row {
+    display: flex; align-items: center; gap: 10px;
+    border: 2px solid var(--border); background: var(--surface);
+    padding: 8px 10px;
+  }
+  .switch-row .se {
+    flex: none; display: grid; place-items: center;
+    width: 34px; height: 34px; border: 2px solid var(--border);
+    font-weight: 950; font-size: 16px;
+  }
+  .switch-row .info { flex: 1; min-width: 0; }
+  .switch-row .info .nm { font-size: 12.5px; font-weight: 950; }
+  .switch-row .info .st { font-size: 10.5px; font-weight: 800; color: var(--muted); }
+  .switch-row button {
+    flex: none; font-family: var(--read);
+    font-size: 11px; font-weight: 900;
+    padding: 7px 10px; border: 2px solid var(--border);
+    background: var(--surface-soft); cursor: pointer;
+    box-shadow: 2px 2px 0 var(--border);
+  }
+
+  .state { display: none; }
+  .state.active { display: block; }
+
+  /* 响应式 */
+  @media (max-width: 860px) {
+    .guild-grid, .you-strip, .home-grid, .switch__list { grid-template-columns: 1fr; }
+    .home-hero__score { width: 100%; }
+    .home-hero__score .box { flex: 1; }
+    .recruit-hero h1, .home-hero__id h1 { font-size: 22px; }
+    .nav .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 预览控制条：不是产品 UI，仅用于切换两种状态 -->
+<div class="preview-bar">
+  <div>
+    <div class="pv-label">工会页视觉稿 / GUILD PAGE</div>
+  </div>
+  <div class="pv-sub">概念：战队主场 — 页面按「是否已加入工会」呈现两种完全不同的形态</div>
+  <div class="pv-toggle">
+    <button id="btn-a" class="active" onclick="showState('a')">未加入工会</button>
+    <button id="btn-b" onclick="showState('b')">已加入工会</button>
+  </div>
+</div>
+
+<!-- 顶部导航（简化，仅做语境参考） -->
+<nav class="nav">
+  <div class="brand"><span class="fish">鱼</span> 工位鱼王</div>
+  <div class="nav-links">
+    <span>社区</span><span class="on">工会</span><span>圈子</span><span>小组</span><span>排行</span><span>关于我们</span>
+  </div>
+</nav>
+
+<!-- ============================ 状态 A：招募大厅 ============================ -->
+<div id="state-a" class="state active">
+  <div class="page">
+
+    <div class="concept-note">
+      <span>状态 A</span>
+      <span><b>招募大厅。</b>你还没有工会时，整页只有一个任务：帮你挑一个组织加入。没有看板、没有榜单干扰，6 个工会被做成「选阵营」式的卡片。</span>
+    </div>
+
+    <!-- 招募头条 -->
+    <section class="recruit-hero">
+      <div class="kicker">RECRUITMENT · 招募进行中</div>
+      <h1>你目前是个<em>无组织散兵</em></h1>
+      <p>六个工会正在抢人。挑一个对味的组织加入，你之后每条摸鱼记录都会按 Fish Power Score 给它贡献赛季积分。</p>
+      <div class="recruit-meta">
+        <span><b>6</b> 个工会</span>
+        <span><b>1</b> 个赛季</span>
+        <span><b>0</b> 入会门槛</span>
+        <span><b>∞</b> 随时可退会</span>
+      </div>
+    </section>
+
+    <div class="section-head">
+      <h2>选一个工会加入</h2>
+      <span class="hint">同一时间只能加入一个 · 看人设挑，别看人数</span>
+    </div>
+
+    <div class="guild-grid">
+
+      <!-- 茶水间远征军（唯一有人） -->
+      <article class="guild-pick is-featured">
+        <div class="guild-pick__top">
+          <div class="guild-pick__emblem" style="background:var(--accent)">茶</div>
+          <div class="guild-pick__head">
+            <div class="guild-pick__namerow">
+              <h3>茶水间远征军</h3>
+              <span class="chip is-live">唯一在役</span>
+            </div>
+            <div class="guild-pick__tagline">以接水之名，行漫游之实</div>
+          </div>
+        </div>
+        <p class="guild-pick__desc">以接水、喝水、茶水间哲学为核心战术的松散组织。</p>
+        <div class="guild-pick__stats">
+          <div class="stat"><span class="num">1</span><span class="lab">现役成员</span></div>
+          <div class="stat"><span class="num">112.3</span><span class="lab">工会贡献分</span></div>
+        </div>
+        <button class="join-btn primary">加入茶水间远征军</button>
+      </article>
+
+      <!-- 会议潜水队 -->
+      <article class="guild-pick">
+        <div class="guild-pick__top">
+          <div class="guild-pick__emblem" style="background:var(--rank)">会</div>
+          <div class="guild-pick__head">
+            <div class="guild-pick__namerow">
+              <h3>会议潜水队</h3>
+              <span class="chip is-seat">招创始成员</span>
+            </div>
+            <div class="guild-pick__tagline">镜头常亮，灵魂离线</div>
+          </div>
+        </div>
+        <p class="guild-pick__desc">擅长在会议里保持头像稳定和眼神在线。</p>
+        <div class="guild-pick__stats">
+          <div class="stat seat"><span class="num">席位空缺</span><span class="lab">加入即 1 号位</span></div>
+          <div class="stat"><span class="num">0.0</span><span class="lab">工会贡献分</span></div>
+        </div>
+        <button class="join-btn">成为创始成员</button>
+      </article>
+
+      <!-- Excel 伪装联盟 -->
+      <article class="guild-pick">
+        <div class="guild-pick__top">
+          <div class="guild-pick__emblem" style="background:var(--primary)">表</div>
+          <div class="guild-pick__head">
+            <div class="guild-pick__namerow">
+              <h3>Excel 伪装联盟</h3>
+              <span class="chip is-seat">招创始成员</span>
+            </div>
+            <div class="guild-pick__tagline">Alt+Tab 是我们的队礼</div>
+          </div>
+        </div>
+        <p class="guild-pick__desc">所有窗口最后都会被解释成生产力工具。</p>
+        <div class="guild-pick__stats">
+          <div class="stat seat"><span class="num">席位空缺</span><span class="lab">加入即 1 号位</span></div>
+          <div class="stat"><span class="num">0.0</span><span class="lab">工会贡献分</span></div>
+        </div>
+        <button class="join-btn">成为创始成员</button>
+      </article>
+
+      <!-- 带薪学习研究会 -->
+      <article class="guild-pick">
+        <div class="guild-pick__top">
+          <div class="guild-pick__emblem" style="background:var(--danger)">学</div>
+          <div class="guild-pick__head">
+            <div class="guild-pick__namerow">
+              <h3>带薪学习研究会</h3>
+              <span class="chip is-seat">招创始成员</span>
+            </div>
+            <div class="guild-pick__tagline">工位是教室，老板是赞助商</div>
+          </div>
+        </div>
+        <p class="guild-pick__desc">把精神成长和工位时间管理研究到极致。</p>
+        <div class="guild-pick__stats">
+          <div class="stat seat"><span class="num">席位空缺</span><span class="lab">加入即 1 号位</span></div>
+          <div class="stat"><span class="num">0.0</span><span class="lab">工会贡献分</span></div>
+        </div>
+        <button class="join-btn">成为创始成员</button>
+      </article>
+
+      <!-- 午休延长委员会 -->
+      <article class="guild-pick">
+        <div class="guild-pick__top">
+          <div class="guild-pick__emblem" style="background:var(--warning)">休</div>
+          <div class="guild-pick__head">
+            <div class="guild-pick__namerow">
+              <h3>午休延长委员会</h3>
+              <span class="chip is-seat">招创始成员</span>
+            </div>
+            <div class="guild-pick__tagline">午休的边界，由我们重新定义</div>
+          </div>
+        </div>
+        <p class="guild-pick__desc">以稳定作息为名，研究午休边界。</p>
+        <div class="guild-pick__stats">
+          <div class="stat seat"><span class="num">席位空缺</span><span class="lab">加入即 1 号位</span></div>
+          <div class="stat"><span class="num">0.0</span><span class="lab">工会贡献分</span></div>
+        </div>
+        <button class="join-btn">成为创始成员</button>
+      </article>
+
+      <!-- 自动化假在线协会 -->
+      <article class="guild-pick">
+        <div class="guild-pick__top">
+          <div class="guild-pick__emblem" style="background:var(--disabled)">自</div>
+          <div class="guild-pick__head">
+            <div class="guild-pick__namerow">
+              <h3>自动化假在线协会</h3>
+              <span class="chip is-seat">招创始成员</span>
+            </div>
+            <div class="guild-pick__tagline">状态灯绿，人不一定在</div>
+          </div>
+        </div>
+        <p class="guild-pick__desc">关注状态灯、脚本和远程在线幻术。</p>
+        <div class="guild-pick__stats">
+          <div class="stat seat"><span class="num">席位空缺</span><span class="lab">加入即 1 号位</span></div>
+          <div class="stat"><span class="num">0.0</span><span class="lab">工会贡献分</span></div>
+        </div>
+        <button class="join-btn">成为创始成员</button>
+      </article>
+
+    </div>
+
+    <div class="hall-foot">
+      <span class="dot"></span>
+      <span>加入后随时能换工会，但历史贡献会留在原工会，赛季内别反复横跳。</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================ 状态 B：工会主场 ============================ -->
+<div id="state-b" class="state">
+  <div class="page">
+
+    <div class="concept-note">
+      <span>状态 B</span>
+      <span><b>工会主场。</b>一旦你加入了工会，整页就变成「你这支队伍的主场看板」：顶部是工会身份与战绩，下面围绕它展开你的贡献、成员榜、集体动态和任务。换工会被收进折叠区。</span>
+    </div>
+
+    <!-- 主场 Hero -->
+    <section class="home-hero">
+      <div class="home-hero__emblem">茶</div>
+      <div class="home-hero__id">
+        <div class="kicker">MY GUILD · 我的主场</div>
+        <h1>茶水间远征军</h1>
+        <div class="meta">
+          <span class="chip lvl">临时摸鱼组织</span>
+          <span class="chip">赛季进行中</span>
+          <span class="chip">你已在队</span>
+        </div>
+      </div>
+      <div class="home-hero__score">
+        <div class="box hl">
+          <span class="num">347.6</span>
+          <span class="lab">工会总贡献</span>
+        </div>
+        <div class="box">
+          <span class="num">#1</span>
+          <span class="lab">全工会排名 / 共 6</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 你的贡献条 -->
+    <div class="you-strip">
+      <div class="you-tile">
+        <div class="badge">YOU</div>
+        <div><span class="num">+112.3</span><span class="lab">你贡献的工会积分</span></div>
+      </div>
+      <div class="you-tile">
+        <div class="badge b2">#2</div>
+        <div><span class="num">第 2 名</span><span class="lab">你在工会内排名 / 共 4 人</span></div>
+      </div>
+      <div class="you-tile">
+        <div class="badge b3">4</div>
+        <div><span class="num">4 名队友</span><span class="lab">当前工会现役成员</span></div>
+      </div>
+    </div>
+
+    <!-- 主场两栏 -->
+    <div class="home-grid">
+
+      <!-- 左栏：成员榜 + 集体动态 -->
+      <div class="col">
+        <section class="panel">
+          <div class="panel__head">
+            <h3>成员贡献榜</h3>
+            <span class="tag">SEASON</span>
+          </div>
+          <div class="panel__body">
+            <div class="rank-row">
+              <span class="no m1">1</span>
+              <div class="who"><div class="nm">Social Fish</div><div class="sub">接水 9 次 · 茶水间漫游王</div></div>
+              <span class="sc">138.4</span>
+            </div>
+            <div class="rank-row me">
+              <span class="no m2">2</span>
+              <div class="who"><div class="nm">你<span class="self">（就是你）</span></div><div class="sub">假装找水杯，实则巡视全楼</div></div>
+              <span class="sc">112.3</span>
+            </div>
+            <div class="rank-row">
+              <span class="no m3">3</span>
+              <div class="who"><div class="nm">带薪喝水仙人</div><div class="sub">一天八杯水，杯杯有借口</div></div>
+              <span class="sc">64.9</span>
+            </div>
+            <div class="rank-row">
+              <span class="no">4</span>
+              <div class="who"><div class="nm">潜水艇驾驶员</div><div class="sub">刚入会，正在熟悉茶水间地形</div></div>
+              <span class="sc">31.9</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__head">
+            <h3>工会集体动态</h3>
+            <span class="tag">RECENT</span>
+          </div>
+          <div class="panel__body">
+            <div class="feed-item">
+              <div class="fi-top"><span class="who">Social Fish</span><span class="sc">28.6</span></div>
+              <div class="act">借口接水，绕了三层楼一圈，顺便观察了隔壁组的进度。</div>
+              <div class="fi-foot"><span class="mini">茶水间路线</span><span class="mini gain">工会 +8.6</span></div>
+            </div>
+            <div class="feed-item">
+              <div class="fi-top"><span class="who">带薪喝水仙人</span><span class="sc">22.1</span></div>
+              <div class="act">在饮水机前完成了一场长达十分钟的「人生规划」。</div>
+              <div class="fi-foot"><span class="mini">站立冥想</span><span class="mini gain">工会 +6.6</span></div>
+            </div>
+            <div class="feed-item">
+              <div class="fi-top"><span class="who">潜水艇驾驶员</span><span class="sc">19.4</span></div>
+              <div class="act">第一次代表工会出战，假装去接水其实在背单词。</div>
+              <div class="fi-foot"><span class="mini">新人首战</span><span class="mini gain">工会 +5.8</span></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 右栏：工会任务 + 算分说明 -->
+      <div class="col">
+        <section class="panel">
+          <div class="panel__head">
+            <h3>工会任务</h3>
+            <span class="tag">DAILY</span>
+          </div>
+          <div class="panel__body">
+            <div class="quest">
+              <div class="q-top"><strong>今日集体摸鱼</strong><span class="q-state">进行中</span></div>
+              <div class="q-desc">全员今日提交 3 条公开记录。</div>
+            </div>
+            <div class="quest">
+              <div class="q-top"><strong>本周累计任务</strong><span class="q-state">进行中</span></div>
+              <div class="q-desc">本周累计工会贡献达到 500。</div>
+            </div>
+            <div class="quest">
+              <div class="q-top"><strong>传奇操作挑战</strong><span class="q-state">进行中</span></div>
+              <div class="q-desc">产生 1 条传奇提名记录。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__head">
+            <h3>贡献怎么算</h3>
+            <span class="tag">RULE</span>
+          </div>
+          <div class="panel__body">
+            <div class="quest">
+              <div class="q-desc" style="color:var(--text);font-weight:800;">
+                你每提交一条记录，按 <b>Fish Power Score × 0.3</b> 加上互动加成，计入当前工会的贡献积分。分数始终由后端计算。
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </div>
+
+    <!-- 换工会（次级，折叠） -->
+    <details class="switch">
+      <summary>
+        <span>想换个组织？查看其它 5 个工会</span>
+        <span class="arr">[ + ]</span>
+      </summary>
+      <div class="switch__body">
+        <div class="switch__warn">换会后你的历史贡献会留在茶水间远征军，新工会从 0 开始累计。</div>
+        <div class="switch__list">
+          <div class="switch-row">
+            <span class="se" style="background:var(--rank)">会</span>
+            <div class="info"><div class="nm">会议潜水队</div><div class="st">0 人 · 席位空缺</div></div>
+            <button>换过去</button>
+          </div>
+          <div class="switch-row">
+            <span class="se" style="background:var(--primary)">表</span>
+            <div class="info"><div class="nm">Excel 伪装联盟</div><div class="st">0 人 · 席位空缺</div></div>
+            <button>换过去</button>
+          </div>
+          <div class="switch-row">
+            <span class="se" style="background:var(--danger)">学</span>
+            <div class="info"><div class="nm">带薪学习研究会</div><div class="st">0 人 · 席位空缺</div></div>
+            <button>换过去</button>
+          </div>
+          <div class="switch-row">
+            <span class="se" style="background:var(--warning)">休</span>
+            <div class="info"><div class="nm">午休延长委员会</div><div class="st">0 人 · 席位空缺</div></div>
+            <button>换过去</button>
+          </div>
+          <div class="switch-row">
+            <span class="se" style="background:var(--disabled)">自</span>
+            <div class="info"><div class="nm">自动化假在线协会</div><div class="st">0 人 · 席位空缺</div></div>
+            <button>换过去</button>
+          </div>
+        </div>
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<script>
+  function showState(s) {
+    document.getElementById('state-a').classList.toggle('active', s === 'a');
+    document.getElementById('state-b').classList.toggle('active', s === 'b');
+    document.getElementById('btn-a').classList.toggle('active', s === 'a');
+    document.getElementById('btn-b').classList.toggle('active', s === 'b');
+    window.scrollTo(0, 0);
+  }
+</script>
+
+</body>
+</html>

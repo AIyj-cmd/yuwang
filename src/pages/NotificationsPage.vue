@@ -1,14 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Bell, CheckCheck, ExternalLink } from 'lucide-vue-next';
+import { AlertTriangle, Bell, CheckCheck, ExternalLink } from 'lucide-vue-next';
 import { PxCard } from '@mmt817/pixel-ui';
 import { useAppContext } from '../appContext';
 import { useNotifications } from '../composables/useNotifications';
 import type { NotificationItem } from '../types';
 
 const router = useRouter();
-const { authToken, copy, currentUser, notificationUnreadCount, openProfileRecord, refreshNotificationUnreadCount, t } = useAppContext();
+const {
+  authToken,
+  copy,
+  currentUser,
+  notificationUnreadCount,
+  openProfileRecord,
+  refreshNotificationUnreadCount,
+  t,
+  announcements,
+  loadAnnouncements,
+  translatedAnnouncement
+} = useAppContext();
 
 const { notifications, total, loading, error, loadNotifications, markRead, markAllRead } = useNotifications(
   () => authToken.value,
@@ -18,10 +29,10 @@ const { notifications, total, loading, error, loadNotifications, markRead, markA
 const unreadCount = computed(() => Number(notificationUnreadCount?.value ?? 0));
 
 const targetText = (item: NotificationItem) => {
-  if (item.targetType === 'record') return copy('查看记录', 'View record');
-  if (item.targetType === 'wallet_transaction') return copy('查看钱包', 'View wallet');
-  if (item.targetType === 'group') return copy('查看小组', 'View group');
-  return copy('查看相关内容', 'View target');
+  if (item.targetType === 'record') return copy('\u67e5\u770b\u8bb0\u5f55', 'View record');
+  if (item.targetType === 'wallet_transaction') return copy('\u67e5\u770b\u9322\u5305', 'View wallet');
+  if (item.targetType === 'group') return copy('\u67e5\u770b\u5c0f\u7ec4', 'View group');
+  return copy('\u67e5\u770b\u76f8\u5173\u5185\u5bb9', 'View target');
 };
 
 const openTarget = async (item: NotificationItem) => {
@@ -41,9 +52,9 @@ const openTarget = async (item: NotificationItem) => {
 
 onMounted(() => {
   void loadNotifications();
+  void loadAnnouncements();
 });
 </script>
-
 <template>
   <section class="workspace single-view notifications-page">
     <aside class="right-rail">
@@ -84,6 +95,28 @@ onMounted(() => {
           <div v-else class="empty-list">{{ copy('暂无通知，鱼塘风平浪静。', 'No notifications yet. The pond is calm.') }}</div>
           <p v-if="total > notifications.length" class="scope-note">{{ copy('第一版每次展示最近 20 条通知。', 'The first version shows the latest 20 notifications.') }}</p>
         </template>
+      </PxCard>
+    </aside>
+
+    <!-- 公告集合在通知中心 -->
+    <aside class="right-rail">
+      <PxCard class="panel announcements-panel">
+        <template #header>
+          <div class="panel-title between">
+            <span><AlertTriangle :size="18" /> {{ t('announcements') }}</span>
+            <button class="profile-toggle-button" type="button" @click="loadAnnouncements">{{ copy('刷新公告', 'Refresh') }}</button>
+          </div>
+        </template>
+        <div v-if="announcements.length" class="announcement-list">
+          <article v-for="item in announcements" :key="item.id" class="module-section announcement-item">
+            <div class="profile-section-head">
+              <strong>{{ translatedAnnouncement(item).title }}</strong>
+              <small>{{ item.createdAt }} · {{ item.level }}</small>
+            </div>
+            <p class="module-copy">{{ translatedAnnouncement(item).body }}</p>
+          </article>
+        </div>
+        <div v-else class="empty-list">{{ copy('暂时没有公告，鱼塘风平浪静。', 'No announcements for now. The pond is calm.') }}</div>
       </PxCard>
     </aside>
   </section>

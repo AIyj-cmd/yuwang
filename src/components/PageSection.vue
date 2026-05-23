@@ -23,12 +23,12 @@ import {
 } from 'lucide-vue-next';
 import { PxButton, PxCard, PxInput, PxTag } from '@mmt817/pixel-ui';
 import { TITLE_LEVELS } from '../../shared/scoring';
-import { shareRecord } from '../api';
+import { fetchGuild, fetchGuildMembers, fetchGuildRanking, fetchGuildTasks, shareRecord } from '../api';
 import { useAppContext } from '../appContext';
 import { useProfileInsights } from '../composables/useProfileInsights';
 import { useSearch } from '../composables/useSearch';
 import { fetchRelatedRecords } from '../services/discoveryApi';
-import type { FeedRecord } from '../types';
+import type { FeedRecord, Guild, GuildMember, GuildRankingRow, GuildTask } from '../types';
 
 const props = defineProps<{ section: string }>();
 const activeSection = computed(() => props.section);
@@ -96,6 +96,7 @@ const {
   leaderboardResultCount,
   leaderboardRows,
   loadAnnouncements,
+  loadGuilds,
   loadLeaderboard,
   loadWallet,
   loading,
@@ -152,6 +153,101 @@ const { searchQuery, searchResults, searchLoading, searchError, hasSearched, res
 const { profileInsights, profileInsightsLoading, loadProfileInsights } = useProfileInsights();
 const relatedRecords = ref<FeedRecord[]>([]);
 const relatedLoading = ref(false);
+
+// ===== 工会大厅：我的工会 / 工会列表 双视图 =====
+const guildList = computed<Guild[]>(() => ((guildsData.value?.guilds ?? []) as Guild[]));
+const maxContribution = computed<number>(() =>
+  guildList.value.reduce((max, guild) => Math.max(max, guild.totalContribution), 0)
+);
+const barWidth = (guild: Guild): string => {
+  if (guild.totalContribution <= 0 || maxContribution.value <= 0) return '0%';
+  return `${Math.max(4, (guild.totalContribution / maxContribution.value) * 100)}%`;
+};
+const myGuildRank = computed<number>(() => {
+  const id = guildsData.value?.myGuild?.id as number | undefined;
+  if (!id) return 0;
+  const index = guildList.value.findIndex((guild) => guild.id === id);
+  return index >= 0 ? index + 1 : 0;
+});
+
+// 顶部导航视图：null 时按是否入队自动选择
+const guildTab = ref<'home' | 'list' | null>(null);
+const activeGuildTab = computed<'home' | 'list'>(() =>
+  guildTab.value ?? (guildsData.value?.myGuild ? 'home' : 'list')
+);
+
+// 工会列表行展开：拉取该工会的公开记录与成员名册
+const expandedGuildId = ref<number | null>(null);
+const expandedRecords = ref<FeedRecord[]>([]);
+const expandedMembers = ref<GuildMember[]>([]);
+const expandedLoading = ref(false);
+const expandedError = ref('');
+const toggleGuildRow = async (id: number) => {
+  if (expandedGuildId.value === id) {
+    expandedGuildId.value = null;
+    return;
+  }
+  expandedGuildId.value = id;
+  expandedLoading.value = true;
+  expandedError.value = '';
+  expandedRecords.value = [];
+  expandedMembers.value = [];
+  try {
+    const [detail, roster] = await Promise.all([
+      fetchGuild(id, authToken.value),
+      fetchGuildMembers(id, authToken.value)
+    ]);
+    expandedRecords.value = detail.records;
+    expandedMembers.value = roster.members;
+  } catch (error) {
+    expandedError.value = error instanceof Error ? error.message : copy('工会详情加载失败', 'Failed to load guild detail');
+  } finally {
+    expandedLoading.value = false;
+  }
+};
+
+// 我的工会：成员贡献榜 + 本周任务 + 集体动态
+const homeRanking = ref<GuildRankingRow[]>([]);
+const homeTasks = ref<GuildTask[]>([]);
+const homeRecords = ref<FeedRecord[]>([]);
+const homeLoading = ref(false);
+const loadGuildHome = async (id: number) => {
+  homeLoading.value = true;
+  try {
+    const [ranking, tasks, detail] = await Promise.all([
+      fetchGuildRanking(id, authToken.value),
+      fetchGuildTasks(id, authToken.value),
+      fetchGuild(id, authToken.value)
+    ]);
+    homeRanking.value = ranking.rows;
+    homeTasks.value = tasks.tasks;
+    homeRecords.value = detail.records;
+  } catch {
+    homeRanking.value = [];
+    homeTasks.value = [];
+    homeRecords.value = [];
+  } finally {
+    homeLoading.value = false;
+  }
+};
+watch(
+  () => (guildsData.value?.myGuild?.id as number | undefined) ?? null,
+  (id) => {
+    if (id) {
+      void loadGuildHome(id);
+    } else {
+      homeRanking.value = [];
+      homeTasks.value = [];
+      homeRecords.value = [];
+    }
+  },
+  { immediate: true }
+);
+const myRankRow = computed<GuildRankingRow | null>(() => {
+  const uid = currentUser.value?.id as number | undefined;
+  if (!uid) return null;
+  return homeRanking.value.find((row) => row.userId === uid) ?? null;
+});
 
 const openUser = async (username: string) => {
   await router.push(`/users/${encodeURIComponent(username)}`);
@@ -832,60 +928,178 @@ watch(
             <small>{{ copy('身份归属和赛季竞争', 'Identity and seasonal competition') }}</small>
           </div>
         </template>
-        <div class="module-intro">
-          <strong>{{ guildsData?.myGuild ? `${copy('我的工会：', 'My guild: ')}${translatedGuildName(guildsData.myGuild)}` : copy('你还没有加入任何工会，先找个组织摸鱼。', 'You have not joined a guild yet. Find an organization first.') }}</strong>
-          <span>{{ copy('提交记录后，会按 Fish Power Score * 0.3 加互动加成为当前工会贡献积分。', 'After submitting a record, Fish Power Score * 0.3 plus interaction bonuses contributes to the current guild.') }}</span>
+
+        <p v-if="guildsData && errorMessage" class="error-line"><AlertTriangle :size="16" />{{ errorMessage }}</p>
+        <p v-if="guildsData && statusMessage" class="status-line"><Check :size="16" />{{ statusMessage }}</p>
+
+        <div v-if="!guildsData && errorMessage" class="gc-state gc-state--error">
+          <AlertTriangle :size="20" />
+          <strong>{{ copy('工会大厅没能浮上来', 'The guild hall failed to surface') }}</strong>
+          <span>{{ errorMessage }}</span>
+          <button type="button" class="gc-retry" @click="loadGuilds()"><RefreshCw :size="14" /> {{ copy('重新加载', 'Reload') }}</button>
         </div>
-        <div class="guild-layout">
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('工会列表', 'Guild List') }}</strong><small>{{ copy('同一时间只能加入一个', 'Only one guild at a time') }}</small></div>
-            <div class="entity-grid">
-              <article v-for="guild in guildsData?.guilds ?? []" :key="guild.id" class="entity-card" :class="{ active: guild.joined }">
-                <b>{{ guild.icon }}</b>
-                <strong>{{ translatedGuildName(guild) }}</strong>
-                <span>{{ translatedGuildDescription(guild) }}</span>
-                <small>{{ translatedTitle(guild.level) }} · {{ guild.memberCount }} {{ copy('人', 'members') }} · {{ guild.totalContribution.toFixed(1) }}</small>
-                <button type="button" @click="handleJoinGuild(guild.id)">{{ guild.joined ? copy('当前工会', 'Current Guild') : copy('加入工会', 'Join Guild') }}</button>
-              </article>
+        <div v-else-if="!guildsData" class="gc-state gc-state--loading">
+          <span v-for="n in 5" :key="`gc-skeleton-${n}`" class="gc-skeleton"></span>
+        </div>
+
+        <div v-else class="guild-hall">
+          <header class="gh-bar">
+            <div class="gh-bar__title">
+              <span class="gh-bar__kicker">GUILD HALL</span>
+              <strong>{{ copy('工会大厅', 'Guild Hall') }}</strong>
             </div>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('工会排行榜', 'Guild Ranking') }}</strong><small>{{ copy('成员贡献榜', 'Member contribution') }}</small></div>
-            <ol v-if="guildsData?.ranking.length" class="compact-ranking">
-              <li v-for="row in guildsData.ranking" :key="row.userId">
-                <span>#{{ row.rank }} {{ row.nickname }}</span>
-                <strong>{{ row.contribution.toFixed(1) }}</strong>
-              </li>
-            </ol>
-            <div v-else class="empty-list">{{ copy('工会排行榜还在等第一条贡献。', 'The guild ranking is waiting for its first contribution.') }}</div>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('工会任务', 'Guild Tasks') }}</strong><small>{{ copy('固定娱乐任务', 'Fixed playful tasks') }}</small></div>
-            <div class="task-list">
-              <article>
-                <strong>{{ copy('今日集体摸鱼任务', 'Today’s Team Slacking Task') }}</strong>
-                <span>{{ copy('全员今日提交 3 条公开记录', 'Submit 3 public records as a guild today') }}</span>
-              </article>
-              <article>
-                <strong>{{ copy('本周累计任务', 'Weekly Contribution Task') }}</strong>
-                <span>{{ copy('本周累计贡献达到 500', 'Reach 500 total contribution this week') }}</span>
-              </article>
-              <article>
-                <strong>{{ copy('传奇操作挑战', 'Legend Move Challenge') }}</strong>
-                <span>{{ copy('产生 1 条传奇提名记录', 'Generate 1 legend-nominated record') }}</span>
-              </article>
+            <nav class="gh-tabs" :aria-label="copy('工会视图', 'Guild views')">
+              <button type="button" class="gh-tab" :class="{ active: activeGuildTab === 'home' }" @click="guildTab = 'home'">{{ copy('我的工会', 'My Guild') }}</button>
+              <button type="button" class="gh-tab" :class="{ active: activeGuildTab === 'list' }" @click="guildTab = 'list'">{{ copy('工会列表', 'All Guilds') }}</button>
+            </nav>
+          </header>
+
+          <div v-if="activeGuildTab === 'home'" class="gh-view">
+            <template v-if="guildsData.myGuild">
+              <div class="gh-hero">
+                <b class="gh-hero__emblem">{{ guildsData.myGuild.icon }}</b>
+                <div class="gh-hero__id">
+                  <span class="gh-hero__kicker">{{ copy('我的工会', 'MY GUILD') }}</span>
+                  <strong>{{ translatedGuildName(guildsData.myGuild) }}</strong>
+                  <span class="gh-hero__lvl">{{ translatedTitle(guildsData.myGuild.level) }}</span>
+                </div>
+                <div class="gh-hero__score">
+                  <div><b>{{ guildsData.myGuild.totalContribution.toFixed(1) }}</b><span>{{ copy('工会总贡献', 'Guild total') }}</span></div>
+                  <div><b>#{{ myGuildRank }}</b><span>{{ copy('全榜名次', 'Overall rank') }} / {{ guildList.length }}</span></div>
+                </div>
+              </div>
+
+              <div class="gh-stats">
+                <div class="gh-stat"><b>+{{ (myRankRow ? myRankRow.contribution : 0).toFixed(1) }}</b><span>{{ copy('你的贡献', 'Your contribution') }}</span></div>
+                <div class="gh-stat"><b>{{ myRankRow ? '#' + myRankRow.rank : '—' }}</b><span>{{ copy('你的工会内名次', 'Your rank in guild') }}</span></div>
+                <div class="gh-stat"><b>{{ guildsData.myGuild.memberCount }}</b><span>{{ copy('现役成员', 'Active members') }}</span></div>
+              </div>
+
+              <div class="gh-grid">
+                <section class="gh-block">
+                  <h3 class="gh-block__head">{{ copy('成员贡献榜', 'Member Ranking') }}</h3>
+                  <div v-if="homeLoading" class="loading-line">{{ copy('加载中...', 'Loading...') }}</div>
+                  <ol v-else-if="homeRanking.length" class="gc-mini-rank">
+                    <li v-for="row in homeRanking" :key="row.userId" :class="{ me: row.userId === currentUser?.id }">
+                      <span class="gc-mini-rank__no" :data-medal="row.rank <= 3 ? row.rank : null">{{ row.rank }}</span>
+                      <span class="gc-mini-rank__nm">{{ row.nickname }}</span>
+                      <b>{{ row.contribution.toFixed(1) }}</b>
+                    </li>
+                  </ol>
+                  <div v-else class="gc-detail__empty">{{ copy('还没有成员贡献，先去提交一条记录。', 'No member contributions yet — submit a record first.') }}</div>
+                </section>
+                <section class="gh-block">
+                  <h3 class="gh-block__head">{{ copy('本周任务', 'Weekly Tasks') }}</h3>
+                  <div v-if="homeLoading" class="loading-line">{{ copy('加载中...', 'Loading...') }}</div>
+                  <ul v-else-if="homeTasks.length" class="gc-tasks">
+                    <li v-for="(task, i) in homeTasks" :key="`gh-task-${i}`">
+                      <strong>{{ task.name }}</strong>
+                      <span>{{ task.target }}</span>
+                      <em>{{ copy('奖励', 'Reward') }} · {{ task.reward }}</em>
+                    </li>
+                  </ul>
+                  <div v-else class="gc-detail__empty">{{ copy('暂无任务', 'No tasks') }}</div>
+                </section>
+              </div>
+
+              <section class="gh-block">
+                <h3 class="gh-block__head">{{ copy('工会集体动态', 'Guild Activity') }}</h3>
+                <div v-if="homeLoading" class="loading-line">{{ copy('加载中...', 'Loading...') }}</div>
+                <ul v-else-if="homeRecords.length" class="gc-reclist gh-reclist">
+                  <li v-for="record in homeRecords" :key="record.id">
+                    <span class="gc-reclist__top"><b>{{ record.nickname }}</b><em>{{ record.score.toFixed(1) }}</em></span>
+                    <span class="gc-reclist__sub">{{ translatedTitle(record.title) }} · {{ copy('工会 +', 'guild +') }}{{ record.guildContribution.toFixed(1) }}</span>
+                  </li>
+                </ul>
+                <div v-else class="gc-detail__empty">{{ copy('这个工会暂时还没开始集体摸鱼。', 'This guild has not started slacking together yet.') }}</div>
+              </section>
+            </template>
+
+            <div v-else class="gc-state">
+              <strong>{{ copy('你还没有加入工会', 'You have not joined a guild yet') }}</strong>
+              <span>{{ copy('去工会列表挑一支对味的组织加入，之后这里就是你的主场。', 'Browse all guilds and join one — this becomes your home base.') }}</span>
+              <button type="button" class="gc-retry" @click="guildTab = 'list'">{{ copy('查看工会列表', 'Browse all guilds') }}</button>
             </div>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('工会成员榜', 'Guild Members') }}</strong><small>{{ selectedGuild ? translatedGuildName(selectedGuild.guild) : copy('加入后查看', 'Join to view') }}</small></div>
-            <div v-if="selectedGuild?.records.length" class="record-card-list compact">
-              <article v-for="record in selectedGuild.records" :key="record.id" class="record-card compact-card">
-                <strong>{{ record.nickname }} · {{ record.score.toFixed(1) }}</strong>
-                <span>{{ translatedTitle(record.title) }} · {{ copy('贡献 +', 'Contribution +') }}{{ record.guildContribution.toFixed(1) }}</span>
-              </article>
+          </div>
+
+          <div v-else class="gh-view">
+            <p class="gh-list-caption">{{ copy('全部工会按赛季总贡献排名。点开任意一支看它的成员与记录。', 'All guilds ranked by seasonal contribution. Open any row to see its roster and records.') }}</p>
+            <div v-if="guildList.length" class="gc-ladder">
+              <div class="gc-ladder__head">
+                <span>#</span>
+                <span>{{ copy('工会', 'Guild') }}</span>
+                <span>{{ copy('赛季战力', 'Season power') }}</span>
+                <span>{{ copy('总贡献', 'Total') }}</span>
+              </div>
+              <div
+                v-for="(guild, idx) in guildList"
+                :key="guild.id"
+                class="gc-row"
+                :class="{ 'is-mine': guild.joined, 'is-open': expandedGuildId === guild.id, 'is-lead': idx === 0 }"
+              >
+                <button
+                  type="button"
+                  class="gc-row__main"
+                  :aria-expanded="expandedGuildId === guild.id"
+                  @click="toggleGuildRow(guild.id)"
+                >
+                  <span class="gc-row__rank">
+                    <Crown v-if="idx === 0" :size="12" />
+                    <span class="gc-rank-num">{{ idx + 1 }}</span>
+                  </span>
+                  <span class="gc-row__guild">
+                    <span class="gc-row__emblem" :class="`gc-emblem--c${idx % 5}`">{{ guild.icon }}</span>
+                    <span class="gc-row__id">
+                      <strong>{{ translatedGuildName(guild) }}</strong>
+                      <small>{{ translatedTitle(guild.level) }} · {{ guild.memberCount }} {{ copy('人', 'members') }}<em v-if="guild.joined"> · {{ copy('你的工会', 'yours') }}</em></small>
+                    </span>
+                  </span>
+                  <span class="gc-row__bar">
+                    <span class="gc-bar"><span class="gc-bar__fill" :style="{ width: barWidth(guild) }"></span></span>
+                  </span>
+                  <span class="gc-row__score">{{ guild.totalContribution.toFixed(1) }}</span>
+                  <span class="gc-row__chev" aria-hidden="true">▾</span>
+                </button>
+
+                <div v-if="expandedGuildId === guild.id" class="gc-detail">
+                  <p class="gc-detail__desc">{{ translatedGuildDescription(guild) }}</p>
+                  <div v-if="expandedLoading" class="loading-line">{{ copy('加载工会详情...', 'Loading guild detail...') }}</div>
+                  <div v-else-if="expandedError" class="empty-list">{{ expandedError }}</div>
+                  <template v-else>
+                    <div class="gc-detail__cols">
+                      <section class="gc-detail__block">
+                        <h4>{{ copy('成员名册', 'Roster') }} <span>{{ expandedMembers.length }}</span></h4>
+                        <ul v-if="expandedMembers.length" class="gc-roster">
+                          <li v-for="member in expandedMembers" :key="member.id">
+                            <span class="gc-roster__name">{{ member.display_name }}</span>
+                            <span class="gc-roster__role">{{ member.role === 'owner' ? copy('会长', 'Owner') : copy('成员', 'Member') }}</span>
+                          </li>
+                        </ul>
+                        <div v-else class="gc-detail__empty">{{ copy('还没有成员', 'No members yet') }}</div>
+                      </section>
+                      <section class="gc-detail__block">
+                        <h4>{{ copy('高分公开记录', 'Top records') }} <span>{{ expandedRecords.length }}</span></h4>
+                        <ul v-if="expandedRecords.length" class="gc-reclist">
+                          <li v-for="record in expandedRecords" :key="record.id">
+                            <span class="gc-reclist__top"><b>{{ record.nickname }}</b><em>{{ record.score.toFixed(1) }}</em></span>
+                            <span class="gc-reclist__sub">{{ translatedTitle(record.title) }} · {{ copy('工会 +', 'guild +') }}{{ record.guildContribution.toFixed(1) }}</span>
+                          </li>
+                        </ul>
+                        <div v-else class="gc-detail__empty">{{ copy('还没有公开记录', 'No public records yet') }}</div>
+                      </section>
+                    </div>
+                    <div class="gc-detail__act">
+                      <button v-if="guild.joined" type="button" class="gc-btn" disabled>{{ copy('这是你的当前工会', 'Your current guild') }}</button>
+                      <button v-else type="button" class="gc-btn gc-btn--primary" @click="handleJoinGuild(guild.id)">
+                        {{ guildsData.myGuild ? copy('换到这个工会', 'Switch to this guild') : copy('加入这个工会', 'Join this guild') }}
+                      </button>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
-            <div v-else class="empty-list">{{ copy('这个工会暂时还没开始集体摸鱼。', 'This guild has not started slacking together yet.') }}</div>
-          </section>
+            <div v-else class="empty-list">{{ copy('工会大厅还在筹备，先去社区广场摸条鱼。', 'The guild hall is still being prepared. Go slack in the community for now.') }}</div>
+          </div>
         </div>
       </PxCard>
 
@@ -1051,7 +1265,8 @@ watch(
         </div>
       </PxCard>
 
-      <PxCard v-if="activeSection === 'feedback'" id="feedback" class="panel feedback-panel">
+      <!-- 反馈集合在关于我们页面 -->
+      <PxCard v-if="activeSection === 'feedback' || activeSection === 'about'" id="feedback" class="panel feedback-panel">
         <template #header>
           <div class="panel-title"><MessageCircle :size="18" /><span>{{ t('feedback') }}</span></div>
         </template>
@@ -1107,9 +1322,10 @@ watch(
         <div v-else class="empty-list">{{ copy('暂时没有公告，说明鱼塘风平浪静。', 'No announcements for now. The pond is calm.') }}</div>
       </PxCard>
 
-      <PxCard v-if="activeSection === 'checkin'" id="checkin" class="panel checkin-panel">
+      <!-- 签到集合在钱包页面，section 名："每日打卡站" -->
+      <PxCard v-if="activeSection === 'checkin' || activeSection === 'wallet'" id="checkin" class="panel checkin-panel">
         <template #header>
-          <div class="panel-title"><Check :size="18" /><span>{{ t('checkin') }}</span></div>
+          <div class="panel-title"><Check :size="18" /><span>{{ activeSection === 'wallet' ? copy('每日打卡站', 'Daily Check-in') : t('checkin') }}</span></div>
         </template>
         <div v-if="!currentUser" class="empty-list">{{ t('needLogin') }}</div>
         <div v-else class="checkin-body">
@@ -1204,7 +1420,8 @@ watch(
         <div v-else class="empty-list">{{ copy('暂无记录，第一条鱼还没入库。', 'No records yet. The first fish has not entered the database.') }}</div>
       </PxCard>
 
-      <div v-if="activeSection === 'safety'" class="info-grid">
+      <!-- 安全内容集合在关于我们页面 -->
+      <div v-if="activeSection === 'safety' || activeSection === 'about'" class="info-grid">
         <PxCard id="safety" class="panel safety-panel">
           <template #header><div class="panel-title"><ShieldAlert :size="18" /><span>{{ t('safety') }}</span></div></template>
           <p>{{ copy(options.safetyNotice, 'Do not submit company secrets, personal privacy, employee IDs, chat records, client data, or non-anonymized screenshots. This platform is for entertainment only and does not support real workplace rule violations.') }}</p>
