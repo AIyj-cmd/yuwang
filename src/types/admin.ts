@@ -168,7 +168,11 @@ export type AdminEntity = {
   slug?: string;
   description: string;
   icon?: string;
-  status: 'active' | 'inactive' | 'hidden';
+  status: 'active' | 'inactive' | 'hidden' | 'banned';
+  ownerUserId?: number | null;
+  createdByUserId?: number | null;
+  source?: 'official' | 'user' | string;
+  joinPolicy?: 'open' | string;
   memberCount: number;
   recordCount?: number;
   totalContribution?: number;

@@ -418,10 +418,16 @@ export type Guild = {
   slug: string;
   description: string;
   icon: string;
+  ownerUserId: number | null;
+  createdByUserId: number | null;
+  source: 'official' | 'user' | string;
+  joinPolicy: 'open' | string;
+  status: 'active' | 'inactive' | 'hidden' | 'banned' | string;
   totalContribution: number;
   memberCount: number;
   level: string;
   joined: boolean;
+  role: string;
 };
 
 export type GuildRankingRow = {

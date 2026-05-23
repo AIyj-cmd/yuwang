@@ -407,9 +407,17 @@ export const initDatabase = (): void => {
       slug TEXT NOT NULL UNIQUE,
       description TEXT NOT NULL,
       icon TEXT NOT NULL,
+      owner_user_id INTEGER,
+      created_by_user_id INTEGER,
+      source TEXT NOT NULL DEFAULT 'official',
+      join_policy TEXT NOT NULL DEFAULT 'open',
+      status TEXT NOT NULL DEFAULT 'active',
       total_contribution REAL NOT NULL DEFAULT 0,
       member_count INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT '',
+      FOREIGN KEY (owner_user_id) REFERENCES users(id),
+      FOREIGN KEY (created_by_user_id) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS guild_members (
@@ -666,6 +674,10 @@ export const initDatabase = (): void => {
   addColumnIfMissing('reports', 'admin_note', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('reports', 'resolved_by', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('reports', 'resolved_at', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('guilds', 'owner_user_id', 'INTEGER');
+  addColumnIfMissing('guilds', 'created_by_user_id', 'INTEGER');
+  addColumnIfMissing('guilds', 'source', "TEXT NOT NULL DEFAULT 'official'");
+  addColumnIfMissing('guilds', 'join_policy', "TEXT NOT NULL DEFAULT 'open'");
   addColumnIfMissing('guilds', 'status', "TEXT NOT NULL DEFAULT 'active'");
   addColumnIfMissing('guilds', 'updated_at', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('circles', 'status', "TEXT NOT NULL DEFAULT 'active'");
@@ -726,6 +738,9 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_comments_record ON comments(record_id);
     CREATE INDEX IF NOT EXISTS idx_comments_status ON comments(status);
     CREATE INDEX IF NOT EXISTS idx_guild_members_guild ON guild_members(guild_id);
+    CREATE INDEX IF NOT EXISTS idx_guilds_owner_user_id ON guilds(owner_user_id);
+    CREATE INDEX IF NOT EXISTS idx_guilds_source ON guilds(source);
+    CREATE INDEX IF NOT EXISTS idx_guilds_status ON guilds(status);
     CREATE INDEX IF NOT EXISTS idx_circle_members_user ON circle_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_record_circles_record ON record_circles(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_circles_circle ON record_circles(circle_id);

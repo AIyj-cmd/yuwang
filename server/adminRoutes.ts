@@ -129,7 +129,7 @@ const entityPatchSchema = z.object({
   description: z.string().trim().max(180).optional(),
   icon: z.string().trim().min(1).max(4).optional()
 });
-const entityStatusSchema = z.object({ status: z.enum(['active', 'inactive', 'hidden']) });
+const entityStatusSchema = z.object({ status: z.enum(['active', 'inactive', 'hidden', 'banned']) });
 const settingsSchema = z.object({
   communityOpen: z.boolean().optional(),
   commentsOpen: z.boolean().optional(),
@@ -1309,6 +1309,10 @@ export const registerAdminRoutes = async (app: FastifyInstance): Promise<void> =
         slug: String(row.slug),
         description: String(row.description),
         icon: String(row.icon),
+        ownerUserId: row.owner_user_id === null || row.owner_user_id === undefined ? null : Number(row.owner_user_id),
+        createdByUserId: row.created_by_user_id === null || row.created_by_user_id === undefined ? null : Number(row.created_by_user_id),
+        source: String(row.source ?? 'official'),
+        joinPolicy: String(row.join_policy ?? 'open'),
         status: String(row.status ?? 'active'),
         totalContribution: Number(row.total_contribution ?? 0),
         memberCount: Number(row.member_count ?? 0),
@@ -1327,8 +1331,8 @@ export const registerAdminRoutes = async (app: FastifyInstance): Promise<void> =
     if (rejectUnsafeEntity(`${parsed.data.name} ${parsed.data.description}`)) return reply.code(400).send({ message: '工会信息疑似包含未匿名化敏感内容。' });
     const now = new Date().toISOString();
     const result = db
-      .prepare('INSERT INTO guilds (name, slug, description, icon, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(parsed.data.name, uniqueSlug('guild', 'guilds'), parsed.data.description, parsed.data.icon, 'active', now, now);
+      .prepare('INSERT INTO guilds (name, slug, description, icon, source, join_policy, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(parsed.data.name, uniqueSlug('guild', 'guilds'), parsed.data.description, parsed.data.icon, 'official', 'open', 'active', now, now);
     const after = db.prepare('SELECT * FROM guilds WHERE id = ?').get(result.lastInsertRowid) as SqlRow;
     writeAdminAuditLog(request, {
       adminUsername: session.username,
