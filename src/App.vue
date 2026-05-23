@@ -39,7 +39,7 @@ const localeContext = useLocale();
 const state = useAppState(localeContext);
 
 const sectionRouteMap: Record<string, string> = {
-  submit: '/',
+  submit: '/submit',
   result: '/result',
   leaderboard: '/leaderboard',
   profile: '/profile',
@@ -72,21 +72,16 @@ type NavItem = {
 };
 
 const primaryNavItems: readonly NavItem[] = [
-  { id: 'submit', icon: Send, zh: '提交', en: 'Submit' },
-  { id: 'leaderboard', icon: BarChart3, zh: '排行', en: 'Ranks' },
   { id: 'community', icon: MessageCircle, zh: '社区', en: 'Feed' },
   { id: 'guilds', icon: Crown, zh: '工会', en: 'Guilds' },
   { id: 'circles', icon: Star, zh: '圈子', en: 'Circles' },
-  { id: 'groups', icon: User, zh: '小组', en: 'Groups' }
+  { id: 'groups', icon: User, zh: '小组', en: 'Groups' },
+  { id: 'leaderboard', icon: BarChart3, zh: '排行', en: 'Ranks' },
+  { id: 'about', icon: BadgeCheck, zh: '关于我们', en: 'About' }
 ] as const;
 
-const moreNavItems: readonly NavItem[] = [
-  { id: 'checkin', icon: Check, zh: '签到', en: 'Check In' },
-  { id: 'announcements', icon: AlertTriangle, zh: '公告', en: 'News' },
-  { id: 'safety', icon: ShieldAlert, zh: '安全', en: 'Safety' },
-  { id: 'about', icon: BadgeCheck, zh: '关于', en: 'About' },
-  { id: 'feedback', icon: MessageCircle, zh: '反馈', en: 'Feedback' }
-] as const;
+// 更多菜单已清空：签到→钱包页，公告→通知中心，安全/反馈→关于我们页
+const moreNavItems: readonly NavItem[] = [] as const;
 
 const moreSectionIds = new Set<string>(moreNavItems.map((item) => item.id));
 const isMoreActive = computed(() => moreSectionIds.has(activeSection.value));
@@ -179,7 +174,7 @@ onBeforeUnmount(() => {
           type="button"
           class="top-brand"
           :title="copy('回到首页', 'Back to home')"
-          @click="navigateTo('submit')"
+          @click="navigateTo('community')"
         >
           <span class="brand-mark" aria-hidden="true">{{ copy('鱼', 'Y') }}</span>
           <span class="brand-name">{{ copy('工位鱼王', 'Yuwang') }}</span>
@@ -198,7 +193,8 @@ onBeforeUnmount(() => {
             <span>{{ navLabel(item) }}</span>
           </button>
 
-          <div class="more-wrap" :class="{ open: moreMenuOpen }">
+          <!-- 更多菜单：仅在有条目或 admin 时显示 -->
+          <div v-if="moreNavItems.length > 0 || currentUser?.isAdmin" class="more-wrap" :class="{ open: moreMenuOpen }">
             <button
               type="button"
               class="nav-link more-trigger"
@@ -295,11 +291,6 @@ onBeforeUnmount(() => {
                   <Coins :size="15" />
                   <span>{{ t('wallet') }}</span>
                 </button>
-                <button type="button" class="dropdown-item" :class="{ active: activeSection === 'notifications' }" role="menuitem" @click="navigateTo('notifications')">
-                  <Bell :size="15" />
-                  <span>{{ t('notifications') }}</span>
-                  <em v-if="notificationUnreadCount > 0">{{ notificationUnreadCount }}</em>
-                </button>
                 <button v-if="currentUser?.isAdmin" type="button" class="dropdown-item admin-item" :class="{ active: activeSection === 'admin' }" role="menuitem" @click="navigateTo('admin')">
                   <ClipboardCheck :size="15" />
                   <span>{{ copy('待审审核', 'Review Queue') }}</span>
@@ -385,7 +376,8 @@ onBeforeUnmount(() => {
               <span>{{ navLabel(item) }}</span>
             </button>
           </div>
-          <div class="mobile-section">
+          <!-- 移动端更多区块：仅 admin 时显示 -->
+          <div v-if="moreNavItems.length > 0 || currentUser?.isAdmin" class="mobile-section">
             <p class="mobile-section-title">{{ copy('更多', 'More') }}</p>
             <button
               v-for="item in moreNavItems"
@@ -418,11 +410,6 @@ onBeforeUnmount(() => {
             <button type="button" class="mobile-link" :class="{ active: activeSection === 'wallet' }" @click="navigateTo('wallet')">
               <Coins :size="16" />
               <span>{{ t('wallet') }}</span>
-            </button>
-            <button type="button" class="mobile-link" :class="{ active: activeSection === 'notifications' }" @click="navigateTo('notifications')">
-              <Bell :size="16" />
-              <span>{{ t('notifications') }}</span>
-              <em v-if="notificationUnreadCount > 0">{{ notificationUnreadCount }}</em>
             </button>
             <button type="button" class="mobile-link danger" @click="handleLogout">
               <LogOut :size="16" />

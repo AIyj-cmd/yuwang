@@ -17,8 +17,8 @@ import NotFoundPage from '../pages/NotFoundPage.vue';
 import { fetchAdminMe } from '../services/adminApi';
 
 const routes: RouteRecordRaw[] = [
-  { path: '/', name: 'home', component: HomePage, meta: { section: 'submit' } },
-  { path: '/submit', redirect: '/' },
+  { path: '/', redirect: '/community' },
+  { path: '/submit', name: 'home', component: HomePage, meta: { section: 'submit' } },
   { path: '/result', name: 'result', component: ResultPage, meta: { section: 'result' } },
   { path: '/leaderboard', name: 'leaderboard', component: LeaderboardPage, meta: { section: 'leaderboard' } },
   { path: '/profile', name: 'profile', component: ProfilePage, meta: { section: 'profile' } },
@@ -74,7 +74,7 @@ const routes: RouteRecordRaw[] = [
 ];
 
 const legacyHashRoutes: Record<string, string> = {
-  submit: '/',
+  submit: '/submit',
   result: '/result',
   leaderboard: '/leaderboard',
   profile: '/profile',

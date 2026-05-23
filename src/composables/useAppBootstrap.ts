@@ -25,7 +25,10 @@ export const useAppBootstrap = ({ activeSection, actions, state }: UseAppBootstr
     if (section === 'groups') void actions.loadGroups();
     if (section === 'announcements') void actions.loadAnnouncements();
     if (section === 'checkin') void actions.loadCheckin();
-    if (section === 'wallet') void actions.loadWallet();
+    if (section === 'wallet') {
+      void actions.loadWallet();
+      void actions.loadCheckin();
+    }
   });
 
   onMounted(async () => {

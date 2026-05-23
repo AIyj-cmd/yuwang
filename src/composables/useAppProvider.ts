@@ -76,6 +76,7 @@ export const provideAppContext = ({ activeSection, actions, localeContext, state
     leaderboardResultCount: state.leaderboardResultCount,
     leaderboardRows: state.leaderboardRows,
     loadAnnouncements: actions.loadAnnouncements,
+    loadGuilds: actions.loadGuilds,
     loadLeaderboard: actions.loadLeaderboard,
     loadWallet: actions.loadWallet,
     loading: state.loading,

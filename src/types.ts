@@ -443,6 +443,28 @@ export type GuildDetailResponse = {
   records: FeedRecord[];
 };
 
+export type GuildMember = {
+  id: number;
+  username: string;
+  display_name: string;
+  role: string;
+  joined_at: string;
+};
+
+export type GuildMembersResponse = {
+  members: GuildMember[];
+};
+
+export type GuildTask = {
+  name: string;
+  target: string;
+  reward: string;
+};
+
+export type GuildTasksResponse = {
+  tasks: GuildTask[];
+};
+
 export type Circle = {
   id: number;
   name: string;

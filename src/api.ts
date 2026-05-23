@@ -12,7 +12,10 @@ import type {
   GroupDetailResponse,
   GroupsResponse,
   GuildDetailResponse,
+  GuildMembersResponse,
+  GuildRankingRow,
   GuildsResponse,
+  GuildTasksResponse,
   LeaderboardResponse,
   MeResponse,
   OptionsResponse,
@@ -275,6 +278,33 @@ export const fetchGuilds = async (token?: string | null): Promise<GuildsResponse
 
 export const fetchGuild = async (id: number, token?: string | null): Promise<GuildDetailResponse> => {
   return parseResponse<GuildDetailResponse>(await fetch(`/api/guilds/${id}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }));
+};
+
+export const fetchGuildRanking = async (
+  id: number,
+  token?: string | null
+): Promise<{ rows: GuildRankingRow[] }> => {
+  return parseResponse<{ rows: GuildRankingRow[] }>(
+    await fetch(`/api/guilds/${id}/ranking`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  );
+};
+
+export const fetchGuildMembers = async (
+  id: number,
+  token?: string | null
+): Promise<GuildMembersResponse> => {
+  return parseResponse<GuildMembersResponse>(
+    await fetch(`/api/guilds/${id}/members`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  );
+};
+
+export const fetchGuildTasks = async (
+  id: number,
+  token?: string | null
+): Promise<GuildTasksResponse> => {
+  return parseResponse<GuildTasksResponse>(
+    await fetch(`/api/guilds/${id}/tasks`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  );
 };
 
 export const joinGuild = async (id: number, token: string): Promise<{ guild: GuildsResponse['guilds'][number] }> => {
