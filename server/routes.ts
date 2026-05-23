@@ -130,6 +130,20 @@ const groupSchema = z.object({
   description: z.string().trim().max(120).default(''),
   visibility: z.enum(['public', 'invite']).default('public')
 });
+const guildSchema = z.object({
+  name: z.string().trim().min(2).max(40),
+  description: z.string().trim().max(180).default(''),
+  icon: z.string().trim().min(1).max(4)
+});
+const guildPatchSchema = z
+  .object({
+    name: z.string().trim().min(2).max(40).optional(),
+    description: z.string().trim().max(180).optional(),
+    icon: z.string().trim().min(1).max(4).optional()
+  })
+  .refine((data) => data.name !== undefined || data.description !== undefined || data.icon !== undefined, {
+    message: '至少提供一个要修改的字段。'
+  });
 const walletTransactionsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(100).default(30)
@@ -153,6 +167,10 @@ const checkinSchema = z.object({ note: z.string().trim().max(80).default('') });
 const reviewSchema = z.object({
   status: z.enum(['approved', 'pending', 'rejected']),
   reviewNote: z.string().trim().max(160).default('')
+});
+const guildMemberParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  userId: z.coerce.number().int().positive()
 });
 
 const announcements = [
@@ -727,17 +745,25 @@ const userGroupIds = (userId: number, ids: number[]): number[] => {
 
 const publicGuild = (row: Record<string, unknown>, userId?: number) => {
   const id = Number(row.id);
-  const member = userId ? db.prepare('SELECT id FROM guild_members WHERE guild_id = ? AND user_id = ?').get(id, userId) : null;
+  const member = userId
+    ? (db.prepare('SELECT role FROM guild_members WHERE guild_id = ? AND user_id = ?').get(id, userId) as { role: string } | undefined)
+    : undefined;
   return {
     id,
     name: String(row.name),
     slug: String(row.slug),
     description: String(row.description),
     icon: String(row.icon),
+    ownerUserId: row.owner_user_id === null || row.owner_user_id === undefined ? null : Number(row.owner_user_id),
+    createdByUserId: row.created_by_user_id === null || row.created_by_user_id === undefined ? null : Number(row.created_by_user_id),
+    source: String(row.source ?? 'official'),
+    joinPolicy: String(row.join_policy ?? 'open'),
+    status: String(row.status ?? 'active'),
     totalContribution: Number(row.total_contribution ?? 0),
     memberCount: Number(row.member_count ?? 0),
     level: getGuildLevel(Number(row.total_contribution ?? 0)),
-    joined: Boolean(member)
+    joined: Boolean(member),
+    role: member?.role ?? ''
   };
 };
 
@@ -829,6 +855,14 @@ const emptySearchResults = (query = '') => ({
 });
 
 const randomInviteCode = (): string => Math.random().toString(36).slice(2, 8).toUpperCase();
+
+const uniqueUserGuildSlug = (): string => {
+  let slug = `user-guild-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  while (db.prepare('SELECT id FROM guilds WHERE slug = ?').get(slug)) {
+    slug = `user-guild-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  }
+  return slug;
+};
 
 const createShareCard = (record: ReturnType<typeof publicRecord>) => {
   const settings = getSiteSettings();
@@ -1570,13 +1604,14 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get('/api/guilds', async (request) => {
     refreshAllSocialAggregates();
     const user = getUserFromRequest(request);
-    const rows = db.prepare('SELECT * FROM guilds ORDER BY total_contribution DESC, id ASC').all() as Record<string, unknown>[];
+    const rows = db.prepare("SELECT * FROM guilds WHERE status = 'active' ORDER BY total_contribution DESC, id ASC").all() as Record<string, unknown>[];
     const myGuild = user?.guildId ? rows.find((row) => Number(row.id) === user.guildId) : null;
     const ranking = db
       .prepare(
         `
           SELECT users.id, users.username, users.display_name, COALESCE(SUM(slacking_records.guild_contribution), 0) AS contribution
           FROM users
+          JOIN guilds ON guilds.id = users.guild_id AND guilds.status = 'active'
           LEFT JOIN slacking_records ON slacking_records.user_id = users.id AND slacking_records.status = 'approved'
           WHERE users.guild_id IS NOT NULL
           GROUP BY users.id
@@ -1598,11 +1633,98 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     };
   });
 
+  app.post('/api/guilds', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const parsed = guildSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ message: '工会信息无效。' });
+    const safety = analyzeContentSafety(`${parsed.data.name} ${parsed.data.description}`);
+    if (safety.level !== 'pass') {
+      return reply.code(400).send({ message: '工会信息疑似包含未匿名化敏感内容。', safety });
+    }
+
+    const now = new Date().toISOString();
+    let guildId = 0;
+    let spendResult: ReturnType<typeof spendFishScale> | null = null;
+    try {
+      db.exec('BEGIN IMMEDIATE');
+      const owned = db
+        .prepare("SELECT id FROM guilds WHERE owner_user_id = ? AND source = 'user' AND status != 'banned' LIMIT 1")
+        .get(user.id);
+      if (owned) throw new Error('USER_GUILD_ALREADY_EXISTS');
+      const duplicate = db.prepare('SELECT id FROM guilds WHERE lower(name) = lower(?) LIMIT 1').get(parsed.data.name);
+      if (duplicate) throw new Error('GUILD_NAME_DUPLICATE');
+
+      spendResult = spendFishScale({
+        userId: user.id,
+        amount: 50,
+        reason: 'guild_creation_spend',
+        relatedType: 'guild',
+        relatedId: null
+      });
+      if (!spendResult.transaction) throw new Error('GUILD_CREATION_SPEND_MISSING_TRANSACTION');
+
+      const result = db
+        .prepare(
+          `
+            INSERT INTO guilds (
+              name,
+              slug,
+              description,
+              icon,
+              owner_user_id,
+              created_by_user_id,
+              source,
+              join_policy,
+              status,
+              created_at,
+              updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'user', 'open', 'active', ?, ?)
+          `
+        )
+        .run(parsed.data.name, uniqueUserGuildSlug(), parsed.data.description, parsed.data.icon, user.id, user.id, now, now);
+      guildId = Number(result.lastInsertRowid);
+      db.prepare('UPDATE fish_scale_transactions SET related_id = ? WHERE id = ?').run(guildId, spendResult.transaction.id);
+      spendResult = {
+        ...spendResult,
+        transaction: {
+          ...spendResult.transaction,
+          relatedId: guildId
+        }
+      };
+      db.prepare('DELETE FROM guild_members WHERE user_id = ?').run(user.id);
+      db.prepare('INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)').run(guildId, user.id, 'owner', now);
+      db.prepare('UPDATE users SET guild_id = ?, updated_at = ? WHERE id = ?').run(guildId, now, user.id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      if (error instanceof Error && error.message === FISH_SCALE_INSUFFICIENT_MESSAGE) {
+        return reply.code(400).send({ message: FISH_SCALE_INSUFFICIENT_MESSAGE });
+      }
+      if (error instanceof Error && error.message === 'USER_GUILD_ALREADY_EXISTS') {
+        return reply.code(409).send({ message: '每个用户最多只能拥有一个用户工会。' });
+      }
+      if (error instanceof Error && error.message === 'GUILD_NAME_DUPLICATE') {
+        return reply.code(409).send({ message: '工会名称已存在。' });
+      }
+      throw error;
+    }
+
+    refreshAllSocialAggregates();
+    if (!spendResult?.transaction) throw new Error('工会创建扣费流水缺失。');
+    return reply.code(201).send({
+      guild: publicGuild(db.prepare('SELECT * FROM guilds WHERE id = ?').get(guildId) as Record<string, unknown>, user.id),
+      wallet: spendResult.wallet,
+      transaction: spendResult.transaction,
+      message: '工会创建成功，会长已上任。'
+    });
+  });
+
   app.get('/api/guilds/:id', async (request, reply) => {
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
     const user = getUserFromRequest(request);
-    const row = db.prepare('SELECT * FROM guilds WHERE id = ?').get(params.data.id) as Record<string, unknown> | undefined;
+    const row = db.prepare("SELECT * FROM guilds WHERE id = ? AND status = 'active'").get(params.data.id) as Record<string, unknown> | undefined;
     if (!row) return reply.code(404).send({ message: '工会不存在。' });
     const records = db
       .prepare("SELECT * FROM slacking_records WHERE guild_id = ? AND status = 'approved' ORDER BY guild_contribution DESC, created_at DESC LIMIT 10")
@@ -1610,27 +1732,148 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     return { guild: publicGuild(row, user?.id), records: records.map((record) => publicFeedRecord(record, user?.id)) };
   });
 
+  app.patch('/api/guilds/:id', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const params = idParamSchema.safeParse(request.params);
+    const parsed = guildPatchSchema.safeParse(request.body);
+    if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
+    if (!parsed.success) return reply.code(400).send({ message: '工会信息无效。' });
+
+    const before = db.prepare('SELECT * FROM guilds WHERE id = ?').get(params.data.id) as Record<string, unknown> | undefined;
+    if (!before) return reply.code(404).send({ message: '工会不存在。' });
+    if (String(before.source ?? 'official') === 'official') return reply.code(403).send({ message: '官方工会不能被普通用户修改。' });
+
+    const member = db
+      .prepare('SELECT role FROM guild_members WHERE guild_id = ? AND user_id = ?')
+      .get(params.data.id, user.id) as { role: string } | undefined;
+    if (member?.role !== 'owner') return reply.code(403).send({ message: '只有工会会长可以修改工会资料。' });
+
+    const name = parsed.data.name ?? String(before.name);
+    const description = parsed.data.description ?? String(before.description);
+    const icon = parsed.data.icon ?? String(before.icon);
+    const safety = analyzeContentSafety(`${name} ${description}`);
+    if (safety.level !== 'pass') {
+      return reply.code(400).send({ message: '工会信息疑似包含未匿名化敏感内容。', safety });
+    }
+    const duplicate = db.prepare('SELECT id FROM guilds WHERE lower(name) = lower(?) AND id != ? LIMIT 1').get(name, params.data.id);
+    if (duplicate) return reply.code(409).send({ message: '工会名称已存在。' });
+
+    db.prepare('UPDATE guilds SET name = ?, description = ?, icon = ?, updated_at = ? WHERE id = ?').run(
+      name,
+      description,
+      icon,
+      new Date().toISOString(),
+      params.data.id
+    );
+    return {
+      guild: publicGuild(db.prepare('SELECT * FROM guilds WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id),
+      message: '工会资料已更新。'
+    };
+  });
+
   app.post('/api/guilds/:id/join', async (request, reply) => {
     const user = requireAuth(request, reply);
     if (!user) return;
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
-    const guild = db.prepare('SELECT * FROM guilds WHERE id = ?').get(params.data.id) as Record<string, unknown> | undefined;
+    const guild = db.prepare("SELECT * FROM guilds WHERE id = ? AND status = 'active'").get(params.data.id) as Record<string, unknown> | undefined;
     if (!guild) return reply.code(404).send({ message: '工会不存在。' });
+    const currentMember = db
+      .prepare('SELECT guild_id, role FROM guild_members WHERE user_id = ? LIMIT 1')
+      .get(user.id) as { guild_id: number; role: string } | undefined;
+    if (currentMember && Number(currentMember.guild_id) === params.data.id) {
+      return { guild: publicGuild(guild, user.id) };
+    }
+    if (currentMember?.role === 'owner') {
+      return reply.code(400).send({ message: '会长不能直接退出工会，请先转让或联系管理员处理。' });
+    }
     const now = new Date().toISOString();
-    db.prepare('DELETE FROM guild_members WHERE user_id = ?').run(user.id);
-    db.prepare('INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)').run(params.data.id, user.id, 'member', now);
-    db.prepare('UPDATE users SET guild_id = ?, updated_at = ? WHERE id = ?').run(params.data.id, now, user.id);
-    db.prepare('UPDATE slacking_records SET guild_id = ? WHERE user_id = ? AND guild_id IS NULL').run(params.data.id, user.id);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare('DELETE FROM guild_members WHERE user_id = ?').run(user.id);
+      db.prepare('INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)').run(params.data.id, user.id, 'member', now);
+      db.prepare('UPDATE users SET guild_id = ?, updated_at = ? WHERE id = ?').run(params.data.id, now, user.id);
+      db.prepare('UPDATE slacking_records SET guild_id = ? WHERE user_id = ? AND guild_id IS NULL').run(params.data.id, user.id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
     const userRecords = db.prepare('SELECT id FROM slacking_records WHERE user_id = ?').all(user.id) as { id: number }[];
     for (const record of userRecords) refreshRecordInteractionCounts(record.id);
     refreshAllSocialAggregates();
-    return { guild: publicGuild(db.prepare('SELECT * FROM guilds WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id) };
+    return {
+      guild: publicGuild(db.prepare('SELECT * FROM guilds WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id),
+      message: currentMember ? '已退出原工会并加入新工会。' : '已加入工会。'
+    };
+  });
+
+  app.post('/api/guilds/:id/leave', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const params = idParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
+    const guild = db.prepare('SELECT id FROM guilds WHERE id = ?').get(params.data.id);
+    if (!guild) return reply.code(404).send({ message: '工会不存在。' });
+    const member = db
+      .prepare('SELECT role FROM guild_members WHERE guild_id = ? AND user_id = ?')
+      .get(params.data.id, user.id) as { role: string } | undefined;
+    if (!member) return reply.code(403).send({ message: '你不是该工会成员。' });
+    if (member.role === 'owner') {
+      return reply.code(400).send({ message: '会长不能直接退出工会，请先转让或联系管理员处理。' });
+    }
+    const now = new Date().toISOString();
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare('DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?').run(params.data.id, user.id);
+      db.prepare('UPDATE users SET guild_id = NULL, updated_at = ? WHERE id = ? AND guild_id = ?').run(now, user.id, params.data.id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    refreshAllSocialAggregates();
+    return { ok: true, message: '已退出工会。' };
+  });
+
+  app.post('/api/guilds/:id/members/:userId/remove', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    const params = guildMemberParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: '工会成员参数无效。' });
+    const guild = db.prepare('SELECT id FROM guilds WHERE id = ?').get(params.data.id);
+    if (!guild) return reply.code(404).send({ message: '工会不存在。' });
+    const operator = db
+      .prepare('SELECT role FROM guild_members WHERE guild_id = ? AND user_id = ?')
+      .get(params.data.id, user.id) as { role: string } | undefined;
+    if (operator?.role !== 'owner') return reply.code(403).send({ message: '只有工会会长可以移出成员。' });
+    if (params.data.userId === user.id) return reply.code(400).send({ message: '会长不能把自己移出工会。' });
+    const target = db
+      .prepare('SELECT role FROM guild_members WHERE guild_id = ? AND user_id = ?')
+      .get(params.data.id, params.data.userId) as { role: string } | undefined;
+    if (!target) return reply.code(404).send({ message: '目标成员不存在。' });
+    if (target.role === 'owner') return reply.code(400).send({ message: '不能移出工会会长。' });
+
+    const now = new Date().toISOString();
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare('DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?').run(params.data.id, params.data.userId);
+      db.prepare('UPDATE users SET guild_id = NULL, updated_at = ? WHERE id = ? AND guild_id = ?').run(now, params.data.userId, params.data.id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+    refreshAllSocialAggregates();
+    return { ok: true, message: '成员已移出工会。' };
   });
 
   app.get('/api/guilds/:id/ranking', async (request, reply) => {
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
+    const guild = db.prepare("SELECT id FROM guilds WHERE id = ? AND status = 'active'").get(params.data.id);
+    if (!guild) return reply.code(404).send({ message: '工会不存在。' });
     const rows = db
       .prepare(
         `
@@ -1659,6 +1902,8 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get('/api/guilds/:id/members', async (request, reply) => {
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
+    const guild = db.prepare("SELECT id FROM guilds WHERE id = ? AND status = 'active'").get(params.data.id);
+    if (!guild) return reply.code(404).send({ message: '工会不存在。' });
     const rows = db
       .prepare(
         `
@@ -1676,6 +1921,8 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get('/api/guilds/:id/tasks', async (request, reply) => {
     const params = idParamSchema.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
+    const guild = db.prepare("SELECT id FROM guilds WHERE id = ? AND status = 'active'").get(params.data.id);
+    if (!guild) return reply.code(404).send({ message: '工会不存在。' });
     return {
       tasks: [
         { name: '今日集体摸鱼任务', target: '全员今日提交 3 条公开记录', reward: '+20 工会士气' },
