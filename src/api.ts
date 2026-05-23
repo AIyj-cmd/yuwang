@@ -11,8 +11,10 @@ import type {
   GroupChallengeResponse,
   GroupDetailResponse,
   GroupsResponse,
+  GuildActionResponse,
   GuildDetailResponse,
   GuildMembersResponse,
+  GuildMutationResponse,
   GuildRankingRow,
   GuildsResponse,
   GuildTasksResponse,
@@ -310,6 +312,61 @@ export const fetchGuildTasks = async (
 export const joinGuild = async (id: number, token: string): Promise<{ guild: GuildsResponse['guilds'][number] }> => {
   return parseResponse<{ guild: GuildsResponse['guilds'][number] }>(
     await fetch(`/api/guilds/${id}/join`, {
+      method: 'POST',
+      headers: headers(token),
+      body: '{}'
+    })
+  );
+};
+
+// 工会经营 v1：用户创建工会（消耗 50 鱼鳞，创建者自动成为会长）。
+export const createGuild = async (
+  payload: { name: string; description: string; icon: string },
+  token: string
+): Promise<GuildMutationResponse> => {
+  return parseResponse<GuildMutationResponse>(
+    await fetch('/api/guilds', {
+      method: 'POST',
+      headers: headers(token),
+      body: JSON.stringify(payload)
+    })
+  );
+};
+
+// 工会经营 v1：会长修改自己创建的用户工会资料。
+export const updateGuild = async (
+  id: number,
+  payload: { name?: string; description?: string; icon?: string },
+  token: string
+): Promise<GuildMutationResponse> => {
+  return parseResponse<GuildMutationResponse>(
+    await fetch(`/api/guilds/${id}`, {
+      method: 'PATCH',
+      headers: headers(token),
+      body: JSON.stringify(payload)
+    })
+  );
+};
+
+// 工会经营 v1：普通成员退出工会（会长不能直接退出）。
+export const leaveGuild = async (id: number, token: string): Promise<GuildActionResponse> => {
+  return parseResponse<GuildActionResponse>(
+    await fetch(`/api/guilds/${id}/leave`, {
+      method: 'POST',
+      headers: headers(token),
+      body: '{}'
+    })
+  );
+};
+
+// 工会经营 v1：会长移除工会中的普通成员。
+export const removeGuildMember = async (
+  id: number,
+  userId: number,
+  token: string
+): Promise<GuildActionResponse> => {
+  return parseResponse<GuildActionResponse>(
+    await fetch(`/api/guilds/${id}/members/${userId}/remove`, {
       method: 'POST',
       headers: headers(token),
       body: '{}'

@@ -969,6 +969,12 @@ watch(
                 </div>
               </div>
 
+              <div class="gh-manage-row">
+                <button type="button" class="gc-retry" @click="router.push('/my-guild')">
+                  <Crown :size="14" /> {{ copy('管理我的工会', 'Manage my guild') }}
+                </button>
+              </div>
+
               <div class="gh-stats">
                 <div class="gh-stat"><b>+{{ (myRankRow ? myRankRow.contribution : 0).toFixed(1) }}</b><span>{{ copy('你的贡献', 'Your contribution') }}</span></div>
                 <div class="gh-stat"><b>{{ myRankRow ? '#' + myRankRow.rank : '—' }}</b><span>{{ copy('你的工会内名次', 'Your rank in guild') }}</span></div>
@@ -1017,8 +1023,13 @@ watch(
 
             <div v-else class="gc-state">
               <strong>{{ copy('你还没有加入工会', 'You have not joined a guild yet') }}</strong>
-              <span>{{ copy('去工会列表挑一支对味的组织加入，之后这里就是你的主场。', 'Browse all guilds and join one — this becomes your home base.') }}</span>
-              <button type="button" class="gc-retry" @click="guildTab = 'list'">{{ copy('查看工会列表', 'Browse all guilds') }}</button>
+              <span>{{ copy('去工会列表挑一支对味的组织加入，或自己开一支工会当会长。', 'Browse all guilds and join one, or start your own guild as the owner.') }}</span>
+              <div class="gh-manage-row">
+                <button type="button" class="gc-retry" @click="guildTab = 'list'">{{ copy('查看工会列表', 'Browse all guilds') }}</button>
+                <button type="button" class="gc-retry" @click="router.push('/my-guild')">
+                  <Crown :size="14" /> {{ copy('创建 / 管理工会', 'Create / manage a guild') }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1239,30 +1250,39 @@ watch(
         <template #header>
           <div class="panel-title"><BadgeCheck :size="18" /><span>{{ t('about') }}</span></div>
         </template>
-        <div class="module-intro">
-          <strong>{{ copy('工位鱼王记录的是办公室精神状态，不是违规教程。', 'Gongwei Yuwang records office mood, not rule-breaking tutorials.') }}</strong>
-          <span>{{ copy('这里把摸鱼写成娱乐化记录、称号和排行榜，用轻量社区方式缓解打工人的荒诞感。', 'It turns slacking stories into playful records, titles, and leaderboards to capture modern office absurdity.') }}</span>
+
+        <div class="about-brand">
+          <h1 class="about-brand-name">{{ copy('工位鱼王', 'Gongwei Yuwang') }}</h1>
+          <p class="about-brand-motto">{{ copy('记录办公室精神状态，不是违规教程。', 'Office mood records, not rule-breaking tutorials.') }}</p>
         </div>
-        <div class="about-grid">
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('我们在做什么', 'What We Do') }}</strong><small>{{ copy('可用工具优先', 'Usable tool first') }}</small></div>
-            <p class="module-copy">{{ copy('提交一条匿名摸鱼记录，系统按固定规则计算 Fish Power Score，再把结果放进排行榜、社区、圈子、小组和个人主页。', 'Submit an anonymous record. The system calculates Fish Power Score with fixed rules and shows it in leaderboards, community, circles, groups, and profiles.') }}</p>
+
+        <hr class="about-divider" />
+
+        <p class="about-lead">
+          {{ copy('这里把摸鱼写成娱乐化记录、称号和排行榜，用轻量社区方式缓解打工人的荒诞感。提交一条匿名记录，系统按固定规则计算 Fish Power Score。', 'It turns slacking stories into playful records, titles, and leaderboards to capture modern office absurdity. Submit an anonymous record and the system calculates Fish Power Score with fixed rules.') }}
+        </p>
+
+        <div class="about-columns">
+          <section class="about-column">
+            <h2 class="about-section-title">{{ copy('我们在做什么', 'What We Do') }}</h2>
+            <p class="about-body-text">{{ copy('提交一条匿名摸鱼记录，系统按固定规则计算 Fish Power Score，再把结果放进排行榜、社区、圈子、小组和个人主页。', 'Submit an anonymous record. The system calculates Fish Power Score with fixed rules and shows it in leaderboards, community, circles, groups, and profiles.') }}</p>
           </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('我们不做什么', 'What We Do Not Do') }}</strong><small>{{ copy('安全边界', 'Safety boundary') }}</small></div>
-            <p class="module-copy">{{ copy('不鼓励真实违反职场规则，不提供图片上传，不收集真实公司名、客户名、部门名、地理位置或身份信息。', 'We do not encourage real workplace rule violations, provide image uploads, or collect real company, client, department, location, or identity information.') }}</p>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('当前模块', 'Current Modules') }}</strong><small>{{ copy('账号区入口', 'MVP section entries') }}</small></div>
-            <div class="record-tags">
-              <span>{{ t('submitRecord') }}</span>
-              <span>{{ copy('用户聚合排行榜', 'User-aggregated leaderboards') }}</span>
-              <span>{{ t('safety') }}</span>
-              <span>{{ t('communitySystem') }}</span>
-              <span>{{ t('checkin') }}</span>
-            </div>
+          <section class="about-column">
+            <h2 class="about-section-title">{{ copy('我们不做什么', 'What We Do Not Do') }}</h2>
+            <p class="about-body-text">{{ copy('不鼓励真实违反职场规则，不提供图片上传，不收集真实公司名、客户名、部门名、地理位置或身份信息。', 'We do not encourage real workplace rule violations, provide image uploads, or collect real company, client, department, location, or identity information.') }}</p>
           </section>
         </div>
+
+        <section class="about-modules">
+          <h2 class="about-section-title">{{ copy('当前模块', 'Current Modules') }}</h2>
+          <div class="about-module-tags">
+            <span>{{ t('submitRecord') }}</span>
+            <span>{{ copy('用户聚合排行榜', 'User-aggregated leaderboards') }}</span>
+            <span>{{ t('safety') }}</span>
+            <span>{{ t('communitySystem') }}</span>
+            <span>{{ t('checkin') }}</span>
+          </div>
+        </section>
       </PxCard>
 
       <!-- 反馈集合在关于我们页面 -->
@@ -1270,10 +1290,6 @@ watch(
         <template #header>
           <div class="panel-title"><MessageCircle :size="18" /><span>{{ t('feedback') }}</span></div>
         </template>
-        <div class="module-intro">
-          <strong>{{ copy('提交建议前先匿名化。', 'Anonymize before submitting feedback.') }}</strong>
-          <span>{{ copy('可以反馈功能、玩法、文案和问题，但不要写真实公司、客户、部门、电话、聊天记录或截图内容。', 'You can suggest features, mechanics, copy, or bug reports, but do not include real companies, clients, departments, phone numbers, chat records, or screenshots.') }}</span>
-        </div>
         <form class="record-form" @submit.prevent="handleFeedbackSubmit">
           <label class="field">
             <span>{{ copy('建议类型', 'Feedback Type') }}</span>
@@ -1294,12 +1310,15 @@ watch(
           </label>
           <p class="scope-note">{{ copy('建议最长 300 字；命中明显敏感内容会被拒绝或进入待处理状态。', 'Feedback is limited to 300 characters. Obvious sensitive content will be rejected or queued.') }}</p>
           <div class="form-actions">
-            <button class="profile-toggle-button" type="submit" :disabled="feedbackLoading">
+            <PxButton type="primary" native-type="submit" size="small" :disabled="feedbackLoading" :loading="feedbackLoading">
               <Send :size="14" />
               {{ feedbackLoading ? copy('提交中', 'Submitting') : copy('提交建议', 'Submit Feedback') }}
-            </button>
+            </PxButton>
           </div>
-          <div v-if="feedbackSubmitted" class="status-line"><Check :size="15" />{{ copy('建议已入库，后续会按优先级处理。', 'Feedback saved and will be handled by priority.') }}</div>
+          <div v-if="feedbackSubmitted" class="feedback-success">
+            <Check :size="16" />
+            {{ copy('建议已入库，后续会按优先级处理。', 'Feedback saved and will be handled by priority.') }}
+          </div>
         </form>
       </PxCard>
 
@@ -1424,30 +1443,60 @@ watch(
       <div v-if="activeSection === 'safety' || activeSection === 'about'" class="info-grid">
         <PxCard id="safety" class="panel safety-panel">
           <template #header><div class="panel-title"><ShieldAlert :size="18" /><span>{{ t('safety') }}</span></div></template>
-          <p>{{ copy(options.safetyNotice, 'Do not submit company secrets, personal privacy, employee IDs, chat records, client data, or non-anonymized screenshots. This platform is for entertainment only and does not support real workplace rule violations.') }}</p>
-          <div class="protection-grid" :aria-label="copy('内容保护策略', 'Content protection strategy')">
-            <div class="protection-item">
-              <strong>{{ copy('长度限制', 'Length Limit') }}</strong>
-              <span>{{ copy('摸鱼故事最多', 'Story max') }} {{ options.maxDescriptionLength }} {{ copy('字，超出后无法提交。', 'characters. Longer content cannot be submitted.') }}</span>
+
+          <div class="safety-warning">
+            <AlertTriangle :size="18" />
+            <p>{{ copy(options.safetyNotice, 'Do not submit company secrets, personal privacy, employee IDs, chat records, client data, or non-anonymized screenshots. This platform is for entertainment only and does not support real workplace rule violations.') }}</p>
+          </div>
+
+          <div class="protection-list" :aria-label="copy('内容保护策略', 'Content protection strategy')">
+            <div class="protection-item-flat">
+              <div class="protection-item-head">
+                <Hash :size="14" />
+                <strong>{{ copy('长度限制', 'Length Limit') }}</strong>
+              </div>
+              <p>{{ copy('摸鱼故事最多', 'Story max') }} {{ options.maxDescriptionLength }} {{ copy('字，超出后无法提交。', 'characters. Longer content cannot be submitted.') }}</p>
             </div>
-            <div class="protection-item">
-              <strong>{{ copy('敏感词拦截', 'Sensitive Terms') }}</strong>
-              <span>{{ copy('命中', 'If') }} {{ options.sensitiveTerms.length }} {{ copy('个明显敏感词时，前端和后端都会提示。', 'obvious sensitive terms are matched, both frontend and backend will warn.') }}</span>
+            <div class="protection-item-flat">
+              <div class="protection-item-head">
+                <ShieldAlert :size="14" />
+                <strong>{{ copy('敏感词拦截', 'Sensitive Terms') }}</strong>
+              </div>
+              <p>{{ copy('命中', 'If') }} {{ options.sensitiveTerms.length }} {{ copy('个明显敏感词时，前端和后端都会提示。', 'obvious sensitive terms are matched, both frontend and backend will warn.') }}</p>
             </div>
-            <div class="protection-item">
-              <strong>{{ copy('审核兜底', 'Review Fallback') }}</strong>
-              <span>{{ copy('手机号、邮箱、链接、疑似公司全称等内容会进入人工审核队列。', 'Phone numbers, emails, links, and suspected full company names go to manual review.') }}</span>
+            <div class="protection-item-flat">
+              <div class="protection-item-head">
+                <ClipboardCheck :size="14" />
+                <strong>{{ copy('审核兜底', 'Review Fallback') }}</strong>
+              </div>
+              <p>{{ copy('手机号、邮箱、链接、疑似公司全称等内容会进入人工审核队列。', 'Phone numbers, emails, links, and suspected full company names go to manual review.') }}</p>
             </div>
-            <div class="protection-item">
-              <strong>{{ copy('提交边界', 'Submission Boundary') }}</strong>
-              <span>{{ copy('不提供图片、截图或文件上传；分数始终由后端按枚举重新计算。', 'No image, screenshot, or file upload. Scores are always recalculated by the backend from enums.') }}</span>
+            <div class="protection-item-flat">
+              <div class="protection-item-head">
+                <BadgeCheck :size="14" />
+                <strong>{{ copy('提交边界', 'Submission Boundary') }}</strong>
+              </div>
+              <p>{{ copy('不提供图片、截图或文件上传；分数始终由后端按枚举重新计算。', 'No image, screenshot, or file upload. Scores are always recalculated by the backend from enums.') }}</p>
             </div>
           </div>
-          <div class="stats-line" v-if="stats">
-            <span>{{ t('total') }} {{ stats.totalRecords }}</span>
-            <span>{{ t('today') }} {{ stats.todayRecords }}</span>
-            <span>{{ t('top') }} {{ stats.topScore }}</span>
-            <span>{{ copy('SQLite 已启用', 'SQLite enabled') }}</span>
+
+          <div class="about-stats" v-if="stats">
+            <div class="about-stats-item">
+              <b>{{ stats.totalRecords }}</b>
+              <span>{{ t('total') }}</span>
+            </div>
+            <div class="about-stats-item">
+              <b>{{ stats.todayRecords }}</b>
+              <span>{{ t('today') }}</span>
+            </div>
+            <div class="about-stats-item">
+              <b>{{ stats.topScore }}</b>
+              <span>{{ t('top') }}</span>
+            </div>
+            <div class="about-stats-item">
+              <b>SQLite</b>
+              <span>{{ copy('已启用', 'Enabled') }}</span>
+            </div>
           </div>
         </PxCard>
       </div>
