@@ -36,6 +36,12 @@ const routes: RouteRecordRaw[] = [
   { path: '/topics/:slug', name: 'topic-detail', component: TopicDetailPage, meta: { section: 'community' } },
   { path: '/guilds', name: 'guilds', component: GuildsPage, meta: { section: 'guilds' } },
   { path: '/guilds/:id', name: 'guild-detail', component: GuildDetailPage, meta: { section: 'guilds' } },
+  {
+    path: '/my-guild',
+    name: 'my-guild',
+    component: () => import('../pages/MyGuildPage.vue'),
+    meta: { section: 'guilds', requiresAuth: true }
+  },
   { path: '/circles', name: 'circles', component: CirclesPage, meta: { section: 'circles' } },
   { path: '/circles/:id', name: 'circle-detail', component: CircleDetailPage, meta: { section: 'circles' } },
   { path: '/groups', name: 'groups', component: GroupsPage, meta: { section: 'groups' } },

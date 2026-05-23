@@ -471,6 +471,21 @@ export type GuildTasksResponse = {
   tasks: GuildTask[];
 };
 
+// 工会经营接口（创建 / 更新）返回的工会对象。后端返回 publicGuild 形状，
+// 前端按 Guild 类型读取，仅消费 id / name / description / icon / role 等字段。
+export type GuildMutationResponse = {
+  guild: Guild;
+  wallet?: unknown;
+  transaction?: unknown;
+  message?: string;
+};
+
+// 退出工会 / 移除成员接口的返回。
+export type GuildActionResponse = {
+  ok: boolean;
+  message?: string;
+};
+
 export type Circle = {
   id: number;
   name: string;
