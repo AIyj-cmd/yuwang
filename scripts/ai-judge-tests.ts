@@ -286,6 +286,7 @@ assert.equal(recordResponse.statusCode, 201, 'POST /api/records succeeds without
 const recordPayload = JSON.parse(recordResponse.payload) as {
   record: {
     status: string;
+    reviewNote: string;
     scoreVersion: string;
     breakdown: {
       fallback?: boolean;
@@ -299,12 +300,34 @@ const recordPayload = JSON.parse(recordResponse.payload) as {
 assert.equal(recordPayload.record.breakdown.fallback, true, 'record fallback flag is stored');
 assert.equal(recordPayload.record.breakdown.fallbackReason, 'missing_api_key', 'record fallback reason is stored');
 assert.equal(recordPayload.record.scoreVersion, AI_JUDGE_FALLBACK_SCORE_VERSION, 'record fallback score version is stored');
-assert.equal(recordPayload.record.status, 'pending', 'non-slacking fallback records are pending');
+assert.equal(recordPayload.record.status, 'approved', 'non-slacking fallback records are approved when default status is published');
+assert.equal(recordPayload.record.reviewNote, 'not_slacking_event', 'non-slacking review note is stored');
 assert.equal(recordPayload.record.breakdown.valid, false, 'non-slacking fallback is invalid');
 assert.equal(recordPayload.record.breakdown.reason, 'not_slacking_event', 'non-slacking reason is stored');
 assert.equal(recordPayload.fishScaleReward, null, 'non-slacking record does not get fish-scale reward');
 const fishScaleTransactionCount = Number((database.db.prepare('SELECT COUNT(*) AS count FROM fish_scale_transactions').get() as { count: number }).count);
 assert.equal(fishScaleTransactionCount, 0, 'non-slacking record creates no fish-scale transactions');
+
+database.db.prepare("UPDATE site_settings SET value = 'pending', updated_at = ? WHERE key = 'default_record_status'").run(new Date().toISOString());
+const globalReviewResponse = await app.inject({
+  method: 'POST',
+  url: '/api/records',
+  headers: {
+    authorization: `Bearer ${authPayload.token}`
+  },
+  payload: {
+    nickname: 'Judge User',
+    activityText: 'watched a training video while pretending to review docs',
+    storyText: 'I kept the document window open and quietly researched dinner plans.',
+    duration: '30-60',
+    anonymized: true
+  }
+});
+assert.equal(globalReviewResponse.statusCode, 201, 'POST /api/records succeeds in global review mode');
+const globalReviewPayload = JSON.parse(globalReviewResponse.payload) as { record: { status: string; breakdown: { valid?: boolean } } };
+assert.equal(globalReviewPayload.record.breakdown.valid, true, 'global review mode test record is a valid slacking record');
+assert.equal(globalReviewPayload.record.status, 'pending', 'global review mode keeps safe records pending');
+database.db.prepare("UPDATE site_settings SET value = 'published', updated_at = ? WHERE key = 'default_record_status'").run(new Date().toISOString());
 
 const timeoutServer = createServer(() => {
   // Keep the socket open long enough for the OpenAI client timeout to fire.

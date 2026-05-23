@@ -2075,9 +2075,9 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const totalScore = (user ? getUserTotalScore(user.id) : getNicknameTotalScore(nickname)) + score.fishPowerScore;
     const title = getTitleForTotalScore(score.fishPowerScore);
     const systemComment = aiScore.comment;
-    // AI valid=false/not_slacking_event is kept review-only: it is not a rewardable slacking record.
+    // AI valid=false/not_slacking_event affects rewards and notes, not moderation status.
     const status =
-      isNonSlackingEvent || safety.level === 'review'
+      safety.level === 'review'
         ? 'pending'
         : settings.defaultRecordStatus === 'pending'
           ? 'pending'
