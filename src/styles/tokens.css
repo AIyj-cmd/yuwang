@@ -1,0 +1,219 @@
+/**
+ * 工位鱼王 · Design Tokens
+ * 版本:v1.1(2026-05-26)
+ * 基于 v3 设计稿验证后的稳定版
+ *
+ * 全局 CSS 变量,所有组件必须使用这些变量,禁止硬编码
+ * 引入方式:在 main.ts 中 import './styles/tokens.css'
+ */
+
+:root {
+  /* ============ 颜色 · 背景 ============ */
+
+  --color-bg-base: #FAF7F2;        /* 页面主背景,奶油白 */
+  --color-bg-card: #FFFFFF;        /* 卡片背景 */
+  --color-bg-subtle: #F3EFE6;      /* 次级背景,输入框、标签底 */
+
+  /* ============ 颜色 · 主色与辅助色 ============ */
+
+  --color-primary: #FFD666;
+  --color-primary-soft: #FFF2C7;   /* hover、次级强调 */
+  --color-primary-hover: #FFCB3D;
+
+  --color-accent-mint: #A8D8C9;
+  --color-accent-mint-soft: #ECF6F1;
+
+  --color-accent-coral: #FFB4A2;
+  --color-accent-coral-soft: #FFF0E8;
+
+  --color-accent-lilac: #C8B6E2;
+
+  /* ============ 颜色 · 互动 active 状态(v3 验证补齐)============ */
+
+  --color-bg-active-warm: #FFF8DD;    /* 心、收藏 active */
+  --color-bg-active-coral: #FFF0E8;   /* 传奇 action active */
+  --color-bg-active-danger: #FFE8E0;  /* 举报、危险 active */
+
+  /* ============ 颜色 · 文字 ============ */
+
+  --color-text-primary: #2B2B2B;
+  --color-text-secondary: #8B8680;
+  --color-text-tertiary: #B8B3AC;
+  --color-text-body: #4A4A45;       /* 正文专用,比 primary 稍弱 */
+  --color-text-inverse: #FFFFFF;
+
+  /* 标签字色(搭配 soft 底色) */
+  --color-text-on-mint: #4A6A5E;
+  --color-text-on-coral: #7A4A3A;
+
+  /* ============ 颜色 · 边框与分隔 ============ */
+
+  --color-border: #E8E2D5;
+  --color-border-strong: #2B2B2B;  /* 像素徽章、强 CTA */
+  --color-divider: #F0EBE0;
+
+  /* ============ 颜色 · 功能色 ============ */
+
+  --color-success: #8FBF9F;
+  --color-warning: #E8B86A;
+  --color-danger: #E89B8B;
+  --color-info: #91B8D4;
+
+  /* ============ 字体 ============ */
+
+  --font-sans: 'MiSans', 'PingFang SC', 'Microsoft YaHei', system-ui,
+               -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-en: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'SF Mono',
+               Consolas, monospace;
+
+  /* ============ 字号(7 档)============ */
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 18px;
+  --text-lg: 24px;
+  --text-xl: 32px;
+  --text-display: 40px;
+
+  /* ============ 行高 ============ */
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+
+  /* ============ 字重 ============ */
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ============ 间距(8 倍数体系)============ */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ============ 圆角 ============ */
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ============ 边框 ============ */
+
+  --border-default: 1.5px solid var(--color-border);
+  --border-strong: 2px solid var(--color-border-strong);
+
+  /* ============ 阴影 ============ */
+
+  --shadow-flat-sm: 2px 2px 0 var(--color-border);
+  --shadow-flat-md: 4px 4px 0 var(--color-border);
+  --shadow-flat-lg: 6px 6px 0 var(--color-border);
+  --shadow-soft: 0 4px 16px rgba(43, 43, 43, 0.08);
+
+  /* ============ 布局 ============ */
+
+  --layout-max-width: 1280px;
+  --layout-sidebar-left: 56px;
+  --layout-sidebar-right: 280px;
+  --layout-sidebar-right-compact: 240px;  /* 1280px 以下使用 */
+
+  /* ============ 响应式断点(JS 引用,v3 验证)============ */
+
+  --bp-mobile: 720px;
+  --bp-tablet: 960px;
+  --bp-desktop: 1280px;
+
+  /* ============ 动画 ============ */
+
+  --transition-fast: 0.08s ease;       /* 按钮按压等高频交互 */
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
+
+  /* ============ 层级 ============ */
+
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 1000;
+  --z-toast: 2000;
+}
+
+/* ============================================================
+ * 全局基础样式
+ * ============================================================ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* 数字默认用 mono 字体 */
+.num,
+[data-num] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+}
+
+/* 像素图标默认设定 */
+.pixel-icon,
+svg[data-pixel] {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* ============================================================
+ * 暗色模式(预留)
+ * ============================================================ */
+
+[data-theme="dark"] {
+  --color-bg-base: #1A1A1A;
+  --color-bg-card: #2B2B2B;
+  --color-bg-subtle: #3A3A3A;
+
+  --color-text-primary: #F0EBE0;
+  --color-text-secondary: #B8B3AC;
+  --color-text-tertiary: #8B8680;
+  --color-text-body: #D8D3C8;
+
+  --color-border: #3A3A3A;
+  --color-divider: #2B2B2B;
+
+  --shadow-flat-sm: 2px 2px 0 #000;
+  --shadow-flat-md: 4px 4px 0 #000;
+  --shadow-flat-lg: 6px 6px 0 #000;
+}

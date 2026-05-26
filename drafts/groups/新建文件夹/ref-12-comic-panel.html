@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — 漫画分镜</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Bangers&family=Noto+Sans+SC:wght@400;700;900&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #f4f1ea;
+      min-height: 100vh; padding: 20px;
+    }
+    .comic-page { max-width: 1100px; margin: 0 auto; }
+
+    /* 漫画格子系统 */
+    .panel-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-auto-rows: 160px;
+      gap: 12px;
+    }
+    @media (max-width: 900px) { .panel-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 140px; } }
+
+    .comic-panel {
+      background: #fff; border: 4px solid #111; padding: 16px;
+      position: relative; overflow: hidden;
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.15);
+    }
+    .comic-panel::before {
+      content:''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none;
+    }
+    .comic-panel.span-2 { grid-column: span 2; }
+    .comic-panel.span-2r { grid-row: span 2; }
+    .comic-panel.span-2x2 { grid-column: span 2; grid-row: span 2; }
+
+    /* 对话框 */
+    .speech-bubble {
+      background: #fff; border: 3px solid #111; border-radius: 20px;
+      padding: 12px 16px; position: relative; font-size: 0.85rem; line-height: 1.4;
+      box-shadow: 3px 3px 0 rgba(0,0,0,0.1);
+    }
+    .speech-bubble::after {
+      content:''; position: absolute; bottom: -12px; left: 30px;
+      width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent;
+      border-top: 12px solid #111;
+    }
+    .speech-bubble::before {
+      content:''; position: absolute; bottom: -7px; left: 33px;
+      width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent;
+      border-top: 10px solid #fff; z-index: 1;
+    }
+    .speech-bubble.think { border-radius: 50%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; text-align: center; }
+    .speech-bubble.think::after, .speech-bubble.think::before { display: none; }
+
+    /* 速度线和效果 */
+    .speed-lines {
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-conic-gradient(from 0deg, transparent 0deg, transparent 10deg, rgba(0,0,0,0.05) 10deg, rgba(0,0,0,0.05) 12deg);
+    }
+    .action-star {
+      position: absolute; width: 40px; height: 40px; background: #ffe600;
+      clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+    }
+    .onomatopoeia {
+      font-family: 'Bangers', cursive; font-size: 2rem; color: #e63946;
+      text-shadow: 2px 2px 0 #000; transform: rotate(-10deg); display: inline-block;
+    }
+
+    .panel-title {
+      font-family: 'Bangers', cursive; font-size: 1.2rem; letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .panel-body { font-size: 0.8rem; line-height: 1.5; color: #333; }
+    .panel-hero {
+      font-family: 'Bangers', cursive; font-size: 2.5rem; color: #111;
+      text-align: center; line-height: 1;
+    }
+
+    .character-icon {
+      width: 50px; height: 50px; background: #ffe600; border: 3px solid #111;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; float: left; margin-right: 12px;
+    }
+
+    /* 条漫式详情 */
+    .comic-strip {
+      margin-top: 20px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .strip-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    }
+    @media (max-width: 900px) { .strip-row { grid-template-columns: repeat(2, 1fr); } }
+
+    .challenge-card {
+      background: #fff; border: 4px solid #111; padding: 16px;
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.15); position: relative;
+    }
+    .challenge-card .pow {
+      position: absolute; top: -10px; right: -10px;
+      background: #e63946; color: #fff; padding: 4px 12px;
+      font-family: 'Bangers', cursive; font-size: 0.9rem;
+      border: 3px solid #111; transform: rotate(10deg);
+    }
+
+    .feed-scroll {
+      background: #fff; border: 4px solid #111; padding: 16px;
+      max-height: 200px; overflow-y: auto;
+    }
+    .feed-scroll::-webkit-scrollbar { width: 10px; }
+    .feed-scroll::-webkit-scrollbar-thumb { background: #111; border: 2px solid #fff; }
+    .feed-item-comic {
+      display: flex; gap: 10px; padding: 10px 0; border-bottom: 2px dashed #ddd;
+    }
+    .feed-item-comic:last-child { border-bottom: none; }
+    .feed-item-comic .avatar {
+      width: 36px; height: 36px; background: #ffe600; border: 2px solid #111;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0;
+    }
+    .feed-item-comic .text { font-size: 0.8rem; }
+    .feed-item-comic .text b { display: block; }
+
+    .action-panels {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;
+    }
+    @media (max-width: 768px) { .action-panels { grid-template-columns: 1fr; } }
+    .action-panel {
+      background: #fff; border: 4px solid #111; padding: 20px;
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.15);
+    }
+    .action-panel h4 { font-family: 'Bangers', cursive; font-size: 1.1rem; margin-bottom: 12px; }
+    .action-panel input, .action-panel textarea, .action-panel select {
+      width: 100%; border: 3px solid #111; padding: 10px; font-family: inherit;
+      font-size: 0.9rem; margin-bottom: 10px; outline: none;
+    }
+    .action-panel button {
+      background: #ffe600; border: 3px solid #111; padding: 10px 20px;
+      font-family: 'Bangers', cursive; font-size: 0.9rem; cursor: pointer; box-shadow: 3px 3px 0 #111;
+    }
+    .action-panel button:hover { background: #fff; }
+  </style>
+</head>
+<body>
+  <div class="comic-page">
+    <!-- 分镜网格 -->
+    <div class="panel-grid">
+      <div class="comic-panel span-2">
+        <div class="panel-hero">我的小组<br><span style="font-size:1.2rem;color:#666;">EPISODE 047</span></div>
+        <div class="speed-lines"></div>
+        <div class="onomatopoeia" style="position:absolute;bottom:10px;right:10px;">POW!</div>
+      </div>
+      <div class="comic-panel">
+        <div class="panel-title">STATS</div>
+        <div class="panel-body">
+          <b>5</b> 小组<br><b>127</b> 记录<br><b>842</b> 鱼鳞
+        </div>
+      </div>
+      <div class="comic-panel">
+        <div class="speech-bubble think" style="width:80%;height:80%;margin:auto;font-size:0.75rem;">
+          今天要摸什么鱼呢...
+        </div>
+      </div>
+
+      <div class="comic-panel span-2x2" style="background:#ffe600;">
+        <div class="action-star" style="top:10px;right:10px;"></div>
+        <div class="character-icon" style="width:60px;height:60px;font-size:2rem;background:#fff;">🍵</div>
+        <div class="panel-title" style="font-size:1.6rem;margin-top:8px;">地下茶水间</div>
+        <div class="speech-bubble" style="margin-top:12px;max-width:280px;">
+          本周挑战：假装开会！已经有 12 条记录了，还差 8 条就能全员获得 50 鱼鳞！
+        </div>
+        <div style="position:absolute;bottom:16px;right:16px;font-size:0.85rem;font-weight:700;">
+          34 成员 · 892 记录 · 公开
+        </div>
+      </div>
+
+      <div class="comic-panel span-2r">
+        <div class="panel-title">发呆互助会</div>
+        <div class="panel-body">
+          😶 专注发呆技巧交流<br>禁止讨论工作<br><br>
+          <b>18</b> 成员 · <b>445</b> 记录 · 邀请制
+        </div>
+        <div class="onomatopoeia" style="position:absolute;bottom:10px;right:10px;font-size:1.4rem;">SHHH...</div>
+      </div>
+
+      <div class="comic-panel">
+        <div class="panel-title">会议室联盟</div>
+        <div class="panel-body">
+          🚪 战术分享<br><b>56</b> 成员<br><b>1.2k</b> 记录
+        </div>
+      </div>
+
+      <div class="comic-panel">
+        <div class="panel-title">演技评级派</div>
+        <div class="panel-body">
+          🎭 奥斯卡分会场<br><b>7</b> 成员<br><b>67</b> 记录
+        </div>
+      </div>
+
+      <div class="comic-panel">
+        <div class="panel-title">读报协会</div>
+        <div class="panel-body">
+          📰 内部专属<br><b>12</b> 成员<br><b>198</b> 记录
+        </div>
+      </div>
+    </div>
+
+    <!-- 条漫式详情 -->
+    <div class="comic-strip">
+      <div class="strip-row">
+        <div class="challenge-card span-2" style="grid-column:span 2;">
+          <div class="pow">GOAL!</div>
+          <strong style="font-size:1.1rem;">本周协作目标：假装开会</strong>
+          <div style="margin-top:10px;height:20px;background:#eee;border:3px solid #111;position:relative;">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:60%;background:#e63946;"></div>
+            <span style="position:absolute;right:8px;top:2px;font-size:0.75rem;font-weight:700;">12 / 20</span>
+          </div>
+          <p style="font-size:0.8rem;margin-top:8px;">达成后全员获得 50 鱼鳞 · 匿名化是强制的</p>
+        </div>
+        <div class="challenge-card">
+          <div class="pow">FIGHT!</div>
+          <strong>假装开会</strong>
+          <p style="font-size:0.75rem;margin-top:6px;">任意摊开笔记本的场所 · 奖励「演技新星」</p>
+          <button style="margin-top:8px;background:#ffe600;border:3px solid #111;padding:6px 14px;font-family:'Bangers',cursive;cursor:pointer;box-shadow:2px 2px 0 #111;">发起 · 30</button>
+        </div>
+        <div class="challenge-card">
+          <div class="pow">ZOOM!</div>
+          <strong>走廊漫游</strong>
+          <p style="font-size:0.75rem;margin-top:6px;">不超过 200 步的优雅漫游 · 奖励「幽灵行者」</p>
+          <button style="margin-top:8px;background:#ffe600;border:3px solid #111;padding:6px 14px;font-family:'Bangers',cursive;cursor:pointer;box-shadow:2px 2px 0 #111;">发起 · 30</button>
+        </div>
+      </div>
+
+      <div class="strip-row">
+        <div class="comic-panel span-2" style="grid-column:span 2;">
+          <div class="panel-title">TEAM ROSTER</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+            <span style="background:#ffe600;border:2px solid #111;padding:4px 10px;font-size:0.8rem;font-weight:700;">匿名鱼_A</span>
+            <span style="background:#fff;border:2px solid #111;padding:4px 10px;font-size:0.8rem;">摸鱼专家_B</span>
+            <span style="background:#fff;border:2px solid #111;padding:4px 10px;font-size:0.8rem;">工位幽灵_C</span>
+            <span style="background:#fff;border:2px solid #111;padding:4px 10px;font-size:0.8rem;">键盘演奏家_D</span>
+            <span style="background:#fff;border:2px solid #111;padding:4px 10px;font-size:0.8rem;">茶水间诗人_E</span>
+            <span style="background:#fff;border:2px solid #111;padding:4px 10px;font-size:0.8rem;">走廊漫游者_F</span>
+          </div>
+        </div>
+        <div class="comic-panel span-2" style="grid-column:span 2;">
+          <div class="panel-title">BATTLE LOG</div>
+          <div class="feed-scroll" style="border:none;padding:0;max-height:140px;">
+            <div class="feed-item-comic">
+              <div class="avatar">🐟</div>
+              <div class="text"><b>匿名鱼_A · 86.4</b>假装在写周报</div>
+            </div>
+            <div class="feed-item-comic">
+              <div class="avatar">😎</div>
+              <div class="text"><b>摸鱼专家_B · 72.0</b>带了笔记本没插电</div>
+            </div>
+            <div class="feed-item-comic">
+              <div class="avatar">👻</div>
+              <div class="text"><b>工位幽灵_C · 54.6</b>接水接了八百米</div>
+            </div>
+            <div class="feed-item-comic">
+              <div class="avatar">🎹</div>
+              <div class="text"><b>键盘演奏家_D · 91.2</b>带了一整章小说</div>
+            </div>
+            <div class="feed-item-comic">
+              <div class="avatar">☕</div>
+              <div class="text"><b>茶水间诗人_E · 38.5</b>泡了一杯喝了一下午</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-panels">
+      <div class="action-panel">
+        <h4>加入战队</h4>
+        <input type="text" placeholder="邀请码 X7K9M2" />
+        <button>加入小组</button>
+      </div>
+      <div class="action-panel">
+        <h4>新建篇章</h4>
+        <input type="text" placeholder="小组名称" />
+        <textarea rows="2" placeholder="小组公告"></textarea>
+        <select><option>公开连载</option><option> invite-only</option></select>
+        <button>创建 · 50 鱼鳞</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

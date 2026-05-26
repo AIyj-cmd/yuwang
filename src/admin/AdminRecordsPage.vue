@@ -40,12 +40,17 @@ const load = async () => {
 const act = async (record: AdminRecord, action: 'approve' | 'hide' | 'reject' | 'restore') => {
   const dangerous = action === 'hide' || action === 'reject';
   if (dangerous && !window.confirm(`确认要${action === 'hide' ? '隐藏' : '驳回'}记录 #${record.id}？`)) return;
-  await updateAdminRecordStatus(record.id, {
-    action,
-    reviewNote: action === 'approve' || action === 'restore' ? '管理后台审核通过' : '管理后台处理',
-    hiddenReason: action === 'hide' ? '管理员隐藏' : ''
-  });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminRecordStatus(record.id, {
+      action,
+      reviewNote: action === 'approve' || action === 'restore' ? '管理后台审核通过' : '管理后台处理',
+      hiddenReason: action === 'hide' ? '管理员隐藏' : ''
+    });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 onMounted(load);

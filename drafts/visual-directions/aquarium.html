@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方向 D：生态水族箱 · Living Aquarium</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&family=Press+Start+2P&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --deep: #000a14;
+    --mid: #001e3c;
+    --surface: rgba(255,255,255,.06);
+    --glass-border: rgba(255,255,255,.15);
+    --text: #e0f7fa;
+    --text-dim: #90a4ae;
+    --accent-pink: #ff6b9d;
+    --accent-cyan: #a0e8af;
+    --accent-gold: #ffd700;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(180deg, var(--mid) 0%, var(--deep) 100%);
+    color: var(--text);
+    font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* 气泡背景 */
+  .bubble {
+    position: fixed;
+    border-radius: 50%;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.1);
+    animation: rise var(--dur) linear infinite;
+    bottom: -40px;
+  }
+  @keyframes rise {
+    0% { transform: translateY(0) translateX(0); opacity: 0; }
+    10% { opacity: .6; }
+    90% { opacity: .6; }
+    100% { transform: translateY(-110vh) translateX(20px); opacity: 0; }
+  }
+
+  /* 游动的像素鱼 */
+  .fish-swim {
+    position: fixed;
+    font-size: 28px;
+    animation: swim 20s linear infinite;
+    opacity: .25;
+    pointer-events: none;
+    filter: drop-shadow(0 0 4px rgba(255,255,255,.2));
+    z-index: 0;
+  }
+  @keyframes swim {
+    0% { left: -50px; top: 30%; }
+    25% { left: 25%; top: 25%; }
+    50% { left: 50%; top: 35%; }
+    75% { left: 75%; top: 20%; }
+    100% { left: 110%; top: 30%; }
+  }
+
+  /* 顶部导航：浮标 */
+  .top-nav {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 32px;
+    background: linear-gradient(180deg, rgba(0,30,60,.8) 0%, transparent 100%);
+  }
+  .nav-buoy {
+    padding: 10px 20px;
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all .3s;
+  }
+  .nav-buoy:hover {
+    background: rgba(255,255,255,.1);
+    color: var(--text);
+  }
+  .nav-buoy.active {
+    background: rgba(255,255,255,.12);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    box-shadow: 0 0 16px rgba(160,232,175,.15);
+  }
+  .brand-buoy {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 10px;
+    color: var(--accent-gold);
+    margin-right: 16px;
+    text-shadow: 0 0 8px rgba(255,215,0,.3);
+  }
+
+  .container {
+    position: relative;
+    z-index: 10;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  /* 浮木表单区 */
+  .driftwood {
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 32px;
+    margin-bottom: 40px;
+    backdrop-filter: blur(12px);
+    position: relative;
+    overflow: hidden;
+  }
+  .driftwood::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at 30% 30%, rgba(160,232,175,.06), transparent 50%);
+    pointer-events: none;
+  }
+  .driftwood h2 {
+    font-weight: 800;
+    font-size: 22px;
+    margin-bottom: 8px;
+    color: var(--accent-cyan);
+  }
+  .driftwood .sub {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  .glass-input {
+    width: 100%;
+    background: rgba(0,0,0,.2);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 16px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .3s, box-shadow .3s;
+    resize: vertical;
+    min-height: 100px;
+  }
+  .glass-input:focus {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px rgba(160,232,175,.1);
+  }
+  .cast-btn {
+    margin-top: 16px;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, var(--accent-pink), #ff8fab);
+    border: none;
+    border-radius: 24px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform .2s;
+  }
+  .cast-btn:hover { transform: translateY(-2px); }
+  .cast-btn:active { transform: translateY(0); }
+  .cast-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at var(--x,50%) var(--y,50%), rgba(255,255,255,.3), transparent 50%);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .cast-btn:hover::after { opacity: 1; }
+
+  /* 鱼群卡片 */
+  .fish-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  .fish-card {
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(8px);
+    position: relative;
+    animation: float 6s ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+  }
+  .fish-card:nth-child(2) { --delay: 1s; }
+  .fish-card:nth-child(3) { --delay: 2s; }
+  .fish-card:nth-child(4) { --delay: 3s; }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .fish-avatar {
+    font-size: 40px;
+    margin-bottom: 12px;
+    filter: drop-shadow(0 0 6px rgba(255,255,255,.2));
+  }
+  .fish-name {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .fish-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .fish-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .fish-stats span {
+    background: rgba(0,0,0,.2);
+    padding: 4px 10px;
+    border-radius: 12px;
+  }
+
+  /* 排行榜：深海巨鱼展 */
+  .exhibit {
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 28px;
+    backdrop-filter: blur(8px);
+  }
+  .exhibit h3 {
+    font-weight: 800;
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: var(--accent-gold);
+  }
+  .exhibit-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .exhibit-fish {
+    font-size: 32px;
+    width: 48px;
+    text-align: center;
+  }
+  .exhibit-info {
+    flex: 1;
+  }
+  .exhibit-name {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .exhibit-size {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .exhibit-bar {
+    width: 120px;
+    height: 6px;
+    background: rgba(0,0,0,.3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .exhibit-bar-inner {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-gold));
+  }
+  .exhibit-score {
+    font-weight: 800;
+    color: var(--accent-gold);
+    font-size: 14px;
+  }
+
+  .back {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    z-index: 100;
+    padding: 10px 18px;
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    color: var(--text);
+    font-size: 12px;
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+  }
+  .back:hover { border-color: var(--accent-cyan); }
+</style>
+</head>
+<body>
+  <!-- 气泡 -->
+  <div class="bubble" style="--dur:12s; width:12px; height:12px; left:10%;"></div>
+  <div class="bubble" style="--dur:16s; width:8px; height:8px; left:25%; animation-delay:2s;"></div>
+  <div class="bubble" style="--dur:14s; width:16px; height:16px; left:50%; animation-delay:4s;"></div>
+  <div class="bubble" style="--dur:18s; width:10px; height:10px; left:75%; animation-delay:1s;"></div>
+  <div class="bubble" style="--dur:15s; width:14px; height:14px; left:90%; animation-delay:3s;"></div>
+
+  <!-- 游动像素鱼 -->
+  <div class="fish-swim">🐟</div>
+
+  <nav class="top-nav">
+    <div class="brand-buoy">YUWANG</div>
+    <button class="nav-buoy">珊瑚礁</button>
+    <button class="nav-buoy">鱼群聚落</button>
+    <button class="nav-buoy active">投放站</button>
+    <button class="nav-buoy">深海展</button>
+    <button class="nav-buoy">我的水族箱</button>
+  </nav>
+
+  <div class="container">
+    <div class="driftwood">
+      <h2>投放一条新鱼</h2>
+      <p class="sub">写下今天的摸鱼瞬间，让它游入公共水域</p>
+      <textarea class="glass-input" placeholder="今天主要在干什么？"></textarea>
+      <button class="cast-btn">投放 🐟</button>
+    </div>
+
+    <div class="fish-grid">
+      <div class="fish-card">
+        <div class="fish-avatar">🐠</div>
+        <div class="fish-name">霓虹雀鲷</div>
+        <div class="fish-desc">假装看需求文档，其实在挑晚饭。会议中成功潜伏 45 分钟。</div>
+        <div class="fish-stats">
+          <span>⚡ 9999</span>
+          <span>🏆 传奇</span>
+        </div>
+      </div>
+      <div class="fish-card">
+        <div class="fish-avatar">🦈</div>
+        <div class="fish-name">会议白鲨</div>
+        <div class="fish-desc">键盘打字表演艺术家，全程高强度伪装，同事毫无察觉。</div>
+        <div class="fish-stats">
+          <span>⚡ 8420</span>
+          <span>🥈 稀有</span>
+        </div>
+      </div>
+      <div class="fish-card">
+        <div class="fish-avatar">🐡</div>
+        <div class="fish-name">膨胀河豚</div>
+        <div class="fish-desc">带薪如厕协会会长，今日累计达成 60 分钟成就。</div>
+        <div class="fish-stats">
+          <span>⚡ 7650</span>
+          <span>🥉 罕见</span>
+        </div>
+      </div>
+      <div class="fish-card">
+        <div class="fish-avatar">🦑</div>
+        <div class="fish-name">深海章鱼</div>
+        <div class="fish-desc">同时打开八个标签页，精准切换，堪称多线程摸鱼大师。</div>
+        <div class="fish-stats">
+          <span>⚡ 6210</span>
+          <span>⭐ 普通</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="exhibit">
+      <h3>🌊 深海巨鱼展 // Deep Sea Exhibit</h3>
+      <div class="exhibit-row">
+        <div class="exhibit-fish">🐋</div>
+        <div class="exhibit-info">
+          <div class="exhibit-name">摸鱼天尊_007</div>
+          <div class="exhibit-size">体长 999.9 cm · 传奇种</div>
+        </div>
+        <div class="exhibit-bar"><div class="exhibit-bar-inner" style="width:100%"></div></div>
+        <div class="exhibit-score">9999</div>
+      </div>
+      <div class="exhibit-row">
+        <div class="exhibit-fish">🦈</div>
+        <div class="exhibit-info">
+          <div class="exhibit-name">会议潜水员</div>
+          <div class="exhibit-size">体长 842.0 cm · 稀有种</div>
+        </div>
+        <div class="exhibit-bar"><div class="exhibit-bar-inner" style="width:84%"></div></div>
+        <div class="exhibit-score">8420</div>
+      </div>
+      <div class="exhibit-row">
+        <div class="exhibit-fish">🐡</div>
+        <div class="exhibit-info">
+          <div class="exhibit-name">带薪如厕会长</div>
+          <div class="exhibit-size">体长 765.0 cm · 罕见种</div>
+        </div>
+        <div class="exhibit-bar"><div class="exhibit-bar-inner" style="width:76%"></div></div>
+        <div class="exhibit-score">7650</div>
+      </div>
+    </div>
+  </div>
+
+  <a class="back" href="index.html">返回</a>
+</body>
+</html>

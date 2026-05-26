@@ -45,6 +45,30 @@ export type RecordInput = {
   description?: string;
 };
 
+export type CreateRecordRequest = {
+  nickname: string;
+  activityText?: string;
+  activity_text?: string;
+  slackingType?: string;
+  slackingTypeId?: string;
+  slackingTypeGroup?: string;
+  duration: string;
+  risk?: string;
+  disguise?: string;
+  creativity?: string;
+  description?: string;
+  storyText?: string;
+  story_text?: string;
+  anonymized?: boolean;
+  anonymous_confirm?: boolean;
+  publish_scope?: 'community' | 'private' | 'groups';
+  publishToCommunity: boolean;
+  autoCircles: boolean;
+  privateOnly: boolean;
+  groupIds: number[];
+  topics: string[];
+};
+
 export type SafetyLevel = 'pass' | 'review' | 'block';
 
 export type SafetyResult = {
@@ -57,12 +81,15 @@ export const MAX_DESCRIPTION_LENGTH = 180;
 export const MAX_ACTIVITY_TEXT_LENGTH = 80;
 export const DURATION_SCORE_VERSION = 'duration_v3';
 export const TIME_SCORE_VERSION = DURATION_SCORE_VERSION;
+export const SINGLE_RECORD_FISH_POWER_SCORE_MIN = 0;
+export const SINGLE_RECORD_FISH_POWER_SCORE_MAX = 10;
+export const LEGACY_SINGLE_RECORD_SCORE_NORMALIZATION_DIVISOR = 12;
 export const AI_JUDGE_DURATION_BASE_SCORES = {
-  '30分钟以下': 20,
-  '30分钟-1小时': 40,
-  '1-2小时': 65,
-  '2-4小时': 90,
-  '4小时以上/全天': 120
+  '30分钟以下': 1.4,
+  '30分钟-1小时': 2,
+  '1-2小时': 2.4,
+  '2-4小时': 2.7,
+  '4小时以上/全天': 3
 } as const;
 
 export const LEGACY_DURATION_KEY_MAP: Record<string, keyof typeof AI_JUDGE_DURATION_BASE_SCORES> = {
@@ -78,23 +105,25 @@ export const LEGACY_DURATION_KEY_MAP: Record<string, keyof typeof AI_JUDGE_DURAT
 };
 
 export const INTENSITY_RULES = {
-  low: { label: '低烈度', multiplier: 1.0 },
-  medium: { label: '中烈度', multiplier: 1.3 },
-  high: { label: '高烈度', multiplier: 1.6 },
-  god: { label: '神烈度', multiplier: 2.0 }
-} as const satisfies Record<AiIntensity, { label: string; multiplier: number }>;
+  low: { label: '低烈度', multiplier: 1.0, score: 0.7 },
+  medium: { label: '中烈度', multiplier: 1.3, score: 1.2 },
+  high: { label: '高烈度', multiplier: 1.6, score: 1.7 },
+  god: { label: '神烈度', multiplier: 2.0, score: 2.0 }
+} as const satisfies Record<AiIntensity, { label: string; multiplier: number; score: number }>;
 
 export const OUTCOME_RULES = {
-  safe: { label: '全身而退', bonus: 0 },
-  close_call: { label: '有惊无险', bonus: 15 },
-  caught: { label: '被抓现行', bonus: 30 },
-  countered: { label: '反将一军', bonus: 50 }
+  safe: { label: '全身而退', bonus: 0.2 },
+  close_call: { label: '有惊无险', bonus: 0.9 },
+  caught: { label: '被抓现行', bonus: 1.4 },
+  countered: { label: '反将一军', bonus: 2.0 }
 } as const satisfies Record<AiOutcome, { label: string; bonus: number }>;
 
-export const AI_JUDGE_SPECIAL_BONUS_MIN = 10;
+export const AI_JUDGE_SPECIAL_BONUS_MIN = 0;
 export const AI_JUDGE_SPECIAL_BONUS_MAX = 30;
 export const AI_JUDGE_SPECIAL_BONUS_TOTAL_MAX = 60;
 export const AI_JUDGE_SPECIAL_BONUS_ITEM_MAX = 6;
+export const AI_JUDGE_SPECIAL_BONUS_SCORE_MAX = 1;
+export const DESCRIPTION_QUALITY_SCORE_MAX = 2;
 
 export const SAFETY_NOTICE =
   '请不要提交公司机密、个人隐私、员工证件、聊天记录、客户资料或未匿名化截图。\n本平台仅供娱乐，不支持真实违反职场规则的行为。';
@@ -135,11 +164,11 @@ export const SLACKING_TYPES = SLACKING_TYPE_OPTIONS.map((item) => ({
 })) satisfies RuleOption[];
 
 export const DURATION_SCORE_RULES = [
-  { key: '30分钟以下', id: 'under_30m', label: '30分钟以下', score: 20, baseScore: 20 },
-  { key: '30分钟-1小时', id: '30m_1h', label: '30分钟-1小时', score: 40, baseScore: 40 },
-  { key: '1-2小时', id: '1_2h', label: '1-2小时', score: 65, baseScore: 65 },
-  { key: '2-4小时', id: '2_4h', label: '2-4小时', score: 90, baseScore: 90 },
-  { key: '4小时以上/全天', id: '4h_plus', label: '4小时以上/全天', score: 120, baseScore: 120 }
+  { key: '30分钟以下', id: 'under_30m', label: '30分钟以下', score: 1.4, baseScore: 1.4 },
+  { key: '30分钟-1小时', id: '30m_1h', label: '30分钟-1小时', score: 2, baseScore: 2 },
+  { key: '1-2小时', id: '1_2h', label: '1-2小时', score: 2.4, baseScore: 2.4 },
+  { key: '2-4小时', id: '2_4h', label: '2-4小时', score: 2.7, baseScore: 2.7 },
+  { key: '4小时以上/全天', id: '4h_plus', label: '4小时以上/全天', score: 3, baseScore: 3 }
 ] as const satisfies readonly RuleOption[];
 
 export const DURATIONS = DURATION_SCORE_RULES;
@@ -204,12 +233,12 @@ export const CREATIVITY_LEVELS = [
 ] as const satisfies readonly RuleOption[];
 
 export const TITLE_LEVELS = [
-  { min: 0, max: 99, title: '小鱼苗' },
-  { min: 100, max: 499, title: '初级摸鱼员' },
-  { min: 500, max: 999, title: '熟练摸鱼工' },
-  { min: 1000, max: 2999, title: '工位老油条' },
-  { min: 3000, max: 9999, title: '带薪摸鱼王' },
-  { min: 10000, max: Number.POSITIVE_INFINITY, title: '终极鱼神' }
+  { min: 0, max: 29.9, title: '小鱼苗' },
+  { min: 30, max: 99.9, title: '初级摸鱼员' },
+  { min: 100, max: 249.9, title: '熟练摸鱼工' },
+  { min: 250, max: 749.9, title: '工位老油条' },
+  { min: 750, max: 1999.9, title: '带薪摸鱼王' },
+  { min: 2000, max: Number.POSITIVE_INFINITY, title: '终极鱼神' }
 ] as const;
 
 export const LEADERBOARD_TYPES = [
@@ -226,8 +255,8 @@ export type LeaderboardType = (typeof LEADERBOARD_TYPES)[number]['key'];
 
 export const BADGE_DEFINITIONS = [
   { key: 'first-catch', label: '第一条鱼', description: '提交第一条摸鱼记录' },
-  { key: 'power-200', label: '破两百', description: '单次 Fish Power Score 达到 200' },
-  { key: 'power-500', label: '高压鱼雷', description: '单次 Fish Power Score 达到 500' },
+  { key: 'power-200', label: '八分鱼力', description: '单次 Fish Power Score 达到 8.0' },
+  { key: 'power-500', label: '满分鱼雷', description: '单次 Fish Power Score 达到 10.0' },
   { key: 'meeting-fish', label: '会议潜航员', description: '提交会议相关摸鱼记录' },
   { key: 'disguise-master', label: '伪装大师', description: '使用高阶伪装方式' },
   { key: 'legend-voter', label: '传奇见证者', description: '为传奇榜投票' },
@@ -264,6 +293,36 @@ export const getDurationRule = (duration: string): RuleOption | null => {
   const normalized = normalizeDurationKey(duration);
   if (!normalized) return null;
   return DURATIONS.find((item) => item.key === normalized) ?? null;
+};
+
+export const clampSingleRecordFishPowerScore = (score: number): number => {
+  const numericScore = Number(score);
+  if (!Number.isFinite(numericScore)) return SINGLE_RECORD_FISH_POWER_SCORE_MIN;
+  return Number(
+    Math.min(SINGLE_RECORD_FISH_POWER_SCORE_MAX, Math.max(SINGLE_RECORD_FISH_POWER_SCORE_MIN, numericScore)).toFixed(1)
+  );
+};
+
+export const normalizeLegacySingleRecordFishPowerScore = (score: number): number => {
+  const numericScore = Number(score);
+  if (!Number.isFinite(numericScore) || numericScore <= SINGLE_RECORD_FISH_POWER_SCORE_MIN) {
+    return SINGLE_RECORD_FISH_POWER_SCORE_MIN;
+  }
+  if (numericScore <= SINGLE_RECORD_FISH_POWER_SCORE_MAX) {
+    return clampSingleRecordFishPowerScore(numericScore);
+  }
+  return clampSingleRecordFishPowerScore(numericScore / LEGACY_SINGLE_RECORD_SCORE_NORMALIZATION_DIVISOR);
+};
+
+export const calculateDescriptionQualityScore = (input: { activityText?: string; storyText?: string; description?: string }): number => {
+  const text = `${input.activityText ?? ''} ${input.storyText ?? input.description ?? ''}`.trim();
+  const length = [...text].length;
+  if (length <= 0) return 0;
+  if (length < 10) return 0.3;
+  if (length < 30) return 0.8;
+  if (length < 70) return 1.2;
+  if (length < 130) return 1.6;
+  return DESCRIPTION_QUALITY_SCORE_MAX;
 };
 
 export const findSensitiveTerms = (text: string): string[] => {
@@ -312,7 +371,8 @@ export const calculateScore = (input: Pick<RecordInput, 'duration'>): ScoreBreak
     creativityBonus,
     duration: duration.key,
     durationLabel: duration.label,
-    fishPowerScore: Number(durationScore.toFixed(1)),
+    fishPowerScore: clampSingleRecordFishPowerScore(durationScore),
+    singleRecordScoreMax: SINGLE_RECORD_FISH_POWER_SCORE_MAX,
     scoreVersion: DURATION_SCORE_VERSION
   };
 };

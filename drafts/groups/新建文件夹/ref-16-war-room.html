@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — 作战室军情板</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Noto+Sans+SC:wght@400;700&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #1c1c1c;
+      background-image: repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.02) 40px);
+      min-height: 100vh; color: #d4c4a8; padding: 30px 20px;
+    }
+    .war-room { max-width: 1200px; margin: 0 auto; }
+
+    .ops-header {
+      background: #2a2a2a; border: 4px solid #555; padding: 20px 28px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+      box-shadow: 0 4px 0 #000;
+    }
+    .ops-header h1 {
+      font-family: 'Black Ops One', cursive; font-size: 2rem; color: #ff6b35;
+      text-shadow: 2px 2px 0 #000; letter-spacing: 0.05em;
+    }
+    .ops-header .status-lights { display: flex; gap: 12px; }
+    .ops-header .status-lights span {
+      width: 14px; height: 14px; border-radius: 50%; border: 2px solid #555; background: #333;
+    }
+    .ops-header .status-lights span.on { background: #4caf50; box-shadow: 0 0 8px #4caf50; }
+    .ops-header .status-lights span.warn { background: #ff9800; box-shadow: 0 0 8px #ff9800; }
+    .ops-header .status-lights span.alert { background: #f44336; box-shadow: 0 0 8px #f44336; animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* 战术地图 */
+    .tac-map {
+      background: #2e3b28; border: 4px solid #555; margin-top: 20px;
+      padding: 24px; position: relative; overflow: hidden;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
+    }
+    .tac-map::before {
+      content:''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,0,0,0.15) 40px),
+                  repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,0,0,0.15) 40px);
+      pointer-events: none;
+    }
+    .map-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; position: relative; z-index: 1;
+    }
+    @media (max-width: 900px) { .map-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 600px) { .map-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .zone {
+      background: rgba(0,0,0,0.4); border: 2px solid #555; padding: 16px;
+      position: relative; text-align: center; cursor: pointer; transition: all 0.15s;
+    }
+    .zone:hover { border-color: #ff6b35; background: rgba(255,107,53,0.1); }
+    .zone.active { border-color: #ff6b35; background: rgba(255,107,53,0.15); }
+    .zone .zone-icon { font-size: 2rem; margin-bottom: 6px; }
+    .zone .zone-name { font-family: 'Black Ops One', cursive; font-size: 0.8rem; color: #d4c4a8; }
+    .zone .zone-coords { font-size: 0.6rem; color: #666; margin-top: 4px; font-family: monospace; }
+    .zone .strength-bar { height: 4px; background: #333; margin-top: 8px; }
+    .zone .strength-bar i { display: block; height: 100%; background: #ff6b35; }
+
+    /* 坐标标记 */
+    .coord-mark {
+      position: absolute; font-family: monospace; font-size: 0.6rem; color: #444;
+    }
+
+    /* 情报面板 */
+    .intel-panels {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;
+    }
+    @media (max-width: 768px) { .intel-panels { grid-template-columns: 1fr; } }
+    .intel-panel {
+      background: #222; border: 3px solid #444; padding: 20px;
+      box-shadow: 0 4px 0 #000;
+    }
+    .intel-panel h3 {
+      font-family: 'Black Ops One', cursive; font-size: 0.9rem; color: #ff6b35;
+      padding-bottom: 10px; border-bottom: 2px solid #444; margin-bottom: 14px;
+    }
+    .intel-row {
+      display: flex; justify-content: space-between; padding: 8px 0;
+      border-bottom: 1px solid #333; font-size: 0.85rem;
+    }
+    .intel-row:last-child { border-bottom: none; }
+    .intel-row b { color: #fff; }
+    .intel-row .badge {
+      background: #333; padding: 2px 8px; font-size: 0.7rem; font-family: monospace;
+    }
+    .intel-row .badge.red { background: #f44336; color: #fff; }
+    .intel-row .badge.green { background: #4caf50; color: #fff; }
+
+    .progress-mil {
+      height: 24px; background: #1a1a1a; border: 2px solid #555; margin: 10px 0; position: relative;
+    }
+    .progress-mil::after { content:''; position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: #ff6b35; }
+    .progress-mil span { position: absolute; right: 8px; top: 4px; font-family: monospace; font-size: 0.7rem; }
+
+    .squad-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .squad-list span {
+      border: 2px solid #555; padding: 4px 10px; font-size: 0.75rem; font-family: monospace;
+      background: #1a1a1a;
+    }
+    .squad-list span.lead { border-color: #ff6b35; color: #ff6b35; }
+
+    /* 底部指挥台 */
+    .command-deck {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;
+    }
+    @media (max-width: 768px) { .command-deck { grid-template-columns: 1fr; } }
+    .command-station {
+      background: #222; border: 3px solid #444; padding: 20px;
+    }
+    .command-station h4 {
+      font-family: 'Black Ops One', cursive; font-size: 0.85rem; color: #ff6b35; margin-bottom: 12px;
+    }
+    .command-station input, .command-station textarea, .command-station select {
+      width: 100%; background: #1a1a1a; border: 2px solid #444; padding: 10px;
+      color: #d4c4a8; font-family: inherit; font-size: 0.9rem; margin-bottom: 10px; outline: none;
+    }
+    .command-station button {
+      background: #ff6b35; color: #000; border: none; padding: 10px 20px;
+      font-family: 'Black Ops One', cursive; font-size: 0.75rem; cursor: pointer;
+    }
+    .command-station button:hover { background: #fff; }
+  </style>
+</head>
+<body>
+  <div class="war-room">
+    <div class="ops-header">
+      <h1>OPERATION: YUWANG</h1>
+      <div class="status-lights">
+        <span class="on" title="系统正常"></span>
+        <span class="warn" title="目标进行中"></span>
+        <span class="alert" title="缺 8 条记录"></span>
+      </div>
+    </div>
+
+    <div class="tac-map">
+      <div class="coord-mark" style="top:8px;left:8px">N 31°14' E 121°29'</div>
+      <div class="coord-mark" style="top:8px;right:8px">GRID: A7-K9</div>
+      <div class="map-grid">
+        <div class="zone active">
+          <div class="zone-icon">🍵</div>
+          <div class="zone-name">茶水间据点</div>
+          <div class="zone-coords">SECTOR A1</div>
+          <div class="strength-bar"><i style="width:78%"></i></div>
+        </div>
+        <div class="zone">
+          <div class="zone-icon">😶</div>
+          <div class="zone-name">发呆静默区</div>
+          <div class="zone-coords">SECTOR B2</div>
+          <div class="strength-bar"><i style="width:40%"></i></div>
+        </div>
+        <div class="zone">
+          <div class="zone-icon">🚪</div>
+          <div class="zone-name">会议室前线</div>
+          <div class="zone-coords">SECTOR C3</div>
+          <div class="strength-bar"><i style="width:95%"></i></div>
+        </div>
+        <div class="zone">
+          <div class="zone-icon">🎭</div>
+          <div class="zone-name">演技训练场</div>
+          <div class="zone-coords">SECTOR D4</div>
+          <div class="strength-bar"><i style="width:15%"></i></div>
+        </div>
+        <div class="zone">
+          <div class="zone-icon">📰</div>
+          <div class="zone-name">情报阅览室</div>
+          <div class="zone-coords">SECTOR E5</div>
+          <div class="strength-bar"><i style="width:22%"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="intel-panels">
+      <div class="intel-panel">
+        <h3>PRIMARY OBJECTIVE</h3>
+        <div class="intel-row"><span>任务代号</span><b>假装开会</b></div>
+        <div class="intel-row"><span>当前进度</span><span class="badge red">12 / 20</span></div>
+        <div class="progress-mil"><span>60%</span></div>
+        <div class="intel-row"><span>完成奖励</span><span class="badge green">50 鱼鳞</span></div>
+        <div class="intel-row"><span>风险等级</span><span class="badge">低 · 匿名化已启用</span></div>
+
+        <h3 style="margin-top:20px;">SECONDARY OPS</h3>
+        <div class="intel-row">
+          <div><b>OP-假装开会</b><span style="display:block;font-size:0.75rem;color:#888;">任意摊开笔记本的场所 · 奖励「演技新星」</span></div>
+          <span class="badge red">30 鱼鳞</span>
+        </div>
+        <div class="intel-row">
+          <div><b>OP-走廊漫游</b><span style="display:block;font-size:0.75rem;color:#888;">不超过 200 步的优雅漫游 · 奖励「幽灵行者」</span></div>
+          <span class="badge red">30 鱼鳞</span>
+        </div>
+      </div>
+      <div class="intel-panel">
+        <h3>SQUAD ROSTER</h3>
+        <div class="squad-list">
+          <span class="lead">CMDR 匿名鱼_A</span>
+          <span>PVT 摸鱼专家_B</span>
+          <span>PVT 工位幽灵_C</span>
+          <span>SGT 键盘演奏家_D</span>
+          <span>PVT 茶水间诗人_E</span>
+          <span>PVT 走廊漫游者_F</span>
+          <span>CPL 会议室领主_G</span>
+        </div>
+
+        <h3 style="margin-top:20px;">AFTER ACTION REPORT</h3>
+        <div class="intel-row"><b>匿名鱼_A</b><span>86.4 pts — 假装在写周报</span></div>
+        <div class="intel-row"><b>摸鱼专家_B</b><span>72.0 pts — 带了笔记本没插电</span></div>
+        <div class="intel-row"><b>工位幽灵_C</b><span>54.6 pts — 接水接了八百米</span></div>
+        <div class="intel-row"><b>键盘演奏家_D</b><span>91.2 pts — 带了一整章小说</span></div>
+        <div class="intel-row"><b>茶水间诗人_E</b><span>38.5 pts — 泡了一杯喝了一下午</span></div>
+      </div>
+    </div>
+
+    <div class="command-deck">
+      <div class="command-station">
+        <h4>JOIN SQUAD</h4>
+        <input type="text" placeholder="INVITE CODE / X7K9M2" />
+        <button>REQUEST JOIN</button>
+        <p style="font-size:0.75rem;color:#666;margin-top:8px;">仅保存邀请码，不收集真实身份。</p>
+      </div>
+      <div class="command-station">
+        <h4>ESTABLISH OUTPOST</h4>
+        <input type="text" placeholder="OUTPOST NAME" />
+        <textarea rows="2" placeholder="MISSION BRIEFING"></textarea>
+        <select><option>PUBLIC SECTOR</option><option>RESTRICTED ZONE</option></select>
+        <button>ESTABLISH · 50 SCALE</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

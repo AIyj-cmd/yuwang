@@ -8,6 +8,8 @@ import {
   RISKS,
   SAFETY_NOTICE,
   analyzeContentSafety,
+  SINGLE_RECORD_FISH_POWER_SCORE_MAX,
+  clampSingleRecordFishPowerScore,
   getOptionLabel,
   type ScoreBreakdown
 } from '../shared/scoring.js';
@@ -38,12 +40,16 @@ import {
   ensureAdminConfigured,
   getAdminSession,
   requireAdminSession,
+  revokeAdminSession,
   setAdminCookie,
   verifyAdminCredentials,
   writeAdminAuditLog
 } from './adminAuth.js';
+import { publicUserById } from './auth.js';
+import { clearUserAvatar } from './avatar.js';
 import { getTodayRange } from './time.js';
 import { deterministicScore, generateAiJudgeResult, isPromptUsable } from './ai/judgeService.js';
+import { rateLimitRequest } from './rateLimit.js';
 
 const idParamSchema = z.object({ id: z.coerce.number().int().positive() });
 const pageQuerySchema = z.object({
@@ -67,6 +73,13 @@ const adminLoginSchema = z.object({
   username: z.string().trim().min(1).max(80),
   password: z.string().min(1).max(200)
 });
+
+const usernameRateLimitSubject = (body: unknown): string | null => {
+  if (!body || typeof body !== 'object' || !('username' in body)) return null;
+  const username = (body as { username?: unknown }).username;
+  return typeof username === 'string' ? username : null;
+};
+
 const recordQuerySchema = pageQuerySchema.extend({
   status: z.enum(['all', 'published', 'pending', 'hidden', 'rejected']).default('all'),
   keyword: z.string().trim().max(80).default(''),
@@ -243,63 +256,71 @@ const adminPrompt = (row: SqlRow) => ({
   lastTestedAt: String(row.last_tested_at ?? '')
 });
 
-const adminRecord = (row: SqlRow) => ({
-  id: Number(row.id),
-  userId: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
-  username: String(row.username ?? ''),
-  nickname: String(row.nickname ?? ''),
-  slackingType: String(row.slacking_type_id || row.slacking_type || ''),
-  slackingTypeLabel: String(row.activity_text || row.slacking_type || row.slacking_type_id || ''),
-  activityText: String(row.activity_text || row.slacking_type || ''),
-  activityTags: parseActivityTags(row.activity_tags),
-  duration: String(row.duration ?? ''),
-  durationLabel: String(parseScoreBreakdown(row.score_breakdown).durationLabel ?? getOptionLabel(DURATIONS, String(row.duration ?? ''))),
-  risk: String(row.risk ?? ''),
-  riskLabel: getOptionLabel(RISKS, String(row.risk ?? '')),
-  disguise: String(row.disguise ?? ''),
-  disguiseLabel: getOptionLabel(DISGUISES, String(row.disguise ?? '')),
-  creativity: String(row.creativity ?? ''),
-  creativityLabel: getOptionLabel(CREATIVITY_LEVELS, String(row.creativity ?? '')),
-  storyText: String(row.story_text || row.description || ''),
-  description: String(row.story_text || row.description || ''),
-  durationScore: Number(row.duration_score ?? 0),
-  score: Number(row.fish_power_score ?? 0),
-  title: String(row.title ?? ''),
-  systemComment: String(row.system_comment ?? ''),
-  status: dbToAdminStatus(row.status),
-  reviewNote: String(row.review_note ?? ''),
-  visibility: String(row.visibility ?? 'public'),
-  sensitiveFlags: [...splitFlags(row.sensitive_flags), ...splitFlags(row.review_note)],
-  reviewedBy: String(row.reviewed_by ?? ''),
-  reviewedAt: String(row.reviewed_at ?? ''),
-  hiddenReason: String(row.hidden_reason ?? ''),
-  likeCount: Number(row.like_count ?? 0),
-  favoriteCount: Number(row.favorite_count ?? 0),
-  voteCount: Number(row.vote_count ?? 0),
-  legendNominationCount: Number(row.legend_nomination_count ?? 0),
-  legendSelected: Boolean(row.legend_selected),
-  reportCount: Number(row.report_count ?? 0),
-  commentCount: Number(row.comment_count ?? 0),
-  shareCount: Number(row.share_count ?? 0),
-  scoreVersion: String(row.score_version ?? 'legacy_type_v1'),
-  createdAt: String(row.created_at ?? ''),
-  updatedAt: String(row.updated_at ?? ''),
-  breakdown: {
-    baseScore: Number(row.base_score ?? 0),
-    durationScore:
-      Number(row.duration_score ?? 0) ||
-      Number(row.duration_base_score ?? 0) ||
-      Number((Number(row.base_score ?? 0) * Number(row.duration_multiplier ?? 1)).toFixed(1)),
-    durationBaseScore:
-      Number(row.duration_base_score ?? 0) ||
-      Number((Number(row.base_score ?? 0) * Number(row.duration_multiplier ?? 1)).toFixed(1)),
-    durationMultiplier: Number(row.duration_multiplier ?? 0),
-    riskMultiplier: Number(row.risk_multiplier ?? 0),
-    disguiseBonus: Number(row.disguise_bonus ?? 0),
-    creativityBonus: Number(row.creativity_bonus ?? 0),
-    ...parseScoreBreakdown(row.score_breakdown)
-  }
-});
+const adminRecord = (row: SqlRow) => {
+  const storedBreakdown = parseScoreBreakdown(row.score_breakdown);
+  const fishPowerScore = clampSingleRecordFishPowerScore(Number(row.fish_power_score ?? 0));
+
+  return {
+    id: Number(row.id),
+    userId: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
+    username: String(row.username ?? ''),
+    nickname: String(row.nickname ?? ''),
+    slackingType: String(row.slacking_type_id || row.slacking_type || ''),
+    slackingTypeLabel: String(row.activity_text || row.slacking_type || row.slacking_type_id || ''),
+    activityText: String(row.activity_text || row.slacking_type || ''),
+    activityTags: parseActivityTags(row.activity_tags),
+    duration: String(row.duration ?? ''),
+    durationLabel: String(storedBreakdown.durationLabel ?? getOptionLabel(DURATIONS, String(row.duration ?? ''))),
+    risk: String(row.risk ?? ''),
+    riskLabel: getOptionLabel(RISKS, String(row.risk ?? '')),
+    disguise: String(row.disguise ?? ''),
+    disguiseLabel: getOptionLabel(DISGUISES, String(row.disguise ?? '')),
+    creativity: String(row.creativity ?? ''),
+    creativityLabel: getOptionLabel(CREATIVITY_LEVELS, String(row.creativity ?? '')),
+    storyText: String(row.story_text || row.description || ''),
+    description: String(row.story_text || row.description || ''),
+    durationScore: Number(row.duration_score ?? 0),
+    score: fishPowerScore,
+    title: String(row.title ?? ''),
+    systemComment: String(row.system_comment ?? ''),
+    status: dbToAdminStatus(row.status),
+    reviewNote: String(row.review_note ?? ''),
+    visibility: String(row.visibility ?? 'public'),
+    sensitiveFlags: [...splitFlags(row.sensitive_flags), ...splitFlags(row.review_note)],
+    reviewedBy: String(row.reviewed_by ?? ''),
+    reviewedAt: String(row.reviewed_at ?? ''),
+    hiddenReason: String(row.hidden_reason ?? ''),
+    likeCount: Number(row.like_count ?? 0),
+    favoriteCount: Number(row.favorite_count ?? 0),
+    voteCount: Number(row.vote_count ?? 0),
+    legendNominationCount: Number(row.legend_nomination_count ?? 0),
+    legendSelected: Boolean(row.legend_selected),
+    reportCount: Number(row.report_count ?? 0),
+    commentCount: Number(row.comment_count ?? 0),
+    shareCount: Number(row.share_count ?? 0),
+    scoreVersion: String(row.score_version ?? 'legacy_type_v1'),
+    createdAt: String(row.created_at ?? ''),
+    updatedAt: String(row.updated_at ?? ''),
+    breakdown: {
+      baseScore: Number(row.base_score ?? 0),
+      durationScore:
+        Number(row.duration_score ?? 0) ||
+        Number(row.duration_base_score ?? 0) ||
+        Number((Number(row.base_score ?? 0) * Number(row.duration_multiplier ?? 1)).toFixed(1)),
+      durationBaseScore:
+        Number(row.duration_base_score ?? 0) ||
+        Number((Number(row.base_score ?? 0) * Number(row.duration_multiplier ?? 1)).toFixed(1)),
+      durationMultiplier: Number(row.duration_multiplier ?? 0),
+      riskMultiplier: Number(row.risk_multiplier ?? 0),
+      disguiseBonus: Number(row.disguise_bonus ?? 0),
+      creativityBonus: Number(row.creativity_bonus ?? 0),
+      ...storedBreakdown,
+      displayScore: fishPowerScore,
+      fishPowerScore,
+      singleRecordScoreMax: SINGLE_RECORD_FISH_POWER_SCORE_MAX
+    }
+  };
+};
 
 const adminComment = (row: SqlRow) => ({
   id: Number(row.id),
@@ -507,6 +528,7 @@ const updateStatus = (target: 'record' | 'comment', id: number, status: string, 
 export const registerAdminRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/api/admin/auth/login', async (request, reply) => {
     if (!ensureAdminConfigured(reply)) return;
+    if (!rateLimitRequest(request, reply, { bucket: 'admin-login', max: 10, windowMs: 60_000, subject: usernameRateLimitSubject(request.body) })) return;
     const parsed = adminLoginSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ message: '登录信息无效。' });
 
@@ -526,6 +548,7 @@ export const registerAdminRoutes = async (app: FastifyInstance): Promise<void> =
 
   app.post('/api/admin/auth/logout', async (request, reply) => {
     const session = getAdminSession(request);
+    revokeAdminSession(request);
     clearAdminCookie(reply);
     if (session) {
       writeAdminAuditLog(request, {
@@ -1165,6 +1188,35 @@ export const registerAdminRoutes = async (app: FastifyInstance): Promise<void> =
     if (!user) return reply.code(404).send({ message: '用户不存在。' });
     const records = db.prepare('SELECT * FROM slacking_records WHERE user_id = ? ORDER BY created_at DESC LIMIT 20').all(params.data.id) as SqlRow[];
     return { user, records: records.map(adminRecord) };
+  });
+
+  app.post('/api/admin/users/:id/avatar/remove', async (request, reply) => {
+    const session = requireAdminSession(request, reply);
+    if (!session) return;
+    const params = idParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: 'User ID is invalid.' });
+    const before = db.prepare('SELECT * FROM users WHERE id = ?').get(params.data.id) as SqlRow | undefined;
+    if (!before) return reply.code(404).send({ message: 'User not found.' });
+
+    const removed = clearUserAvatar({
+      userId: params.data.id,
+      action: 'admin_remove',
+      avatarStatus: 'admin_removed',
+      actorType: 'admin',
+      actorId: null,
+      reason: 'admin_removed'
+    });
+    if (!removed) return reply.code(404).send({ message: 'User not found.' });
+    const after = db.prepare('SELECT * FROM users WHERE id = ?').get(params.data.id) as SqlRow;
+    writeAdminAuditLog(request, {
+      adminUsername: session.username,
+      action: 'user_avatar_remove',
+      targetType: 'user',
+      targetId: params.data.id,
+      before,
+      after
+    });
+    return { user: publicUserById(params.data.id) };
   });
 
   app.patch('/api/admin/users/:id/status', async (request, reply) => {

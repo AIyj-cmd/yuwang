@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — 票根收藏册</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #e8e0d5;
+      background-image: repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,0,0,0.03) 40px);
+      min-height: 100vh; color: #222; padding: 40px 20px;
+    }
+    .album { max-width: 1100px; margin: 0 auto; }
+    .album-header { text-align: center; margin-bottom: 40px; }
+    .album-header h1 {
+      font-family: 'Courier Prime', monospace; font-size: 2.2rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.15em;
+      border: 4px solid #222; display: inline-block; padding: 12px 30px;
+      background: #fff; box-shadow: 6px 6px 0 #222;
+    }
+    .album-header p { margin-top: 12px; font-size: 0.9rem; color: #666; }
+
+    /* 票根网格 */
+    .ticket-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 28px; }
+
+    .ticket {
+      background: #fff; position: relative;
+      filter: drop-shadow(4px 4px 0 rgba(0,0,0,0.15));
+      transition: all 0.2s;
+    }
+    .ticket:hover { transform: translateY(-4px); filter: drop-shadow(6px 8px 0 rgba(0,0,0,0.2)); }
+    .ticket::before, .ticket::after {
+      content:''; position: absolute; width: 20px; height: 20px; background: #e8e0d5;
+      border-radius: 50%; top: 50%; transform: translateY(-50%);
+    }
+    .ticket::before { left: -10px; }
+    .ticket::after { right: -10px; }
+
+    .ticket-body { padding: 20px 24px; border-bottom: 2px dashed #ccc; }
+    .ticket-stub { padding: 14px 24px; background: #faf8f5; display: flex; justify-content: space-between; align-items: center; }
+
+    .ticket .venue {
+      font-family: 'Courier Prime', monospace; font-size: 0.65rem; text-transform: uppercase;
+      letter-spacing: 0.15em; color: #888; margin-bottom: 6px;
+    }
+    .ticket h3 {
+      font-family: 'Courier Prime', monospace; font-size: 1.3rem; font-weight: 700;
+      margin-bottom: 8px; line-height: 1.2;
+    }
+    .ticket p { font-size: 0.85rem; color: #555; line-height: 1.5; }
+    .ticket .seat-info {
+      display: flex; gap: 16px; margin-top: 14px; font-family: 'Courier Prime', monospace; font-size: 0.75rem;
+    }
+    .ticket .seat-info div { text-align: center; }
+    .ticket .seat-info div span { display: block; font-size: 1.1rem; font-weight: 700; color: #222; }
+    .ticket .seat-info div label { font-size: 0.6rem; color: #888; text-transform: uppercase; }
+
+    .barcode {
+      font-family: 'Courier Prime', monospace; font-size: 0.7rem; color: #888;
+      letter-spacing: 2px;
+    }
+    .stub-action {
+      background: #222; color: #fff; border: none; padding: 6px 14px;
+      font-family: 'Courier Prime', monospace; font-size: 0.65rem; cursor: pointer;
+    }
+    .stub-action:hover { background: #c0392b; }
+
+    /* 详情展开像车票背面 */
+    .ticket-detail {
+      background: #fff; border: 4px solid #222; padding: 32px; margin-top: 32px;
+      box-shadow: 8px 8px 0 rgba(0,0,0,0.1); position: relative;
+    }
+    .ticket-detail::before {
+      content: 'ADMIT ONE'; position: absolute; top: 12px; right: 20px;
+      font-family: 'Courier Prime', monospace; font-size: 0.7rem; color: #ccc;
+      letter-spacing: 0.2em; transform: rotate(-5deg);
+    }
+    .ticket-detail h2 {
+      font-family: 'Courier Prime', monospace; font-size: 1.4rem; font-weight: 700;
+      margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid #222;
+    }
+    .td-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    @media (max-width: 768px) { .td-grid { grid-template-columns: 1fr; } }
+
+    .td-section h3 {
+      font-family: 'Courier Prime', monospace; font-size: 0.75rem; text-transform: uppercase;
+      letter-spacing: 0.1em; color: #888; margin-bottom: 12px;
+    }
+    .perforated-box {
+      border: 2px solid #222; padding: 16px; position: relative;
+      background: repeating-linear-gradient(45deg, #fafafa, #fafafa 10px, #f0f0f0 10px, #f0f0f0 20px);
+    }
+    .perforated-box::before {
+      content:''; position: absolute; top: -6px; left: 10px; right: 10px;
+      height: 10px; background: radial-gradient(circle, transparent 4px, #222 4px);
+      background-size: 12px 12px;
+    }
+    .perforated-box::after {
+      content:''; position: absolute; bottom: -6px; left: 10px; right: 10px;
+      height: 10px; background: radial-gradient(circle, transparent 4px, #222 4px);
+      background-size: 12px 12px;
+    }
+    .progress-perf {
+      height: 24px; background: #fff; border: 2px solid #222; margin: 10px 0; position: relative;
+    }
+    .progress-perf::after { content:''; position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: #c0392b; }
+    .progress-perf span { position: absolute; right: 8px; top: 3px; font-family: 'Courier Prime', monospace; font-size: 0.7rem; }
+
+    .passenger-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .passenger-list span {
+      border: 2px solid #222; padding: 4px 10px; font-family: 'Courier Prime', monospace;
+      font-size: 0.75rem; background: #fff;
+    }
+    .passenger-list span.vip { background: #222; color: #fff; }
+
+    .route-line { border-left: 3px solid #222; padding-left: 16px; }
+    .route-line div { padding: 8px 0; border-bottom: 1px dashed #ccc; font-size: 0.85rem; }
+    .route-line div:last-child { border-bottom: none; }
+
+    /* 底部操作 */
+    .box-office {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px;
+    }
+    @media (max-width: 768px) { .box-office { grid-template-columns: 1fr; } }
+    .booth {
+      background: #fff; border: 4px solid #222; padding: 24px;
+      box-shadow: 6px 6px 0 rgba(0,0,0,0.1);
+    }
+    .booth h4 {
+      font-family: 'Courier Prime', monospace; font-size: 0.8rem; text-transform: uppercase;
+      letter-spacing: 0.1em; margin-bottom: 14px;
+    }
+    .booth input, .booth textarea, .booth select {
+      width: 100%; border: 2px solid #222; padding: 10px; font-family: 'Noto Sans SC', sans-serif;
+      font-size: 0.9rem; margin-bottom: 10px; outline: none; background: #fafafa;
+    }
+    .booth button {
+      background: #222; color: #fff; border: 2px solid #222; padding: 10px 20px;
+      font-family: 'Courier Prime', monospace; font-size: 0.75rem; cursor: pointer;
+    }
+    .booth button:hover { background: #c0392b; }
+  </style>
+</head>
+<body>
+  <div class="album">
+    <div class="album-header">
+      <h1>Ticket Stub Album</h1>
+      <p>五张入场券 · 一百二十七场演出 · 收藏编号 047</p>
+    </div>
+
+    <div class="ticket-grid">
+      <div class="ticket">
+        <div class="ticket-body">
+          <div class="venue">Gongwei Yuwang Hall</div>
+          <h3>地下茶水间</h3>
+          <p>本周挑战：假装开会<br>邀请码入场 · X7K9M2</p>
+          <div class="seat-info">
+            <div><span>34</span><label>Seats</label></div>
+            <div><span>892</span><label>Records</label></div>
+            <div><span>A1</span><label>Zone</label></div>
+          </div>
+        </div>
+        <div class="ticket-stub">
+          <span class="barcode">|||| |||| |||| |||</span>
+          <button class="stub-action">ENTER</button>
+        </div>
+      </div>
+      <div class="ticket">
+        <div class="ticket-body">
+          <div class="venue">Silence Auditorium</div>
+          <h3>带薪发呆互助会</h3>
+          <p>专注发呆技巧交流<br>禁止讨论工作 · 邀请制</p>
+          <div class="seat-info">
+            <div><span>18</span><label>Seats</label></div>
+            <div><span>445</span><label>Records</label></div>
+            <div><span>B2</span><label>Zone</label></div>
+          </div>
+        </div>
+        <div class="ticket-stub">
+          <span class="barcode">|||| |||| |||| |||</span>
+          <button class="stub-action">ENTER</button>
+        </div>
+      </div>
+      <div class="ticket">
+        <div class="ticket-body">
+          <div class="venue">Occupation Stadium</div>
+          <h3>会议室占领联盟</h3>
+          <p>战术分享区 · 最大游击组织</p>
+          <div class="seat-info">
+            <div><span>56</span><label>Seats</label></div>
+            <div><span>1.2k</span><label>Records</label></div>
+            <div><span>C3</span><label>Zone</label></div>
+          </div>
+        </div>
+        <div class="ticket-stub">
+          <span class="barcode">|||| |||| |||| |||</span>
+          <button class="stub-action">ENTER</button>
+        </div>
+      </div>
+      <div class="ticket">
+        <div class="ticket-body">
+          <div class="venue">Oscar Branch Theater</div>
+          <h3>假装很忙演技派</h3>
+          <p>演技评级体系 · 奥斯卡分会场</p>
+          <div class="seat-info">
+            <div><span>07</span><label>Seats</label></div>
+            <div><span>067</span><label>Records</label></div>
+            <div><span>D4</span><label>Zone</label></div>
+          </div>
+        </div>
+        <div class="ticket-stub">
+          <span class="barcode">|||| |||| |||| |||</span>
+          <button class="stub-action">ENTER</button>
+        </div>
+      </div>
+      <div class="ticket">
+        <div class="ticket-body">
+          <div class="venue">Reading Room</div>
+          <h3>卫生间读报协会</h3>
+          <p>仅限内部成员 · 日报精选</p>
+          <div class="seat-info">
+            <div><span>12</span><label>Seats</label></div>
+            <div><span>198</span><label>Records</label></div>
+            <div><span>E5</span><label>Zone</label></div>
+          </div>
+        </div>
+        <div class="ticket-stub">
+          <span class="barcode">|||| |||| |||| |||</span>
+          <button class="stub-action">ENTER</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ticket-detail">
+      <h2>🎫 地下茶水间 — 演出详情</h2>
+      <div class="td-grid">
+        <div class="td-section">
+          <h3>本周剧目进度</h3>
+          <div class="perforated-box">
+            <strong style="font-family:'Courier Prime',monospace;">假装开会</strong>
+            <div class="progress-perf"><span>12 / 20</span></div>
+            <p style="font-size:0.8rem;color:#666;margin-top:8px;">达成后全员获得 50 鱼鳞 · 匿名化是强制的</p>
+          </div>
+
+          <h3 style="margin-top:20px;">可选加演</h3>
+          <div style="border:2px solid #222;padding:12px;margin-bottom:10px;">
+            <strong style="font-size:0.9rem;">假装开会</strong>
+            <p style="font-size:0.8rem;color:#555;margin-top:4px;">任意摊开笔记本的场所 · 奖励「演技新星」</p>
+            <button class="stub-action" style="margin-top:8px;">购票 · 30 鱼鳞</button>
+          </div>
+          <div style="border:2px solid #222;padding:12px;">
+            <strong style="font-size:0.9rem;">走廊漫游</strong>
+            <p style="font-size:0.8rem;color:#555;margin-top:4px;">不超过 200 步的优雅漫游 · 奖励「幽灵行者」</p>
+            <button class="stub-action" style="margin-top:8px;">购票 · 30 鱼鳞</button>
+          </div>
+        </div>
+        <div class="td-section">
+          <h3>观众名单</h3>
+          <div class="passenger-list">
+            <span class="vip">匿名鱼_A</span>
+            <span>摸鱼专家_B</span>
+            <span>工位幽灵_C</span>
+            <span>键盘演奏家_D</span>
+            <span>茶水间诗人_E</span>
+            <span>走廊漫游者_F</span>
+            <span>会议室领主_G</span>
+          </div>
+
+          <h3 style="margin-top:20px;">演出记录</h3>
+          <div class="route-line">
+            <div><b>匿名鱼_A</b> · 86.4 — 假装在写周报</div>
+            <div><b>摸鱼专家_B</b> · 72.0 — 带了笔记本没插电</div>
+            <div><b>工位幽灵_C</b> · 54.6 — 接水接了八百米</div>
+            <div><b>键盘演奏家_D</b> · 91.2 — 带了一整章小说</div>
+            <div><b>茶水间诗人_E</b> · 38.5 — 泡了一杯喝了一下午</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="box-office">
+      <div class="booth">
+        <h4>售票窗口 · 邀请码入场</h4>
+        <input type="text" placeholder="X7K9M2" />
+        <button>加入小组</button>
+        <p style="font-size:0.8rem;color:#888;margin-top:8px;">仅保存邀请码，不收集真实身份。</p>
+      </div>
+      <div class="booth">
+        <h4>新剧场开业 · 创建小组</h4>
+        <input type="text" placeholder="剧场名称" />
+        <textarea rows="2" placeholder="演出公告"></textarea>
+        <select><option>公开售票</option><option>邀请制</option></select>
+        <button>开业 · 50 鱼鳞</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

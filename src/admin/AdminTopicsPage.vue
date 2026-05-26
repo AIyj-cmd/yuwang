@@ -34,15 +34,25 @@ const search = async () => {
 const edit = async (topic: AdminTopic) => {
   const name = window.prompt('话题名称', topic.name);
   if (!name) return;
-  await updateAdminTopic(topic.id, { name });
-  await load();
-  if (selectedTopic.value?.id === topic.id) await showRecords(topic);
+  error.value = '';
+  try {
+    await updateAdminTopic(topic.id, { name });
+    await load();
+    if (selectedTopic.value?.id === topic.id) await showRecords(topic);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 const setStatus = async (topic: AdminTopic, status: 'active' | 'hidden') => {
-  await updateAdminTopicStatus(topic.id, status);
-  await load();
-  if (selectedTopic.value?.id === topic.id) await showRecords(topic);
+  error.value = '';
+  try {
+    await updateAdminTopicStatus(topic.id, status);
+    await load();
+    if (selectedTopic.value?.id === topic.id) await showRecords(topic);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 const showRecords = async (topic: AdminTopic) => {

@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>社区广场 · Neo-pixel Flat 保真图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+ * Neo-pixel Flat · 新像素扁平风 · 社区广场保真图
+ * 仅用于视觉确认，不接入数据。
+ * ============================================================ */
+:root {
+  --bg: #FAF7F2;
+  --card: #FFFFFF;
+  --primary: #FFD666;
+  --mint: #A8D8C9;
+  --coral: #FFB4A2;
+  --text: #2B2B2B;
+  --text-muted: #8B8680;
+  --border: #E8E2D5;
+  --border-w: 1.5px;
+  --radius: 8px;
+  --shadow: 4px 4px 0 #E8E2D5;
+  --shadow-sm: 2px 2px 0 #E8E2D5;
+
+  --font-cn: 'MiSans', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-en: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-cn), var(--font-en);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 40px 20px 80px;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.num { font-family: var(--font-mono); font-weight: 700; }
+
+/* 顶栏（参考图说明，非设计本体） */
+.mock-bar {
+  max-width: 880px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.mock-bar b {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+.mock-bar .dot {
+  width: 8px; height: 8px;
+  background: var(--mint);
+  border: var(--border-w) solid var(--text);
+  border-radius: 2px;
+}
+
+/* ===== 主容器 ===== */
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+/* ===== 通用卡片 ===== */
+.card {
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+/* ===== 页头 ===== */
+.hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 28px 28px 24px;
+}
+.hero-icon {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  background: var(--primary);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow-sm);
+}
+/* 像素鱼 SVG 嵌入 */
+.hero-icon svg { width: 28px; height: 28px; image-rendering: pixelated; }
+.hero-title {
+  flex: 1;
+  min-width: 0;
+}
+.hero-title h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+  font-family: var(--font-cn);
+}
+.hero-title h1 .en {
+  font-family: var(--font-en);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  margin-left: 8px;
+  letter-spacing: 0;
+}
+.hero-title p {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.badge.mint { background: var(--mint); border-color: var(--text); }
+.badge.coral { background: var(--coral); border-color: var(--text); }
+.badge.primary { background: var(--primary); border-color: var(--text); }
+.badge svg { width: 12px; height: 12px; image-rendering: pixelated; }
+
+/* ===== 引导卡（这条鱼正在公共水域游动） ===== */
+.intro {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 20px 24px;
+  background: var(--mint);
+  border: var(--border-w) solid var(--text);
+}
+.intro-deco {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  background: var(--card);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+}
+.intro-deco svg { width: 22px; height: 22px; image-rendering: pixelated; }
+.intro-text strong {
+  font-size: 14px;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 2px;
+}
+.intro-text span {
+  font-size: 12px;
+  color: #4a4a45;
+  line-height: 1.6;
+}
+
+/* ===== 搜索区 ===== */
+.search-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+.search-head h2 {
+  font-size: 16px;
+  font-weight: 700;
+}
+.search-head small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.search-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+}
+.input svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-muted); image-rendering: pixelated; }
+.input input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+}
+.input input::placeholder { color: var(--text-muted); }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  background: var(--card);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.btn:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--border); }
+.btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--border); }
+.btn.primary { background: var(--primary); }
+.btn.ghost { box-shadow: none; border-color: var(--border); }
+.btn svg { width: 14px; height: 14px; image-rendering: pixelated; }
+
+/* ===== 筛选 Tabs ===== */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 24px;
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  background: transparent;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.filter-tab.active {
+  background: var(--primary);
+  border-color: var(--text);
+}
+.filter-tab .count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.filter-tab.active .count { color: var(--text); }
+
+/* ===== 热门话题 ===== */
+.topic-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 24px;
+}
+.topic-strip .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 4px;
+}
+.topic-strip .label svg { width: 14px; height: 14px; image-rendering: pixelated; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+.chip:hover { background: var(--bg); }
+.chip .count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+/* ===== 安全提示 ===== */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #FFF4ED;
+  border: var(--border-w) solid var(--coral);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  color: #7a4a3a;
+  line-height: 1.6;
+}
+.notice svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; image-rendering: pixelated; }
+
+/* ===== 记录列表 ===== */
+.feed { display: grid; gap: 16px; }
+.record {
+  padding: 22px 24px;
+}
+.record-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.avatar {
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  background: var(--mint);
+  display: grid;
+  place-items: center;
+}
+.avatar.coral { background: var(--coral); }
+.avatar.primary { background: var(--primary); }
+.avatar svg { width: 22px; height: 22px; image-rendering: pixelated; }
+.author-name {
+  font-size: 14px;
+  font-weight: 700;
+  display: block;
+}
+.author-time {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.score-block {
+  text-align: right;
+  flex-shrink: 0;
+}
+.score-block .score {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+.score-block .title-label {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  background: var(--primary);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  margin-bottom: 10px;
+  background: var(--bg);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.duration svg { width: 12px; height: 12px; image-rendering: pixelated; }
+
+.activity {
+  font-size: 15.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
+.story {
+  font-size: 13.5px;
+  color: #4a4a45;
+  line-height: 1.75;
+  margin-bottom: 14px;
+}
+
+.tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.tag-topic {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #4a6a5e;
+  background: #ECF6F1;
+  border: var(--border-w) solid var(--mint);
+  border-radius: var(--radius);
+  padding: 3px 10px;
+}
+.tag-circle {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #7a4a3a;
+  background: #FFF0E8;
+  border: var(--border-w) solid var(--coral);
+  border-radius: var(--radius);
+  padding: 3px 10px;
+}
+.tag-guild {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6b5400;
+  background: #FFF8DD;
+  border: var(--border-w) solid var(--primary);
+  border-radius: var(--radius);
+  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tag-guild .num { font-size: 11px; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: var(--border-w) solid var(--border);
+}
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  background: transparent;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.action:hover { color: var(--text); border-color: var(--text); }
+.action.active { color: var(--text); background: var(--primary); border-color: var(--text); }
+.action.danger.active { background: var(--coral); }
+.action svg { width: 14px; height: 14px; image-rendering: pixelated; }
+.action .num { font-size: 11.5px; }
+.action .legend-cost {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.action.active .legend-cost { color: #6b5400; }
+
+.compose-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.compose-row .input { height: 36px; }
+.compose-row .btn { height: 36px; padding: 0 14px; font-size: 12px; }
+
+/* ===== 注脚 ===== */
+.foot {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+.foot code {
+  font-family: var(--font-mono);
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+@media (max-width: 640px) {
+  body { padding: 24px 12px 60px; }
+  .hero { flex-direction: column; padding: 20px; }
+  .card, .record { padding: 18px; }
+  .score-block { text-align: left; }
+  .record-head { flex-direction: column; align-items: flex-start; }
+}
+</style>
+
+<!-- 像素 SVG 图标定义 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- 16x16 像素鱼 -->
+    <symbol id="i-fish" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="2" y="6" width="1" height="4"/>
+        <rect x="3" y="5" width="1" height="6"/>
+        <rect x="4" y="4" width="1" height="8"/>
+        <rect x="5" y="4" width="6" height="8"/>
+        <rect x="11" y="5" width="1" height="6"/>
+        <rect x="12" y="3" width="1" height="2"/>
+        <rect x="12" y="6" width="1" height="4"/>
+        <rect x="12" y="11" width="1" height="2"/>
+        <rect x="13" y="2" width="1" height="3"/>
+        <rect x="13" y="11" width="1" height="3"/>
+        <rect x="9" y="6" width="1" height="1" fill="#FAF7F2"/>
+      </g>
+    </symbol>
+    <!-- 搜索 -->
+    <symbol id="i-search" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="3" y="2" width="6" height="1"/><rect x="2" y="3" width="1" height="6"/>
+        <rect x="9" y="3" width="1" height="6"/><rect x="3" y="9" width="6" height="1"/>
+        <rect x="9" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/>
+        <rect x="11" y="11" width="1" height="1"/><rect x="12" y="12" width="2" height="2"/>
+      </g>
+    </symbol>
+    <!-- 心 -->
+    <symbol id="i-heart" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="3" y="3" width="3" height="1"/><rect x="10" y="3" width="3" height="1"/>
+        <rect x="2" y="4" width="5" height="1"/><rect x="9" y="4" width="5" height="1"/>
+        <rect x="2" y="5" width="12" height="2"/>
+        <rect x="3" y="7" width="10" height="1"/>
+        <rect x="4" y="8" width="8" height="1"/>
+        <rect x="5" y="9" width="6" height="1"/>
+        <rect x="6" y="10" width="4" height="1"/>
+        <rect x="7" y="11" width="2" height="1"/>
+      </g>
+    </symbol>
+    <!-- 评论气泡 -->
+    <symbol id="i-comment" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="2" y="3" width="12" height="1"/><rect x="2" y="9" width="12" height="1"/>
+        <rect x="1" y="4" width="1" height="5"/><rect x="14" y="4" width="1" height="5"/>
+        <rect x="4" y="10" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/>
+        <rect x="6" y="12" width="1" height="1"/>
+        <rect x="4" y="5" width="2" height="1"/><rect x="7" y="5" width="2" height="1"/><rect x="10" y="5" width="2" height="1"/>
+        <rect x="4" y="7" width="6" height="1"/>
+      </g>
+    </symbol>
+    <!-- 皇冠（传奇提名） -->
+    <symbol id="i-crown" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="2" y="4" width="1" height="6"/><rect x="13" y="4" width="1" height="6"/>
+        <rect x="3" y="5" width="1" height="5"/><rect x="12" y="5" width="1" height="5"/>
+        <rect x="7" y="3" width="2" height="2"/>
+        <rect x="4" y="6" width="8" height="4"/>
+        <rect x="3" y="11" width="10" height="1"/>
+        <rect x="2" y="3" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/>
+      </g>
+    </symbol>
+    <!-- 旗子（举报） -->
+    <symbol id="i-flag" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="3" y="2" width="1" height="12"/>
+        <rect x="4" y="3" width="8" height="1"/><rect x="4" y="6" width="8" height="1"/>
+        <rect x="12" y="3" width="1" height="3"/>
+        <rect x="4" y="4" width="2" height="2"/><rect x="8" y="4" width="3" height="2"/>
+      </g>
+    </symbol>
+    <!-- 时钟（duration） -->
+    <symbol id="i-clock" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="5" y="2" width="6" height="1"/><rect x="5" y="13" width="6" height="1"/>
+        <rect x="3" y="4" width="1" height="1"/><rect x="12" y="4" width="1" height="1"/>
+        <rect x="2" y="5" width="1" height="6"/><rect x="13" y="5" width="1" height="6"/>
+        <rect x="3" y="11" width="1" height="1"/><rect x="12" y="11" width="1" height="1"/>
+        <rect x="4" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/>
+        <rect x="4" y="12" width="1" height="1"/><rect x="11" y="12" width="1" height="1"/>
+        <rect x="7" y="5" width="2" height="4"/><rect x="8" y="7" width="3" height="1"/>
+      </g>
+    </symbol>
+    <!-- # 标签 -->
+    <symbol id="i-hash" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="5" y="2" width="2" height="12"/><rect x="9" y="2" width="2" height="12"/>
+        <rect x="2" y="5" width="12" height="2"/><rect x="2" y="9" width="12" height="2"/>
+      </g>
+    </symbol>
+    <!-- 盾牌 -->
+    <symbol id="i-shield" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="4" y="2" width="8" height="1"/>
+        <rect x="3" y="3" width="1" height="6"/><rect x="12" y="3" width="1" height="6"/>
+        <rect x="4" y="9" width="1" height="2"/><rect x="11" y="9" width="1" height="2"/>
+        <rect x="5" y="11" width="1" height="1"/><rect x="10" y="11" width="1" height="1"/>
+        <rect x="6" y="12" width="4" height="1"/><rect x="7" y="13" width="2" height="1"/>
+        <rect x="4" y="3" width="8" height="6" fill="#FFB4A2"/>
+        <rect x="7" y="5" width="2" height="4" fill="currentColor"/>
+        <rect x="6" y="6" width="4" height="1" fill="currentColor"/>
+      </g>
+    </symbol>
+    <!-- 闪电（热门） -->
+    <symbol id="i-bolt" viewBox="0 0 16 16">
+      <g shape-rendering="crispEdges" fill="currentColor">
+        <rect x="8" y="2" width="3" height="1"/>
+        <rect x="7" y="3" width="3" height="1"/>
+        <rect x="6" y="4" width="3" height="1"/>
+        <rect x="5" y="5" width="3" height="1"/>
+        <rect x="4" y="6" width="6" height="1"/>
+        <rect x="6" y="7" width="4" height="1"/>
+        <rect x="5" y="8" width="4" height="1"/>
+        <rect x="4" y="9" width="4" height="1"/>
+        <rect x="3" y="10" width="4" height="1"/>
+        <rect x="5" y="11" width="3" height="1"/>
+        <rect x="6" y="12" width="3" height="1"/>
+        <rect x="7" y="13" width="2" height="1"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+</head>
+<body>
+
+<div class="mock-bar">
+  <span class="dot"></span>
+  <b>社区广场</b>
+  <span>· Neo-pixel Flat 视觉规范保真图 · 不接入数据 · 仅用于视觉确认</span>
+</div>
+
+<div class="page">
+
+  <!-- ============ 1. 页头 ============ -->
+  <section class="card hero">
+    <div class="hero-icon">
+      <svg style="color: var(--text);"><use href="#i-fish"/></svg>
+    </div>
+    <div class="hero-title">
+      <h1>社区广场<span class="en">Community Plaza</span></h1>
+      <p>公共水域，只展示已公开且通过审核的记录。这条鱼正在公共水域游动，社区广场解决"我能看到什么"。</p>
+      <div class="hero-badges">
+        <span class="badge primary"><svg><use href="#i-bolt"/></svg>实时更新</span>
+        <span class="badge mint">仅展示审核通过</span>
+        <span class="badge coral"><svg><use href="#i-shield"/></svg>不写公司名</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. 引导小卡 ============ -->
+  <section class="card intro">
+    <div class="intro-deco" style="color: var(--text);">
+      <svg><use href="#i-fish"/></svg>
+    </div>
+    <div class="intro-text">
+      <strong>这条鱼正在公共水域游动</strong>
+      <span>不要写公司名，鱼也需要保护隐私。匿名娱乐，不支持真实违规。</span>
+    </div>
+  </section>
+
+  <!-- ============ 3. 搜索与发现 ============ -->
+  <section class="card">
+    <div class="search-head">
+      <h2>搜索与发现</h2>
+      <small>记录 · 话题 · 用户 · 工会 · 圈子 · 小组</small>
+    </div>
+    <div class="search-row">
+      <label class="input">
+        <svg><use href="#i-search"/></svg>
+        <input type="text" placeholder="输入关键词，不会返回全站空搜索结果" />
+      </label>
+      <button class="btn primary">
+        <svg><use href="#i-search"/></svg>
+        搜索
+      </button>
+      <button class="btn ghost">清空</button>
+    </div>
+
+    <!-- 筛选 Tabs（内嵌在搜索卡里也可单独成卡，这里展示单独成卡的版本见下方） -->
+  </section>
+
+  <!-- ============ 4. 筛选 ============ -->
+  <section class="filters">
+    <button class="filter-tab active">
+      <span>最新摸鱼</span>
+      <span class="count">42</span>
+    </button>
+    <button class="filter-tab">
+      <svg style="width:13px;height:13px;color: var(--coral);"><use href="#i-bolt"/></svg>
+      <span>今日热门</span>
+      <span class="count">12</span>
+    </button>
+    <button class="filter-tab">
+      <span>高分记录</span>
+      <span class="count">28</span>
+    </button>
+    <button class="filter-tab">
+      <svg style="width:13px;height:13px;color: var(--primary);"><use href="#i-crown"/></svg>
+      <span>传奇候选</span>
+      <span class="count">06</span>
+    </button>
+  </section>
+
+  <!-- ============ 5. 热门话题 ============ -->
+  <section class="card topic-strip">
+    <span class="label">
+      <svg><use href="#i-hash"/></svg>
+      热门话题
+    </span>
+    <button class="chip">#今日精神状态 <span class="count">128</span></button>
+    <button class="chip">#带薪如厕 <span class="count">96</span></button>
+    <button class="chip">#假装看文档 <span class="count">71</span></button>
+    <button class="chip">#茶水间外交 <span class="count">54</span></button>
+    <button class="chip">#周一综合症 <span class="count">42</span></button>
+    <button class="chip">#下班倒计时 <span class="count">38</span></button>
+  </section>
+
+  <!-- ============ 6. 安全提示 ============ -->
+  <div class="notice">
+    <svg style="color: var(--coral);"><use href="#i-shield"/></svg>
+    <div>不要提交公司机密、个人隐私、工号、聊天记录、客户数据或未匿名化截图。本平台仅为娱乐分享，不支持任何真实违规行为。</div>
+  </div>
+
+  <!-- ============ 7. 记录列表 ============ -->
+  <div class="feed">
+
+    <!-- 记录卡 1 -->
+    <article class="card record">
+      <div class="record-head">
+        <div class="author">
+          <div class="avatar mint" style="color: var(--text);">
+            <svg><use href="#i-fish"/></svg>
+          </div>
+          <div>
+            <span class="author-name">匿名鲨鱼</span>
+            <span class="author-time">2026-05-26 14:32</span>
+          </div>
+        </div>
+        <div class="score-block">
+          <div class="score">9.234</div>
+          <div class="title-label">摸鱼大师</div>
+        </div>
+      </div>
+
+      <div class="duration">
+        <svg><use href="#i-clock"/></svg>
+        <span>45 分钟</span>
+      </div>
+
+      <div class="activity">假装在改需求，其实在研究今晚吃什么</div>
+      <p class="story">同事来问进度，我打开了空白的文档假装在思考。实际上脑子里全是楼下那家麻辣烫到底要不要加宽粉。最后顶住压力，没点宽粉，点了油条，圆满下班。</p>
+
+      <div class="tags-row">
+        <span class="tag-topic">#今日精神状态</span>
+        <span class="tag-topic">#假装看文档</span>
+        <span class="tag-circle">职场人圈子</span>
+        <span class="tag-guild">为 摸鱼地下研究所 贡献 <span class="num">+5.2</span></span>
+      </div>
+
+      <div class="actions">
+        <button class="action active">
+          <svg><use href="#i-heart"/></svg>
+          <span>点赞</span>
+          <span class="num">88</span>
+        </button>
+        <button class="action">
+          <svg><use href="#i-comment"/></svg>
+          <span>评论</span>
+          <span class="num">12</span>
+        </button>
+        <button class="action">
+          <svg><use href="#i-crown"/></svg>
+          <span>传奇提名</span>
+          <span class="legend-cost">· 10 鳞</span>
+          <span class="num">3</span>
+        </button>
+        <button class="action">
+          <svg><use href="#i-flag"/></svg>
+          <span>举报</span>
+        </button>
+      </div>
+
+      <div class="compose-row">
+        <label class="input">
+          <svg><use href="#i-comment"/></svg>
+          <input type="text" placeholder="120 字以内，别写真实公司、客户或聊天记录" />
+        </label>
+        <button class="btn">发送</button>
+      </div>
+    </article>
+
+    <!-- 记录卡 2 -->
+    <article class="card record">
+      <div class="record-head">
+        <div class="author">
+          <div class="avatar coral" style="color: var(--text);">
+            <svg><use href="#i-fish"/></svg>
+          </div>
+          <div>
+            <span class="author-name">茶水间外交官</span>
+            <span class="author-time">2026-05-26 11:08</span>
+          </div>
+        </div>
+        <div class="score-block">
+          <div class="score">8.512</div>
+          <div class="title-label">划水艺术家</div>
+        </div>
+      </div>
+
+      <div class="duration">
+        <svg><use href="#i-clock"/></svg>
+        <span>30 分钟</span>
+      </div>
+
+      <div class="activity">茶水间偶遇老板，假装在思考工作</div>
+      <p class="story">老板进茶水间的瞬间，我立刻皱眉看着杯子里的咖啡，仿佛它倒映着这个季度最棘手的技术难题。老板路过时还点了点头，仿佛我们已经在脑内完成了一次高效对谈。</p>
+
+      <div class="tags-row">
+        <span class="tag-topic">#茶水间外交</span>
+        <span class="tag-topic">#今日精神状态</span>
+        <span class="tag-circle">伪装系</span>
+      </div>
+
+      <div class="actions">
+        <button class="action">
+          <svg><use href="#i-heart"/></svg>
+          <span>点赞</span>
+          <span class="num">64</span>
+        </button>
+        <button class="action">
+          <svg><use href="#i-comment"/></svg>
+          <span>评论</span>
+          <span class="num">9</span>
+        </button>
+        <button class="action active">
+          <svg><use href="#i-crown"/></svg>
+          <span>传奇提名</span>
+          <span class="legend-cost">· 10 鳞</span>
+          <span class="num">7</span>
+        </button>
+        <button class="action">
+          <svg><use href="#i-flag"/></svg>
+          <span>举报</span>
+        </button>
+      </div>
+
+      <div class="compose-row">
+        <label class="input">
+          <svg><use href="#i-comment"/></svg>
+          <input type="text" placeholder="120 字以内，别写真实公司、客户或聊天记录" />
+        </label>
+        <button class="btn">发送</button>
+      </div>
+    </article>
+
+    <!-- 记录卡 3 -->
+    <article class="card record">
+      <div class="record-head">
+        <div class="author">
+          <div class="avatar primary" style="color: var(--text);">
+            <svg><use href="#i-fish"/></svg>
+          </div>
+          <div>
+            <span class="author-name">键盘交响乐手</span>
+            <span class="author-time">2026-05-26 09:47</span>
+          </div>
+        </div>
+        <div class="score-block">
+          <div class="score">7.806</div>
+          <div class="title-label">茶水间常驻</div>
+        </div>
+      </div>
+
+      <div class="duration">
+        <svg><use href="#i-clock"/></svg>
+        <span>15 分钟</span>
+      </div>
+
+      <div class="activity">疯狂敲击空格键，假装在写文档</div>
+      <p class="story">屏幕上其实是知乎首页。每隔两分钟我敲一次空格让屏幕保持不息屏，再小幅度滚动一下，从背后看像极了正在专注码字的样子。</p>
+
+      <div class="tags-row">
+        <span class="tag-topic">#假装看文档</span>
+        <span class="tag-circle">技术人</span>
+      </div>
+
+      <div class="actions">
+        <button class="action">
+          <svg><use href="#i-heart"/></svg>
+          <span>点赞</span>
+          <span class="num">40</span>
+        </button>
+        <button class="action">
+          <svg><use href="#i-comment"/></svg>
+          <span>评论</span>
+          <span class="num">5</span>
+        </button>
+        <button class="action">
+          <svg><use href="#i-crown"/></svg>
+          <span>传奇提名</span>
+          <span class="legend-cost">· 10 鳞</span>
+          <span class="num">1</span>
+        </button>
+        <button class="action danger active">
+          <svg><use href="#i-flag"/></svg>
+          <span>已举报</span>
+        </button>
+      </div>
+
+      <div class="compose-row">
+        <label class="input">
+          <svg><use href="#i-comment"/></svg>
+          <input type="text" placeholder="120 字以内，别写真实公司、客户或聊天记录" />
+        </label>
+        <button class="btn">发送</button>
+      </div>
+    </article>
+  </div>
+
+  <p class="foot">
+    Neo-pixel Flat · 字体 <code>MiSans / Inter / JetBrains Mono</code><br/>
+    主背景 <code>#FAF7F2</code> · 卡片 <code>#FFFFFF</code> · 主色 <code>#FFD666</code> · 辅 <code>#A8D8C9</code> / <code>#FFB4A2</code><br/>
+    边框 <code>1.5px #E8E2D5</code> · 圆角 <code>8px</code> · 阴影 <code>4px 4px 0 #E8E2D5</code><br/>
+    像素元素仅用于图标、装饰小元素和徽章；卡片间距 16px。
+  </p>
+</div>
+
+</body>
+</html>

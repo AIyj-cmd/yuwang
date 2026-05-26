@@ -12,15 +12,18 @@ import {
   RISKS,
   SENSITIVE_TERMS,
   SLACKING_TYPES,
+  SINGLE_RECORD_FISH_POWER_SCORE_MAX,
   SUPPORTED_LOCALES,
   TITLE_LEVELS,
   analyzeContentSafety,
   calculateScore,
+  clampSingleRecordFishPowerScore,
   createSystemComment,
   getDurationRule,
   getOptionLabel,
   getTitleForDurationScore,
   getTitleForTotalScore,
+  type CreateRecordRequest,
   type LeaderboardType,
   type ScoreBreakdown
 } from '../shared/scoring.js';
@@ -29,6 +32,7 @@ import { createUser, getUserFromRequest, isMuted, publicUserById, requireAdmin, 
 import {
   FISH_SCALE_INSUFFICIENT_MESSAGE,
   checkAndCompleteGroupGoalsForRecord,
+  createGuildEvent,
   createNotification,
   db,
   getCurrentGroupGoalProgress,
@@ -42,9 +46,11 @@ import {
   grantRecordSubmissionFishScale,
   hasFishScaleTransaction,
   insertRecord,
+  listGuildEvents,
   listFishScaleTransactions,
   refreshAllSocialAggregates,
   refreshRecordInteractionCounts,
+  runInTransaction,
   spendFishScale
 } from './database.js';
 import { CIRCLE_FEATURED_BOARDS, COMMENT_MAX_LENGTH, GROUP_CHALLENGES, GROUP_NAME_MAX_LENGTH, getGuildLevel } from '../shared/social.js';
@@ -53,10 +59,12 @@ import { getMonthRange, getSeasonRange, getTodayRange, getWeekRange, type Period
 import { registerAdminRoutes } from './adminRoutes.js';
 import { scoreRecordWithAiJudge } from './ai/judgeService.js';
 import { getSiteSettings } from './siteSettings.js';
+import { AvatarUploadError, avatarPolicy, clearUserAvatar, uploadUserAvatar } from './avatar.js';
+import { rateLimitRequest } from './rateLimit.js';
 
 const optionKeys = (options: readonly { key: string }[]) => options.map((option) => option.key);
 
-const createRecordSchema = z.object({
+const createRecordSchema: z.ZodType<CreateRecordRequest> = z.object({
   nickname: z.string().trim().min(1).max(24).default('匿名鱼'),
   activityText: z.string().trim().min(2).max(MAX_ACTIVITY_TEXT_LENGTH).optional(),
   activity_text: z.string().trim().min(2).max(MAX_ACTIVITY_TEXT_LENGTH).optional(),
@@ -135,6 +143,21 @@ const guildSchema = z.object({
   description: z.string().trim().max(180).default(''),
   icon: z.string().trim().min(1).max(4)
 });
+
+const isSqliteUniqueConstraintError = (error: unknown): boolean => {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : '';
+  const message = error instanceof Error ? error.message : '';
+  return code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'ERR_SQLITE_CONSTRAINT' || message.includes('UNIQUE constraint failed');
+};
+
+const usernameRateLimitSubject = (body: unknown): string | null => {
+  if (!body || typeof body !== 'object' || !('username' in body)) return null;
+  const username = (body as { username?: unknown }).username;
+  return typeof username === 'string' ? username : null;
+};
 const guildPatchSchema = z
   .object({
     name: z.string().trim().min(2).max(40).optional(),
@@ -329,6 +352,7 @@ const publicRecord = (record: Record<string, unknown>) => {
   const storyText = String(record.story_text || record.description || '');
   const storedBreakdown = parseScoreBreakdown(record.score_breakdown);
   const durationLabel = storedBreakdown.durationLabel ?? getOptionLabel(DURATIONS, String(record.duration));
+  const fishPowerScore = clampSingleRecordFishPowerScore(Number(record.fish_power_score ?? 0));
 
   return {
     id: Number(record.id),
@@ -353,7 +377,7 @@ const publicRecord = (record: Record<string, unknown>) => {
     storyText,
     description: storyText,
     durationScore: durationScore || durationBaseScore,
-    score: Number(record.fish_power_score),
+    score: fishPowerScore,
     title: String(record.title),
     systemComment: String(record.system_comment),
     status: String(record.status ?? 'approved'),
@@ -379,7 +403,10 @@ const publicRecord = (record: Record<string, unknown>) => {
       riskMultiplier: Number(record.risk_multiplier),
       disguiseBonus: Number(record.disguise_bonus),
       creativityBonus: Number(record.creativity_bonus),
-      ...storedBreakdown
+      ...storedBreakdown,
+      displayScore: fishPowerScore,
+      fishPowerScore,
+      singleRecordScoreMax: SINGLE_RECORD_FISH_POWER_SCORE_MAX
     }
   };
 };
@@ -481,7 +508,14 @@ const getViewerFlags = (recordId: number, userId?: number) => {
   const rows = db
     .prepare('SELECT action FROM record_interactions WHERE record_id = ? AND user_id = ?')
     .all(recordId, userId) as { action: string }[];
+  const reactions = db
+    .prepare("SELECT reaction_type FROM reactions WHERE target_type = 'record' AND target_id = ? AND user_id = ?")
+    .all(recordId, userId) as { reaction_type: string }[];
   const actions = new Set(rows.map((row) => row.action));
+  for (const reaction of reactions) {
+    if (reaction.reaction_type === 'like') actions.add('like');
+    if (reaction.reaction_type === 'legend') actions.add('vote');
+  }
   return {
     liked: actions.has('like'),
     favorited: actions.has('favorite'),
@@ -646,12 +680,13 @@ const awardRecordLikeFishScale = (recordId: number, actorUserId: number): void =
 const awardRecordCommentFishScale = (recordId: number, commentId: number, actorUserId: number): void => {
   const authorId = getRecordAuthorId(recordId);
   if (!authorId || authorId === actorUserId) return;
+  const rewardKey = `record_comment:${actorUserId}`;
   grantInteractionFishScale({
     userId: authorId,
     amount: 2,
     reason: 'record_commented',
-    relatedType: 'comment',
-    relatedId: commentId
+    relatedType: rewardKey,
+    relatedId: recordId
   });
   createNotification({
     userId: authorId,
@@ -707,31 +742,45 @@ const spendLegendNominationFishScale = (recordId: number, userId: number): void 
 };
 
 const syncRecordReaction = (recordId: number, userId: number, reactionType: 'like' | 'legend'): { active: boolean; created: boolean } => {
-  const existing = db
-    .prepare("SELECT id FROM reactions WHERE target_type = 'record' AND target_id = ? AND user_id = ? AND reaction_type = ?")
-    .get(recordId, userId, reactionType);
-  if (existing) {
-    db.prepare("DELETE FROM reactions WHERE target_type = 'record' AND target_id = ? AND user_id = ? AND reaction_type = ?").run(
-      recordId,
-      userId,
-      reactionType
-    );
-    refreshRecordInteractionCounts(recordId);
-    return { active: false, created: false };
-  } else {
+  return runInTransaction(() => {
+    const interactionAction = reactionType === 'legend' ? 'vote' : 'like';
+    const existingReaction = db
+      .prepare("SELECT id FROM reactions WHERE target_type = 'record' AND target_id = ? AND user_id = ? AND reaction_type = ?")
+      .get(recordId, userId, reactionType);
+    const existingInteraction = db
+      .prepare('SELECT id FROM record_interactions WHERE record_id = ? AND user_id = ? AND action = ?')
+      .get(recordId, userId, interactionAction);
+    if (existingReaction || existingInteraction) {
+      db.prepare("DELETE FROM reactions WHERE target_type = 'record' AND target_id = ? AND user_id = ? AND reaction_type = ?").run(
+        recordId,
+        userId,
+        reactionType
+      );
+      db.prepare('DELETE FROM record_interactions WHERE record_id = ? AND user_id = ? AND action = ?').run(recordId, userId, interactionAction);
+      refreshRecordInteractionCounts(recordId);
+      return { active: false, created: false };
+    }
+
     if (reactionType === 'legend') spendLegendNominationFishScale(recordId, userId);
-    db.prepare('INSERT INTO reactions (target_type, target_id, user_id, reaction_type, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    const now = new Date().toISOString();
+    db.prepare('INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, reaction_type, created_at) VALUES (?, ?, ?, ?, ?)').run(
       'record',
       recordId,
       userId,
       reactionType,
-      new Date().toISOString()
+      now
+    );
+    db.prepare('INSERT OR IGNORE INTO record_interactions (record_id, user_id, action, created_at) VALUES (?, ?, ?, ?)').run(
+      recordId,
+      userId,
+      interactionAction,
+      now
     );
     if (reactionType === 'like') awardRecordLikeFishScale(recordId, userId);
     if (reactionType === 'legend') awardLegendNominationFishScale(recordId, userId);
     refreshRecordInteractionCounts(recordId);
     return { active: true, created: true };
-  }
+  });
 };
 
 const userGroupIds = (userId: number, ids: number[]): number[] => {
@@ -833,6 +882,7 @@ const publicSearchUser = (row: Record<string, unknown>) => ({
   displayName: String(row.display_name),
   bio: String(row.bio ?? ''),
   avatarSeed: String(row.avatar_seed ?? ''),
+  avatarUrl: String(row.avatar_url ?? ''),
   totalScore: Number(row.total_score ?? 0),
   title: getTitleForTotalScore(Number(row.total_score ?? 0))
 });
@@ -926,8 +976,8 @@ const getBadgesForUser = (userId: number) => {
 
   const unlocked = new Set<string>();
   if (stats.record_count > 0) unlocked.add('first-catch');
-  if (stats.top_score >= 200) unlocked.add('power-200');
-  if (stats.top_score >= 500) unlocked.add('power-500');
+  if (stats.top_score >= 8) unlocked.add('power-200');
+  if (stats.top_score >= 10) unlocked.add('power-500');
   if (stats.meeting_count > 0) unlocked.add('meeting-fish');
   if (stats.max_disguise >= 30) unlocked.add('disguise-master');
   if (votes.count > 0) unlocked.add('legend-voter');
@@ -1019,6 +1069,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   app.post('/api/auth/register', async (request, reply) => {
+    if (!rateLimitRequest(request, reply, { bucket: 'auth-register', max: 8, windowMs: 60_000, subject: usernameRateLimitSubject(request.body) })) return;
     const parsed = authSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ message: '注册信息无效。' });
 
@@ -1031,12 +1082,17 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       });
       getFishScaleWallet(result.user.id);
       return reply.code(201).send({ ...result, user: publicAuthUser(result.user) });
-    } catch {
-      return reply.code(409).send({ message: '用户名已存在。' });
+    } catch (error) {
+      if (isSqliteUniqueConstraintError(error)) {
+        return reply.code(409).send({ message: '用户名已存在。' });
+      }
+      request.log.error({ error }, 'failed to register user');
+      return reply.code(500).send({ message: '注册失败，请稍后再试。' });
     }
   });
 
   app.post('/api/auth/login', async (request, reply) => {
+    if (!rateLimitRequest(request, reply, { bucket: 'auth-login', max: 12, windowMs: 60_000, subject: usernameRateLimitSubject(request.body) })) return;
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ message: '登录信息无效。' });
     const result = verifyUser(parsed.data.username, parsed.data.password);
@@ -1047,6 +1103,46 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get('/api/auth/me', async (request) => {
     const user = getUserFromRequest(request);
     return { user: user ? publicAuthUser(user) : null, badges: user ? getBadgesForUser(user.id) : [] };
+  });
+
+  app.get('/api/auth/me/avatar-policy', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+    return avatarPolicy();
+  });
+
+  app.post('/api/auth/me/avatar', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+
+    try {
+      const uploaded = await uploadUserAvatar(user.id, request);
+      return {
+        user: publicUserById(user.id),
+        avatarUrl: uploaded.avatarUrl
+      };
+    } catch (error) {
+      if (error instanceof AvatarUploadError) {
+        return reply.code(error.statusCode).send({ message: error.message, reason: error.reason });
+      }
+      throw error;
+    }
+  });
+
+  app.delete('/api/auth/me/avatar', async (request, reply) => {
+    const user = requireAuth(request, reply);
+    if (!user) return;
+
+    const removed = clearUserAvatar({
+      userId: user.id,
+      action: 'remove',
+      avatarStatus: 'removed',
+      actorType: 'user',
+      actorId: user.id,
+      reason: 'user_removed'
+    });
+    if (!removed) return reply.code(404).send({ message: 'User not found.' });
+    return { user: publicUserById(user.id) };
   });
 
   app.get('/api/wallet/me', async (request, reply) => {
@@ -1453,7 +1549,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const users = db
       .prepare(
         `
-          SELECT id, username, display_name, bio, avatar_seed, total_score
+          SELECT id, username, display_name, bio, avatar_seed, avatar_url, total_score
           FROM users
           WHERE username LIKE ? ESCAPE '\\'
              OR display_name LIKE ? ESCAPE '\\'
@@ -1590,15 +1686,20 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     if (!params.success || !parsed.success) return reply.code(400).send({ message: '举报信息无效。' });
     const record = db.prepare('SELECT id FROM slacking_records WHERE id = ?').get(params.data.id);
     if (!record) return reply.code(404).send({ message: '记录不存在。' });
-    db.prepare('INSERT INTO reports (target_type, target_id, user_id, reason, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    const result = db.prepare('INSERT OR IGNORE INTO reports (target_type, target_id, user_id, reason, created_at) VALUES (?, ?, ?, ?, ?)').run(
       'record',
       params.data.id,
       user.id,
       parsed.data.reason,
       new Date().toISOString()
     );
+    const alreadyReported = Number(result.changes ?? 0) === 0;
     refreshRecordInteractionCounts(params.data.id);
-    return { ok: true, record: publicFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id) };
+    return {
+      ok: true,
+      alreadyReported,
+      record: publicFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id)
+    };
   });
 
   app.get('/api/guilds', async (request) => {
@@ -1647,57 +1748,56 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     let guildId = 0;
     let spendResult: ReturnType<typeof spendFishScale> | null = null;
     try {
-      db.exec('BEGIN IMMEDIATE');
-      const owned = db
-        .prepare("SELECT id FROM guilds WHERE owner_user_id = ? AND source = 'user' AND status != 'banned' LIMIT 1")
-        .get(user.id);
-      if (owned) throw new Error('USER_GUILD_ALREADY_EXISTS');
-      const duplicate = db.prepare('SELECT id FROM guilds WHERE lower(name) = lower(?) LIMIT 1').get(parsed.data.name);
-      if (duplicate) throw new Error('GUILD_NAME_DUPLICATE');
+      runInTransaction(() => {
+        const owned = db
+          .prepare("SELECT id FROM guilds WHERE owner_user_id = ? AND source = 'user' AND status != 'banned' LIMIT 1")
+          .get(user.id);
+        if (owned) throw new Error('USER_GUILD_ALREADY_EXISTS');
+        const duplicate = db.prepare('SELECT id FROM guilds WHERE lower(name) = lower(?) LIMIT 1').get(parsed.data.name);
+        if (duplicate) throw new Error('GUILD_NAME_DUPLICATE');
 
-      spendResult = spendFishScale({
-        userId: user.id,
-        amount: 50,
-        reason: 'guild_creation_spend',
-        relatedType: 'guild',
-        relatedId: null
+        spendResult = spendFishScale({
+          userId: user.id,
+          amount: 50,
+          reason: 'guild_creation_spend',
+          relatedType: 'guild',
+          relatedId: null
+        });
+        if (!spendResult.transaction) throw new Error('GUILD_CREATION_SPEND_MISSING_TRANSACTION');
+
+        const result = db
+          .prepare(
+            `
+              INSERT INTO guilds (
+                name,
+                slug,
+                description,
+                icon,
+                owner_user_id,
+                created_by_user_id,
+                source,
+                join_policy,
+                status,
+                created_at,
+                updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, 'user', 'open', 'active', ?, ?)
+            `
+          )
+          .run(parsed.data.name, uniqueUserGuildSlug(), parsed.data.description, parsed.data.icon, user.id, user.id, now, now);
+        guildId = Number(result.lastInsertRowid);
+        db.prepare('UPDATE fish_scale_transactions SET related_id = ? WHERE id = ?').run(guildId, spendResult.transaction.id);
+        spendResult = {
+          ...spendResult,
+          transaction: {
+            ...spendResult.transaction,
+            relatedId: guildId
+          }
+        };
+        db.prepare('DELETE FROM guild_members WHERE user_id = ?').run(user.id);
+        db.prepare('INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)').run(guildId, user.id, 'owner', now);
+        db.prepare('UPDATE users SET guild_id = ?, updated_at = ? WHERE id = ?').run(guildId, now, user.id);
       });
-      if (!spendResult.transaction) throw new Error('GUILD_CREATION_SPEND_MISSING_TRANSACTION');
-
-      const result = db
-        .prepare(
-          `
-            INSERT INTO guilds (
-              name,
-              slug,
-              description,
-              icon,
-              owner_user_id,
-              created_by_user_id,
-              source,
-              join_policy,
-              status,
-              created_at,
-              updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 'user', 'open', 'active', ?, ?)
-          `
-        )
-        .run(parsed.data.name, uniqueUserGuildSlug(), parsed.data.description, parsed.data.icon, user.id, user.id, now, now);
-      guildId = Number(result.lastInsertRowid);
-      db.prepare('UPDATE fish_scale_transactions SET related_id = ? WHERE id = ?').run(guildId, spendResult.transaction.id);
-      spendResult = {
-        ...spendResult,
-        transaction: {
-          ...spendResult.transaction,
-          relatedId: guildId
-        }
-      };
-      db.prepare('DELETE FROM guild_members WHERE user_id = ?').run(user.id);
-      db.prepare('INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)').run(guildId, user.id, 'owner', now);
-      db.prepare('UPDATE users SET guild_id = ?, updated_at = ? WHERE id = ?').run(guildId, now, user.id);
-      db.exec('COMMIT');
     } catch (error) {
-      db.exec('ROLLBACK');
       if (error instanceof Error && error.message === FISH_SCALE_INSUFFICIENT_MESSAGE) {
         return reply.code(400).send({ message: FISH_SCALE_INSUFFICIENT_MESSAGE });
       }
@@ -1711,13 +1811,30 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     }
 
     refreshAllSocialAggregates();
-    if (!spendResult?.transaction) throw new Error('工会创建扣费流水缺失。');
+    const settledSpendResult = spendResult as ReturnType<typeof spendFishScale> | null;
+    if (!settledSpendResult?.transaction) throw new Error('工会创建扣费流水缺失。');
+    createGuildEvent({
+      guildId,
+      actorUserId: user.id,
+      eventType: 'guild_created',
+      targetType: 'guild',
+      targetId: guildId,
+      actorDisplayName: user.displayName
+    });
     return reply.code(201).send({
       guild: publicGuild(db.prepare('SELECT * FROM guilds WHERE id = ?').get(guildId) as Record<string, unknown>, user.id),
-      wallet: spendResult.wallet,
-      transaction: spendResult.transaction,
+      wallet: settledSpendResult.wallet,
+      transaction: settledSpendResult.transaction,
       message: '工会创建成功，会长已上任。'
     });
+  });
+
+  app.get('/api/guilds/:id/events', async (request, reply) => {
+    const params = idParamSchema.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ message: '工会 ID 无效。' });
+    const guild = db.prepare("SELECT id FROM guilds WHERE id = ? AND status = 'active'").get(params.data.id);
+    if (!guild) return reply.code(404).send({ message: '工会不存在。' });
+    return { events: listGuildEvents(params.data.id, 50) };
   });
 
   app.get('/api/guilds/:id', async (request, reply) => {
@@ -1789,20 +1906,23 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       return reply.code(400).send({ message: '会长不能直接退出工会，请先转让或联系管理员处理。' });
     }
     const now = new Date().toISOString();
-    db.exec('BEGIN IMMEDIATE');
-    try {
+    runInTransaction(() => {
       db.prepare('DELETE FROM guild_members WHERE user_id = ?').run(user.id);
       db.prepare('INSERT INTO guild_members (guild_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)').run(params.data.id, user.id, 'member', now);
       db.prepare('UPDATE users SET guild_id = ?, updated_at = ? WHERE id = ?').run(params.data.id, now, user.id);
       db.prepare('UPDATE slacking_records SET guild_id = ? WHERE user_id = ? AND guild_id IS NULL').run(params.data.id, user.id);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
     const userRecords = db.prepare('SELECT id FROM slacking_records WHERE user_id = ?').all(user.id) as { id: number }[];
     for (const record of userRecords) refreshRecordInteractionCounts(record.id);
     refreshAllSocialAggregates();
+    createGuildEvent({
+      guildId: params.data.id,
+      actorUserId: user.id,
+      eventType: 'member_joined',
+      targetType: 'guild',
+      targetId: params.data.id,
+      actorDisplayName: user.displayName
+    });
     return {
       guild: publicGuild(db.prepare('SELECT * FROM guilds WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id),
       message: currentMember ? '已退出原工会并加入新工会。' : '已加入工会。'
@@ -1824,16 +1944,19 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       return reply.code(400).send({ message: '会长不能直接退出工会，请先转让或联系管理员处理。' });
     }
     const now = new Date().toISOString();
-    db.exec('BEGIN IMMEDIATE');
-    try {
+    runInTransaction(() => {
       db.prepare('DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?').run(params.data.id, user.id);
       db.prepare('UPDATE users SET guild_id = NULL, updated_at = ? WHERE id = ? AND guild_id = ?').run(now, user.id, params.data.id);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
     refreshAllSocialAggregates();
+    createGuildEvent({
+      guildId: params.data.id,
+      actorUserId: user.id,
+      eventType: 'member_left',
+      targetType: 'guild',
+      targetId: params.data.id,
+      actorDisplayName: user.displayName
+    });
     return { ok: true, message: '已退出工会。' };
   });
 
@@ -1854,18 +1977,23 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       .get(params.data.id, params.data.userId) as { role: string } | undefined;
     if (!target) return reply.code(404).send({ message: '目标成员不存在。' });
     if (target.role === 'owner') return reply.code(400).send({ message: '不能移出工会会长。' });
+    const targetUser = db.prepare('SELECT display_name FROM users WHERE id = ?').get(params.data.userId) as { display_name: string } | undefined;
 
     const now = new Date().toISOString();
-    db.exec('BEGIN IMMEDIATE');
-    try {
+    runInTransaction(() => {
       db.prepare('DELETE FROM guild_members WHERE guild_id = ? AND user_id = ?').run(params.data.id, params.data.userId);
       db.prepare('UPDATE users SET guild_id = NULL, updated_at = ? WHERE id = ? AND guild_id = ?').run(now, params.data.userId, params.data.id);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    });
     refreshAllSocialAggregates();
+    createGuildEvent({
+      guildId: params.data.id,
+      actorUserId: user.id,
+      eventType: 'member_removed',
+      targetType: 'user',
+      targetId: params.data.userId,
+      actorDisplayName: user.displayName,
+      targetDisplayName: targetUser?.display_name
+    });
     return { ok: true, message: '成员已移出工会。' };
   });
 
@@ -2052,49 +2180,48 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     while (db.prepare('SELECT id FROM "groups" WHERE invite_code = ?').get(inviteCode)) inviteCode = randomInviteCode();
     let groupId = 0;
     try {
-      db.exec('BEGIN IMMEDIATE');
-      spendFishScale({
-        userId: user.id,
-        amount: 50,
-        reason: 'group_creation_spend',
-        relatedType: 'group',
-        relatedId: null
+      runInTransaction(() => {
+        spendFishScale({
+          userId: user.id,
+          amount: 50,
+          reason: 'group_creation_spend',
+          relatedType: 'group',
+          relatedId: null
+        });
+        const result = db
+          .prepare('INSERT INTO "groups" (name, description, visibility, invite_code, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(parsed.data.name, parsed.data.description, parsed.data.visibility, inviteCode, user.id, now);
+        groupId = Number(result.lastInsertRowid);
+        db.prepare(
+          `
+            UPDATE fish_scale_transactions
+            SET related_id = ?
+            WHERE id = (
+              SELECT id
+              FROM fish_scale_transactions
+              WHERE user_id = ?
+                AND reason = ?
+                AND related_type = ?
+                AND related_id IS NULL
+              ORDER BY id DESC
+              LIMIT 1
+            )
+          `
+        ).run(
+          groupId,
+          user.id,
+          'group_creation_spend',
+          'group'
+        );
+        db.prepare('INSERT INTO group_members (group_id, user_id, role, nickname_title, joined_at) VALUES (?, ?, ?, ?, ?)').run(
+          groupId,
+          user.id,
+          'owner',
+          '地下茶水间管理员',
+          now
+        );
       });
-      const result = db
-        .prepare('INSERT INTO "groups" (name, description, visibility, invite_code, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(parsed.data.name, parsed.data.description, parsed.data.visibility, inviteCode, user.id, now);
-      groupId = Number(result.lastInsertRowid);
-      db.prepare(
-        `
-          UPDATE fish_scale_transactions
-          SET related_id = ?
-          WHERE id = (
-            SELECT id
-            FROM fish_scale_transactions
-            WHERE user_id = ?
-              AND reason = ?
-              AND related_type = ?
-              AND related_id IS NULL
-            ORDER BY id DESC
-            LIMIT 1
-          )
-        `
-      ).run(
-        groupId,
-        user.id,
-        'group_creation_spend',
-        'group'
-      );
-      db.prepare('INSERT INTO group_members (group_id, user_id, role, nickname_title, joined_at) VALUES (?, ?, ?, ?, ?)').run(
-        groupId,
-        user.id,
-        'owner',
-        '地下茶水间管理员',
-        now
-      );
-      db.exec('COMMIT');
     } catch (error) {
-      db.exec('ROLLBACK');
       if (error instanceof Error && error.message === FISH_SCALE_INSUFFICIENT_MESSAGE) {
         return reply.code(400).send({ message: FISH_SCALE_INSUFFICIENT_MESSAGE });
       }
@@ -2280,20 +2407,20 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     if (!anonymized) return reply.code(400).send({ message: '提交前请确认已匿名化内容。' });
 
     const user = getUserFromRequest(request);
-    const nickname = normalizeNickname(user?.displayName ?? parsed.data.nickname);
+    const nickname = normalizeNickname(user?.displayName ?? parsed.data.nickname ?? '');
     const activityText = normalizeActivityText(parsed.data.activityText ?? parsed.data.activity_text ?? parsed.data.slackingType ?? '');
     const storyText = String(parsed.data.storyText ?? parsed.data.story_text ?? parsed.data.description ?? '').trim();
     const risk = parsed.data.risk ?? RISKS[1].key;
     const disguise = parsed.data.disguise ?? DISGUISES[0].key;
     const creativity = parsed.data.creativity ?? CREATIVITY_LEVELS[0].key;
-    const privateOnly = parsed.data.privateOnly || parsed.data.publish_scope === 'private';
-    const publishToCommunity = parsed.data.publish_scope === 'private' ? false : parsed.data.publishToCommunity;
+    const privateOnly = Boolean(parsed.data.privateOnly) || parsed.data.publish_scope === 'private';
+    const publishToCommunity = parsed.data.publish_scope === 'private' ? false : (parsed.data.publishToCommunity ?? true);
     const visibility = privateOnly || !publishToCommunity ? 'private' : 'public';
     const settings = getSiteSettings();
     if (!settings.communityOpen && visibility === 'public') {
       return reply.code(403).send({ message: '社区当前暂未开放。' });
     }
-    const normalizedTopics = normalizeTopicList(parsed.data.topics, enabledSensitiveWords());
+    const normalizedTopics = normalizeTopicList(parsed.data.topics ?? [], enabledSensitiveWords());
     if (normalizedTopics.error) {
       return reply.code(400).send({
         message: normalizedTopics.error === TOPIC_PRIVACY_MESSAGE ? TOPIC_PRIVACY_MESSAGE : normalizedTopics.error
@@ -2310,6 +2437,10 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       });
     }
 
+    // risk/disguise/creativity are stored as user-selected metadata for display,
+    // grouping, and leaderboards. The AI judge derives the authoritative score
+    // from duration plus the submitted activity/story text so clients cannot
+    // game score math by sending high-value enum fields.
     const scoreInput = {
       duration: parsed.data.duration,
       activityText,
@@ -2320,7 +2451,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const score = aiScore.breakdown;
     const isNonSlackingEvent = score.valid === false && score.reason === 'not_slacking_event';
     const totalScore = (user ? getUserTotalScore(user.id) : getNicknameTotalScore(nickname)) + score.fishPowerScore;
-    const title = getTitleForTotalScore(score.fishPowerScore);
+    const title = getTitleForTotalScore(totalScore);
     const systemComment = aiScore.comment;
     // AI valid=false/not_slacking_event affects rewards and notes, not moderation status.
     const status =
@@ -2330,46 +2461,64 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
           ? 'pending'
           : 'approved';
     const reviewNote = isNonSlackingEvent ? 'not_slacking_event' : safety.warnings.join('\u3001');
-    const groupIds = user && !privateOnly ? userGroupIds(user.id, parsed.data.groupIds) : [];
+    const groupIds = user && !privateOnly ? userGroupIds(user.id, parsed.data.groupIds ?? []) : [];
 
-    const record = insertRecord(
-      {
-        ...parsed.data,
-        userId: user?.id,
-        nickname,
-        slackingType: activityText,
-        slackingTypeId: activityText,
-        slackingTypeGroup: 'activity',
-        activityText,
-        duration: score.duration ?? parsed.data.duration,
-        risk,
-        disguise,
-        creativity,
-        description: storyText,
-        storyText,
-        title,
-        systemComment,
-        status,
-        reviewNote,
-        visibility,
-        guildId: user?.guildId ?? null,
-        groupIds,
-        topics: normalizedTopics.topics,
-        autoCircles: parsed.data.autoCircles && visibility === 'public',
-        createdAt: new Date().toISOString()
-      },
-      score
-    );
+    let record: ReturnType<typeof insertRecord> | null = null;
+    let fishScaleReward: ReturnType<typeof grantRecordSubmissionFishScale> | null = null;
+    let completedGroupGoals: ReturnType<typeof checkAndCompleteGroupGoalsForRecord> = [];
+    runInTransaction(() => {
+      record = insertRecord(
+        {
+          ...parsed.data,
+          userId: user?.id,
+          nickname,
+          slackingType: activityText,
+          slackingTypeId: activityText,
+          slackingTypeGroup: 'activity',
+          activityText,
+          duration: score.duration ?? parsed.data.duration,
+          risk,
+          disguise,
+          creativity,
+          description: storyText,
+          storyText,
+          title,
+          systemComment,
+          status,
+          reviewNote,
+          visibility,
+          guildId: user?.guildId ?? null,
+          groupIds,
+          topics: normalizedTopics.topics,
+          autoCircles: (parsed.data.autoCircles ?? true) && visibility === 'public',
+          createdAt: new Date().toISOString()
+        },
+        score
+      );
+
+      if (record.status === 'approved' && record.guild_id) {
+        createGuildEvent({
+          guildId: Number(record.guild_id),
+          actorUserId: user?.id ?? null,
+          eventType: 'record_contributed',
+          targetType: 'record',
+          targetId: record.id,
+          actorDisplayName: user?.displayName ?? nickname,
+          contribution: Number(record.guild_contribution ?? 0)
+        });
+      }
+      fishScaleReward = user && !isNonSlackingEvent
+        ? grantRecordSubmissionFishScale({
+            userId: user.id,
+            recordId: record.id,
+            fishPowerScore: score.fishPowerScore
+          })
+        : null;
+      completedGroupGoals = checkAndCompleteGroupGoalsForRecord(record.id, groupIds);
+    });
+    if (!record) throw new Error('RECORD_INSERT_FAILED');
 
     const todayRank = status === 'approved' ? getRecordTodayRank(record, getTodayRange()) : 0;
-    const fishScaleReward = user && !isNonSlackingEvent
-      ? grantRecordSubmissionFishScale({
-          userId: user.id,
-          recordId: record.id,
-          fishPowerScore: score.fishPowerScore
-        })
-      : null;
-    const completedGroupGoals = checkAndCompleteGroupGoalsForRecord(record.id, groupIds);
 
     return reply.code(201).send({
       record: publicRecord(record as unknown as Record<string, unknown>),

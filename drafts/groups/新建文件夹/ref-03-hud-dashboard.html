@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — HUD仪表盘</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+SC:wght@400;700&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #0a0e17;
+      color: #a0b4c8;
+      overflow-x: hidden;
+    }
+    /* 网格背景 */
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none; opacity: 0.08;
+      background-image:
+        linear-gradient(rgba(0,240,255,0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,240,255,0.3) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    .hud { max-width: 1400px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 280px 1fr 280px; gap: 16px; }
+    @media (max-width: 1100px) { .hud { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: rgba(10,20,35,0.9); border: 1px solid #1e3a5f;
+      position: relative; padding: 16px;
+    }
+    .panel::before, .panel::after {
+      content:''; position: absolute; width: 12px; height: 12px; border: 2px solid #00f0ff;
+    }
+    .panel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+    .panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+    .mono { font-family: 'Share Tech Mono', monospace; }
+
+    .panel-title {
+      font-family: 'Share Tech Mono', monospace; font-size: 0.75rem;
+      color: #00f0ff; text-transform: uppercase; letter-spacing: 0.15em;
+      padding-bottom: 10px; border-bottom: 1px solid #1e3a5f; margin-bottom: 14px;
+    }
+
+    /* 左侧系统状态 */
+    .sys-stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #152238; font-size: 0.85rem; }
+    .sys-stat label { color: #4a6a8a; }
+    .sys-stat b { color: #00f0ff; font-family: 'Share Tech Mono', monospace; }
+    .sys-stat.alarm b { color: #ff4d4d; animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .mini-radar {
+      width: 100%; aspect-ratio: 1; border: 1px solid #1e3a5f; border-radius: 50%;
+      position: relative; margin-top: 16px; overflow: hidden;
+    }
+    .mini-radar::before {
+      content:''; position: absolute; inset: 10%; border: 1px solid #1e3a5f; border-radius: 50%;
+    }
+    .mini-radar::after {
+      content:''; position: absolute; inset: 30%; border: 1px solid #1e3a5f; border-radius: 50%;
+    }
+    .radar-sweep {
+      position: absolute; inset: 0; border-radius: 50%;
+      background: conic-gradient(from 0deg, transparent 0deg, rgba(0,240,255,0.15) 60deg, transparent 60deg);
+      animation: sweep 3s linear infinite;
+    }
+    @keyframes sweep { to { transform: rotate(360deg); } }
+    .blip {
+      position: absolute; width: 6px; height: 6px; background: #ff4d4d; border-radius: 50%;
+      box-shadow: 0 0 8px #ff4d4d;
+    }
+
+    /* 中间主显示区 */
+    .main-display { padding: 20px; }
+    .main-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid #00f0ff; padding-bottom: 12px; margin-bottom: 20px;
+    }
+    .main-header h1 {
+      font-family: 'Share Tech Mono', monospace; font-size: 1.6rem; color: #00f0ff;
+      text-shadow: 0 0 10px rgba(0,240,255,0.3);
+    }
+    .main-header .clock { font-family: 'Share Tech Mono', monospace; color: #4a6a8a; font-size: 0.9rem; }
+
+    /* 目标进度 - 圆形 */
+    .goal-ring-wrap {
+      display: flex; align-items: center; gap: 24px; margin-bottom: 24px;
+      background: rgba(0,240,255,0.03); border: 1px solid #1e3a5f; padding: 20px;
+    }
+    .ring {
+      width: 120px; height: 120px; border-radius: 50%;
+      border: 8px solid #1e3a5f; border-top-color: #00f0ff;
+      transform: rotate(-45deg); position: relative; flex-shrink: 0;
+    }
+    .ring span {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      transform: rotate(45deg); font-family: 'Share Tech Mono', monospace; font-size: 1.4rem; color: #00f0ff;
+    }
+    .ring-label { font-size: 0.85rem; }
+    .ring-label strong { display: block; color: #00f0ff; font-size: 1rem; margin-bottom: 4px; }
+
+    /* 数据流 */
+    .data-stream {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
+    }
+    .stream-node {
+      border: 1px solid #1e3a5f; padding: 14px; background: rgba(0,240,255,0.02);
+      cursor: pointer; transition: all 0.15s; position: relative;
+    }
+    .stream-node:hover { border-color: #00f0ff; background: rgba(0,240,255,0.05); }
+    .stream-node.active { border-color: #ff4d4d; background: rgba(255,77,77,0.05); }
+    .stream-node.active::before {
+      content: '●'; position: absolute; top: 6px; right: 8px; color: #ff4d4d; font-size: 0.6rem;
+    }
+    .stream-node h4 { font-size: 0.85rem; color: #c8d8e8; margin-bottom: 6px; }
+    .stream-node .nums { font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; color: #4a6a8a; }
+    .stream-node .nums b { color: #00f0ff; }
+    .stream-node .bar-track { height: 4px; background: #152238; margin-top: 10px; overflow: hidden; }
+    .stream-node .bar-track i { display: block; height: 100%; background: #00f0ff; }
+
+    /* 右侧日志与通讯 */
+    .log-list { font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; max-height: 300px; overflow-y: auto; }
+    .log-list::-webkit-scrollbar { width: 6px; }
+    .log-list::-webkit-scrollbar-thumb { background: #1e3a5f; }
+    .log-row { padding: 6px 0; border-bottom: 1px solid #152238; color: #4a6a8a; }
+    .log-row b { color: #a0b4c8; }
+    .log-row.ok { color: #00f0ff; }
+    .log-row.warn { color: #ffaa00; }
+
+    .comm-box { margin-top: 16px; }
+    .comm-box input, .comm-box textarea, .comm-box select {
+      width: 100%; background: #0a0e17; border: 1px solid #1e3a5f; padding: 8px 10px;
+      color: #a0b4c8; font-family: 'Noto Sans SC', sans-serif; font-size: 0.85rem; margin-bottom: 8px; outline: none;
+    }
+    .comm-box input:focus { border-color: #00f0ff; }
+    .comm-box button {
+      background: transparent; border: 1px solid #00f0ff; color: #00f0ff;
+      padding: 8px 16px; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; cursor: pointer;
+    }
+    .comm-box button:hover { background: rgba(0,240,255,0.1); }
+
+    .challenge-hud {
+      border: 1px solid #ffaa00; background: rgba(255,170,0,0.05); padding: 12px; margin-top: 12px;
+    }
+    .challenge-hud strong { color: #ffaa00; font-size: 0.85rem; }
+    .challenge-hud small { display: block; color: #8a7a5a; font-size: 0.75rem; margin-top: 4px; }
+    .challenge-hud button {
+      margin-top: 8px; background: #ffaa00; border: none; color: #0a0e17;
+      padding: 6px 12px; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; cursor: pointer;
+    }
+
+    @media (max-width: 1100px) {
+      .hud { grid-template-columns: 1fr; }
+      .main-header h1 { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="hud">
+    <!-- 左侧面板 -->
+    <aside class="panel">
+      <div class="panel-title">SYS.STATUS</div>
+      <div class="sys-stat"><label>GROUPS</label><b>05</b></div>
+      <div class="sys-stat"><label>RECORDS</label><b>127</b></div>
+      <div class="sys-stat"><label>SCALE</label><b>842</b></div>
+      <div class="sys-stat alarm"><label>GOAL</label><b>12/20</b></div>
+      <div class="sys-stat"><label>UPTIME</label><b class="mono">72:14:09</b></div>
+
+      <div class="mini-radar">
+        <div class="radar-sweep"></div>
+        <div class="blip" style="top:30%;left:40%"></div>
+        <div class="blip" style="top:60%;left:65%"></div>
+        <div class="blip" style="top:45%;left:25%"></div>
+      </div>
+      <div class="panel-title" style="margin-top:16px;">MEMBERS</div>
+      <div class="sys-stat"><label>P1</label><b>匿名鱼_A</b></div>
+      <div class="sys-stat"><label>P2</label><b>摸鱼专家_B</b></div>
+      <div class="sys-stat"><label>P3</label><b>工位幽灵_C</b></div>
+      <div class="sys-stat"><label>P4</label><b>键盘演奏家_D</b></div>
+    </aside>
+
+    <!-- 中间主面板 -->
+    <section class="panel main-display">
+      <div class="main-header">
+        <h1>GROUPS /// MAIN DISPLAY</h1>
+        <div class="clock">2026-05-24 18:53:47</div>
+      </div>
+
+      <div class="goal-ring-wrap">
+        <div class="ring"><span>60%</span></div>
+        <div class="ring-label">
+          <strong>WEEKLY GOAL: 假装开会</strong>
+          <span>在任意可摊开笔记本的场所提交记录。达成后全员获得 50 鱼鳞。</span>
+          <span style="display:block;margin-top:6px;color:#ffaa00;">REWARD: 50 SCALE · ANON REQUIRED</span>
+        </div>
+      </div>
+
+      <div class="panel-title">DATA STREAM /// GROUP NODES</div>
+      <div class="data-stream">
+        <div class="stream-node active">
+          <h4>地下茶水间</h4>
+          <div class="nums"><b>34</b> MEM · <b>892</b> REC</div>
+          <div class="bar-track"><i style="width:78%"></i></div>
+        </div>
+        <div class="stream-node">
+          <h4>带薪发呆互助会</h4>
+          <div class="nums"><b>18</b> MEM · <b>445</b> REC</div>
+          <div class="bar-track"><i style="width:40%"></i></div>
+        </div>
+        <div class="stream-node">
+          <h4>会议室占领联盟</h4>
+          <div class="nums"><b>56</b> MEM · <b>1.2k</b> REC</div>
+          <div class="bar-track"><i style="width:95%"></i></div>
+        </div>
+        <div class="stream-node">
+          <h4>假装很忙演技派</h4>
+          <div class="nums"><b>07</b> MEM · <b>067</b> REC</div>
+          <div class="bar-track"><i style="width:15%"></i></div>
+        </div>
+        <div class="stream-node">
+          <h4>卫生间读报协会</h4>
+          <div class="nums"><b>12</b> MEM · <b>198</b> REC</div>
+          <div class="bar-track"><i style="width:22%"></i></div>
+        </div>
+      </div>
+
+      <div class="panel-title" style="margin-top:20px;">CHALLENGE PROTOCOLS</div>
+      <div class="challenge-hud">
+        <strong>假装开会</strong>
+        <small>任意摊开笔记本的场所 · 奖励「演技新星」· 消耗 30 SCALE</small>
+        <button>INITIATE</button>
+      </div>
+      <div class="challenge-hud">
+        <strong>走廊漫游</strong>
+        <small>不超过 200 步的优雅漫游 · 奖励「幽灵行者」· 消耗 30 SCALE</small>
+        <button>INITIATE</button>
+      </div>
+    </section>
+
+    <!-- 右侧面板 -->
+    <aside class="panel">
+      <div class="panel-title">COMMS // JOIN</div>
+      <div class="comm-box">
+        <input type="text" placeholder="INVITE CODE" />
+        <button>TRANSMIT</button>
+      </div>
+
+      <div class="panel-title">NEW GROUP // FORM</div>
+      <div class="comm-box">
+        <input type="text" placeholder="GROUP NAME" />
+        <textarea rows="2" placeholder="NOTICE"></textarea>
+        <select><option>PUBLIC</option><option>INVITE-ONLY</option></select>
+        <button>CREATE · 50</button>
+      </div>
+
+      <div class="panel-title">FEED LOG</div>
+      <div class="log-list">
+        <div class="log-row ok">[18:42] <b>匿名鱼_A</b> +86.4</div>
+        <div class="log-row">[18:38] <b>摸鱼专家_B</b> +72.0</div>
+        <div class="log-row warn">[18:21] <b>工位幽灵_C</b> +54.6</div>
+        <div class="log-row">[17:55] <b>键盘演奏家_D</b> +91.2</div>
+        <div class="log-row ok">[17:30] <b>茶水间诗人_E</b> +38.5</div>
+        <div class="log-row">[17:12] <b>走廊漫游者_F</b> +62.1</div>
+        <div class="log-row warn">[16:48] <b>会议室领主_G</b> +48.7</div>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>

@@ -139,7 +139,6 @@ const form = reactive({
   topics: [] as string[],
   anonymized: false,
   publishToCommunity: true,
-  autoCircles: true,
   privateOnly: false,
   groupIds: [] as number[]
 });
@@ -159,6 +158,14 @@ const canSubmit = computed(
     form.description.trim().length >= 2 &&
     descriptionRemaining.value >= 0 &&
     sensitiveHits.value.length === 0 &&
+    form.anonymized
+);
+const canQuickSubmit = computed(
+  () =>
+    !loading.value &&
+    form.activityText.trim().length >= 2 &&
+    activityTextRemaining.value >= 0 &&
+    !!form.duration &&
     form.anonymized
 );
 const topicSuggestions = computed(() => {
@@ -315,6 +322,7 @@ return {
   activityTextRemaining,
   descriptionRemaining,
   canSubmit,
+  canQuickSubmit,
   topicSuggestions,
   localizedLeaderboardTypes,
   selectedBoard,

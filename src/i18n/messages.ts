@@ -1,6 +1,6 @@
 export const messages = {
   'zh-CN': {
-    mvpFeatures: 'MVP 功能',
+    mvpFeatures: '功能中心',
     communitySystem: '社区系统',
     submitRecord: '摸鱼记录提交',
     scoreRule: 'Fish Power Score',
@@ -13,7 +13,7 @@ export const messages = {
     levels: '等级称号',
     safety: '安全与内容保护',
     protection: '内容保护',
-    account: 'MVP 功能',
+    account: '账号中心',
     about: '关于我们',
     feedback: '提交建议',
     announcements: '公告',
@@ -63,7 +63,7 @@ export const messages = {
     locked: '未解锁'
   },
   'en-US': {
-    mvpFeatures: 'MVP Features',
+    mvpFeatures: 'Features',
     communitySystem: 'Social System',
     submitRecord: 'Submit Record',
     scoreRule: 'Fish Power Score',
@@ -76,7 +76,7 @@ export const messages = {
     levels: 'Levels',
     safety: 'Safety & Guard',
     protection: 'Content Guard',
-    account: 'MVP Features',
+    account: 'Account',
     about: 'About',
     feedback: 'Feedback',
     announcements: 'Announcements',
@@ -264,7 +264,7 @@ export const announcementTranslations: Record<number, { title: string; body: str
   },
   3: {
     title: 'Daily check-in is open',
-    body: 'After signing in, you can check in from the MVP Features section and track your streak. Check-ins record playful mood only, not real workplace identity.'
+    body: 'After signing in, you can check in from the Features section and track your streak. Check-ins record playful mood only, not real workplace identity.'
   }
 };
 

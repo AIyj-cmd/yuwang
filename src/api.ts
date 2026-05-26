@@ -437,3 +437,33 @@ export const startGroupChallenge = async (groupId: number, challengeName: string
     })
   );
 };
+
+export const fetchAvatarPolicy = async (token: string): Promise<{ maxSizeBytes: number; allowedMimeTypes: string[]; allowedExtensions: string[]; maxUploadsPerDay: number }> => {
+  return parseResponse<{ maxSizeBytes: number; allowedMimeTypes: string[]; allowedExtensions: string[]; maxUploadsPerDay: number }>(
+    await fetch('/api/auth/me/avatar-policy', { headers: { Authorization: `Bearer ${token}` } })
+  );
+};
+
+export const uploadAvatar = async (file: File, token: string): Promise<{ avatarUrl: string }> => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const response = await fetch('/api/auth/me/avatar', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof data.message === 'string' ? data.message : '上传失败');
+  }
+  return data as { avatarUrl: string };
+};
+
+export const deleteAvatar = async (token: string): Promise<{ ok: boolean }> => {
+  return parseResponse<{ ok: boolean }>(
+    await fetch('/api/auth/me/avatar', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+  );
+};

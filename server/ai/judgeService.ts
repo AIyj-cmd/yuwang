@@ -15,9 +15,13 @@ import {
   AI_JUDGE_SPECIAL_BONUS_ITEM_MAX,
   AI_JUDGE_SPECIAL_BONUS_MAX,
   AI_JUDGE_SPECIAL_BONUS_MIN,
+  AI_JUDGE_SPECIAL_BONUS_SCORE_MAX,
   AI_JUDGE_SPECIAL_BONUS_TOTAL_MAX,
   INTENSITY_RULES,
   OUTCOME_RULES,
+  SINGLE_RECORD_FISH_POWER_SCORE_MAX,
+  calculateDescriptionQualityScore,
+  clampSingleRecordFishPowerScore,
   getDurationRule,
   normalizeDurationKey
 } from '../../shared/scoring.js';
@@ -143,10 +147,12 @@ const clampBonus = (bonus: AiSpecialBonus): AiSpecialBonus | null => {
   const label = String(bonus.label ?? '').trim();
   if (!label) return null;
   const points = Number(bonus.points);
-  if (!Number.isFinite(points)) return null;
+  if (!Number.isFinite(points) || points <= 0) return null;
+  const roundedPoints = Math.round(points);
+  if (roundedPoints <= 0) return null;
   return {
     label: label.slice(0, 40),
-    points: Math.min(AI_JUDGE_SPECIAL_BONUS_MAX, Math.max(AI_JUDGE_SPECIAL_BONUS_MIN, Math.round(points)))
+    points: Math.min(AI_JUDGE_SPECIAL_BONUS_MAX, Math.max(AI_JUDGE_SPECIAL_BONUS_MIN, roundedPoints))
   };
 };
 
@@ -158,7 +164,7 @@ const sanitizeSpecialBonuses = (bonuses: AiSpecialBonus[] | undefined): { specia
     const sanitized = clampBonus(bonus);
     if (!sanitized) continue;
     const remaining = AI_JUDGE_SPECIAL_BONUS_TOTAL_MAX - total;
-    if (remaining < AI_JUDGE_SPECIAL_BONUS_MIN) break;
+    if (remaining <= AI_JUDGE_SPECIAL_BONUS_MIN) break;
     const points = Math.min(sanitized.points, remaining);
     cleaned.push({ ...sanitized, points });
     total += points;
@@ -206,6 +212,7 @@ export const deterministicScore = (
       rawScore: 0,
       displayScore: 0,
       fishPowerScore: 0,
+      singleRecordScoreMax: SINGLE_RECORD_FISH_POWER_SCORE_MAX,
       scoreVersion: fallback ? AI_JUDGE_FALLBACK_SCORE_VERSION : AI_JUDGE_SCORE_VERSION,
       valid: false,
       reason: 'invalid_duration',
@@ -225,8 +232,18 @@ export const deterministicScore = (
   const outcomeRule = OUTCOME_RULES[outcome];
   const { specialBonuses, specialBonusTotal } = valid ? sanitizeSpecialBonuses(judge.specialBonuses) : { specialBonuses: [], specialBonusTotal: 0 };
   const baseScore = Number(durationRule.baseScore ?? durationRule.score ?? 0);
-  const rawScore = valid ? Number((baseScore * intensityRule.multiplier + outcomeRule.bonus + specialBonusTotal).toFixed(1)) : 0;
-  const displayScore = Number(Math.min(rawScore / 35, 10).toFixed(3));
+  const descriptionQualityScore = valid ? calculateDescriptionQualityScore(input) : 0;
+  const specialBonusScore = valid
+    ? Number(Math.min(AI_JUDGE_SPECIAL_BONUS_SCORE_MAX, (specialBonusTotal / AI_JUDGE_SPECIAL_BONUS_TOTAL_MAX) * AI_JUDGE_SPECIAL_BONUS_SCORE_MAX).toFixed(1))
+    : 0;
+  // Single-record Fish Power Score is now a normalized 0-10 value. AI output
+  // chooses categorical evidence only; the backend owns the final score and
+  // clamps every path before persistence.
+  const rawScore = valid
+    ? Number((baseScore + intensityRule.score + outcomeRule.bonus + descriptionQualityScore + specialBonusScore).toFixed(1))
+    : 0;
+  const fishPowerScore = clampSingleRecordFishPowerScore(rawScore);
+  const displayScore = fishPowerScore;
   const scoreVersion = fallback ? AI_JUDGE_FALLBACK_SCORE_VERSION : AI_JUDGE_SCORE_VERSION;
   const comment =
     judge.comment ||
@@ -239,9 +256,12 @@ export const deterministicScore = (
     durationScore: baseScore,
     durationBaseScore: baseScore,
     durationMultiplier: 1,
+    // User-selected risk/disguise/creativity are persisted as metadata. Under
+    // the AI judge score version, scoring uses judge-derived intensity,
+    // outcome, and special bonuses to avoid trusting client-controlled enums.
     riskMultiplier: intensityRule.multiplier,
     disguiseBonus: 0,
-    creativityBonus: specialBonusTotal,
+    creativityBonus: specialBonusScore,
     duration: normalizedDuration,
     durationLabel: durationRule.label,
     intensity,
@@ -252,9 +272,12 @@ export const deterministicScore = (
     outcomeBonus: valid ? outcomeRule.bonus : 0,
     specialBonuses,
     specialBonusTotal,
+    specialBonusScore,
+    descriptionQualityScore,
     rawScore,
     displayScore,
-    fishPowerScore: rawScore,
+    fishPowerScore,
+    singleRecordScoreMax: SINGLE_RECORD_FISH_POWER_SCORE_MAX,
     scoreVersion,
     valid,
     reason,

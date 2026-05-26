@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — 软木公告板</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Noto+Sans+SC:wght@400;700&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #8b6f47;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(0,0,0,0.1) 0%, transparent 20%),
+        radial-gradient(circle at 80% 70%, rgba(0,0,0,0.08) 0%, transparent 20%);
+      min-height: 100vh; padding: 30px 20px 60px;
+    }
+    .board { max-width: 1200px; margin: 0 auto; }
+    .board-frame {
+      background: #a08060; border: 16px solid #5c4033; border-radius: 8px;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.3), 0 20px 40px rgba(0,0,0,0.4);
+      padding: 30px; position: relative;
+    }
+    .board-frame::before {
+      content:''; position: absolute; top: -28px; left: 50%; transform: translateX(-50%);
+      width: 40px; height: 40px; background: #c0c0c0; border-radius: 50%;
+      border: 4px solid #888; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    /* 便利贴 */
+    .sticky-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
+
+    .sticky {
+      padding: 20px; position: relative; font-family: 'Patrick Hand', cursive;
+      box-shadow: 3px 3px 8px rgba(0,0,0,0.25); transform: rotate(var(--r, 0deg));
+      transition: all 0.2s; cursor: pointer;
+    }
+    .sticky:hover { transform: rotate(0deg) scale(1.03); z-index: 10; box-shadow: 5px 8px 15px rgba(0,0,0,0.3); }
+    .sticky::before {
+      content:''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      width: 40px; height: 18px; background: rgba(255,255,255,0.4);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .sticky.yellow { background: #fef3c7; --r: -1deg; }
+    .sticky.pink { background: #fce7f3; --r: 1.5deg; }
+    .sticky.green { background: #d1fae5; --r: -0.5deg; }
+    .sticky.blue { background: #dbeafe; --r: 2deg; }
+    .sticky.orange { background: #ffedd5; --r: -2deg; }
+    .sticky.purple { background: #f3e8ff; --r: 1deg; }
+    .sticky.featured {
+      grid-column: span 2; font-size: 1.1rem;
+      background: #fef3c7; --r: -0.5deg;
+    }
+    @media (max-width: 600px) { .sticky.featured { grid-column: span 1; } }
+
+    .sticky h3 { font-size: 1.2rem; margin-bottom: 10px; color: #1f2937; }
+    .sticky p { font-size: 1rem; color: #4b5563; line-height: 1.5; }
+    .sticky .hand-meta {
+      margin-top: 12px; padding-top: 10px; border-top: 2px dashed rgba(0,0,0,0.15);
+      font-size: 0.9rem; color: #6b7280; display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .sticky .pin {
+      position: absolute; top: 8px; right: 12px; width: 12px; height: 12px;
+      background: #ef4444; border-radius: 50%; border: 2px solid #991b1b;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    }
+    .sticky .pin.green { background: #22c55e; border-color: #15803d; }
+    .sticky .pin.blue { background: #3b82f6; border-color: #1d4ed8; }
+
+    /* 图钉装饰 */
+    .pushpin {
+      position: absolute; width: 16px; height: 16px; background: #ef4444;
+      border-radius: 50%; border: 2px solid #991b1b;
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .pushpin::after {
+      content:''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+      width: 2px; height: 10px; background: #666;
+    }
+
+    /* 照片 */
+    .polaroid {
+      background: #fff; padding: 10px 10px 30px; box-shadow: 3px 3px 10px rgba(0,0,0,0.25);
+      transform: rotate(var(--r, 0deg)); display: inline-block;
+    }
+    .polaroid .pic { width: 100%; aspect-ratio: 4/3; background: #ddd; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
+    .polaroid .caption { text-align: center; font-family: 'Patrick Hand', cursive; font-size: 0.9rem; color: #555; margin-top: 8px; }
+
+    /* 底部表单 */
+    .clipboard {
+      background: #fff; border: 8px solid #5c4033; border-radius: 4px;
+      padding: 24px; margin-top: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      position: relative;
+    }
+    .clipboard::before {
+      content:''; position: absolute; top: -16px; left: 30px; width: 60px; height: 24px;
+      background: #c0c0c0; border-radius: 4px; border: 3px solid #888;
+    }
+    .clip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) { .clip-grid { grid-template-columns: 1fr; } }
+    .clip-section h4 {
+      font-family: 'Patrick Hand', cursive; font-size: 1.2rem; color: #5c4033;
+      margin-bottom: 12px; border-bottom: 2px solid #d4c4a8; padding-bottom: 6px;
+    }
+    .clip-section input, .clip-section textarea, .clip-section select {
+      width: 100%; border: 2px solid #d4c4a8; padding: 10px; font-family: inherit;
+      font-size: 0.95rem; margin-bottom: 10px; outline: none; background: #fafafa;
+    }
+    .clip-section button {
+      background: #5c4033; color: #fff; border: none; padding: 10px 20px;
+      font-family: 'Patrick Hand', cursive; font-size: 1rem; cursor: pointer;
+    }
+    .clip-section button:hover { background: #8b6f47; }
+
+    /* 胶带效果 */
+    .tape {
+      position: absolute; width: 80px; height: 24px; background: rgba(255,255,255,0.4);
+      transform: rotate(-30deg); top: -10px; left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="board">
+    <div class="board-frame">
+      <div class="pushpin" style="top:20px;left:30px"></div>
+      <div class="pushpin" style="top:25px;right:40px;background:#3b82f6;border-color:#1d4ed8"></div>
+      <div class="pushpin" style="bottom:30px;left:50%;background:#22c55e;border-color:#15803d"></div>
+
+      <div class="sticky-grid">
+        <div class="sticky featured yellow">
+          <div class="pin"></div>
+          <h3>📌 地下茶水间</h3>
+          <p>本周挑战：假装开会。三十四位成员，八百九十二条记录。进度 12/20，还差 8 条即可全员获得 50 鱼鳞。</p>
+          <div class="hand-meta"><span>34 成员</span><span>892 记录</span><span>公开</span></div>
+        </div>
+
+        <div class="sticky pink">
+          <div class="pin green"></div>
+          <h3>😶 带薪发呆互助会</h3>
+          <p>专注发呆技巧交流。禁止讨论工作。</p>
+          <div class="hand-meta"><span>18 成员</span><span>445 记录</span></div>
+        </div>
+
+        <div class="sticky green">
+          <div class="pin blue"></div>
+          <h3>🚪 会议室占领联盟</h3>
+          <p>战术分享区。五十六位游击队员。</p>
+          <div class="hand-meta"><span>56 成员</span><span>1.2k 记录</span></div>
+        </div>
+
+        <div class="sticky blue">
+          <div class="pin"></div>
+          <h3>🎭 假装很忙演技派</h3>
+          <p>演技评级体系。奥斯卡分会场。</p>
+          <div class="hand-meta"><span>7 成员</span><span>67 记录</span></div>
+        </div>
+
+        <div class="sticky orange">
+          <div class="pin green"></div>
+          <h3>📰 卫生间读报协会</h3>
+          <p>仅限内部成员。日报精选。</p>
+          <div class="hand-meta"><span>12 成员</span><span>198 记录</span></div>
+        </div>
+
+        <div class="sticky purple" style="--r:-1.5deg;">
+          <div class="pin blue"></div>
+          <h3>⚡ 本周目标</h3>
+          <p>假装开会 12/20<br>奖励：50 鱼鳞<br>匿名化强制 ✓</p>
+        </div>
+
+        <div class="polaroid" style="--r:3deg;">
+          <div class="pic">🍵</div>
+          <div class="caption">茶水间一角 · 2026春</div>
+        </div>
+
+        <div class="sticky yellow" style="--r:2deg;">
+          <div class="pin"></div>
+          <h3>📝 记录速报</h3>
+          <p>匿名鱼_A 86.4<br>键盘演奏家_D 91.2<br>摸鱼专家_B 72.0</p>
+        </div>
+      </div>
+
+      <div class="clipboard">
+        <div class="tape"></div>
+        <div class="clip-grid">
+          <div class="clip-section">
+            <h4>✏️ 加入公告板</h4>
+            <input type="text" placeholder="邀请码 X7K9M2" />
+            <button>贴上去</button>
+            <p style="font-size:0.8rem;color:#888;margin-top:8px;">仅保存邀请码，不收集真实身份。</p>
+          </div>
+          <div class="clip-section">
+            <h4>📝 新建便签</h4>
+            <input type="text" placeholder="小组名称" />
+            <textarea rows="2" placeholder="小组公告"></textarea>
+            <select><option>公开便签</option><option>私密便签</option></select>
+            <button>张贴 · 50 鱼鳞</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -17,11 +17,16 @@ const load = async () => {
 };
 
 const create = async () => {
-  await createAdminCircle(form);
-  form.name = '';
-  form.description = '';
-  form.icon = '圈';
-  await load();
+  error.value = '';
+  try {
+    await createAdminCircle(form);
+    form.name = '';
+    form.description = '';
+    form.icon = '圈';
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '创建失败';
+  }
 };
 
 const edit = async (circle: AdminEntity) => {
@@ -29,13 +34,23 @@ const edit = async (circle: AdminEntity) => {
   if (!name) return;
   const description = window.prompt('圈子描述', circle.description) ?? circle.description;
   const icon = window.prompt('圈子图标', circle.icon ?? '圈') ?? circle.icon;
-  await updateAdminCircle(circle.id, { name, description, icon });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminCircle(circle.id, { name, description, icon });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '更新失败';
+  }
 };
 
 const setStatus = async (circle: AdminEntity, status: 'active' | 'inactive') => {
-  await updateAdminCircleStatus(circle.id, status);
-  await load();
+  error.value = '';
+  try {
+    await updateAdminCircleStatus(circle.id, status);
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 onMounted(load);

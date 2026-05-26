@@ -17,8 +17,13 @@ const load = async () => {
 
 const setStatus = async (group: AdminEntity, status: 'active' | 'hidden') => {
   if (status === 'hidden' && !window.confirm(`确认隐藏小组「${group.name}」？`)) return;
-  await updateAdminGroupStatus(group.id, status);
-  await load();
+  error.value = '';
+  try {
+    await updateAdminGroupStatus(group.id, status);
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 onMounted(load);

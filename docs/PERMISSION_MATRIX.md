@@ -1,23 +1,19 @@
 # PERMISSION_MATRIX.md
 
-## 工会经营系统 v1 / 第一阶段
+## Single Record Scoring Boundaries
 
-| 行为 | 游客/未登录 | 普通登录用户 | 工会 owner | 管理员 |
+| Behavior | Visitor / unauthenticated | Normal logged-in user | Banned user | Admin |
 | --- | --- | --- | --- | --- |
-| 查看公开工会列表 | 允许，只展示 active | 允许，只展示 active | 允许，只展示 active | 后台可看全部 |
-| 查看公开工会详情 | 允许，仅 active | 允许，仅 active | 允许，仅 active | 后台可看全部 |
-| 创建用户工会 | 401 | 允许，需余额 >= 50 且最多拥有 1 个未 banned 用户工会 | 同普通用户；已有未 banned 用户工会返回 409 | 不走普通接口 |
-| 修改用户工会资料 | 401 | 非 owner 返回 403 | 允许修改自己担任 owner 的 `source='user'` 工会 | 后台接口可管理全部 |
-| 修改官方工会资料 | 401 | 403 | 403 | 允许 |
-| 加入 active 工会 | 401 | 允许；已有其他普通成员关系可切换 | 已是 owner 时不能通过加入其他工会绕过退出限制 | 不走普通接口 |
-| 退出工会 | 401 | 成员允许退出 | 400，不能直接退出 | 后台可通过管理能力处理 |
-| 移出成员 | 401 | 非 owner 返回 403 | 可移出普通成员，不能移出自己或 owner | 后台可管理工会状态 |
+| Submit `POST /api/records` | Allowed by public endpoint when content validation passes | Allowed and associated with the user | No new bypass; existing auth/status protections still apply where protected actions are enforced | Not an admin capability |
+| Provide `fishPowerScore`, `score`, `totalScore`, or `title` in request body | Ignored/not accepted as authoritative | Ignored/not accepted as authoritative | Ignored/not accepted as authoritative | Not applicable |
+| Final single-record scoring | Backend only | Backend only | Backend only | Backend only |
+| Read leaderboards | Allowed | Allowed | Allowed | Allowed |
+| Access `/api/admin/*` scoring views or prompt tests | 401 without valid admin cookie | Ordinary bearer token is not admin auth | Ordinary bearer token is not admin auth | Allowed only through httpOnly admin cookie and valid admin session |
 
-被封禁用户:
+Rules:
 
-- `requireAuth` 统一返回 403，不能创建、编辑、加入、退出或移出成员。
-
-管理员接口:
-
-- `/api/admin/guilds` 系列接口必须通过管理员 httpOnly cookie 校验。
-- 普通用户 Bearer token 不能访问 `/api/admin/guilds`。
+- `fishPowerScore` is now a backend-generated single-record 0-10 score.
+- AI judge output and deterministic fallback are both clamped to `[0, 10]`.
+- User cumulative score is not a single-record score and is not capped at 10.
+- Ordinary users cannot use request fields to forge final score, cumulative score, title, review status, user status, wallet balance, or admin permissions.
+- This scoring change adds no new permission capability and does not weaken administrator httpOnly cookie requirements.

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — 档案柜标签</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #c4b49a;
+      background-image: repeating-linear-gradient(90deg, transparent, transparent 199px, rgba(0,0,0,0.05) 200px);
+      min-height: 100vh; padding: 30px 20px 60px;
+    }
+    .cabinet { max-width: 1200px; margin: 0 auto; }
+    .cabinet-header {
+      background: #8b4513; color: #f5deb3; padding: 20px 28px;
+      border: 4px solid #5c2e0c; box-shadow: 0 6px 0 #5c2e0c;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+    }
+    .cabinet-header h1 {
+      font-family: 'IBM Plex Mono', monospace; font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em;
+    }
+    .cabinet-header .stamp {
+      border: 3px solid #f5deb3; padding: 6px 14px; font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem; transform: rotate(-3deg); opacity: 0.9;
+    }
+
+    /* 文件夹标签栏 */
+    .tab-bar {
+      display: flex; gap: 4px; margin-top: 24px; padding-left: 8px; overflow-x: auto;
+    }
+    .tab-bar::-webkit-scrollbar { height: 6px; }
+    .tab-bar::-webkit-scrollbar-thumb { background: #8b4513; }
+    .folder-tab {
+      background: #d4c4a8; border: 3px solid #5c2e0c; border-bottom: none;
+      padding: 10px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;
+      font-weight: 700; cursor: pointer; position: relative; top: 3px;
+      border-radius: 8px 8px 0 0; white-space: nowrap;
+    }
+    .folder-tab:hover { background: #e8d8bc; }
+    .folder-tab.active {
+      background: #f5f0e6; top: 0; padding-top: 13px; z-index: 2;
+      border-color: #5c2e0c;
+    }
+    .folder-tab .label-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #c0392b; margin-right: 6px;
+    }
+
+    /* 文件夹内容区 */
+    .folder-content {
+      background: #f5f0e6; border: 4px solid #5c2e0c; padding: 32px;
+      box-shadow: 0 8px 0 rgba(0,0,0,0.15); position: relative;
+    }
+    .folder-content::before {
+      content:''; position: absolute; top: 20px; right: 20px; width: 60px; height: 60px;
+      border: 3px solid #c4b49a; border-radius: 50%; opacity: 0.5;
+    }
+    .folder-content::after {
+      content: 'CONFIDENTIAL'; position: absolute; top: 40px; right: 10px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: #c4b49a;
+      transform: rotate(15deg); letter-spacing: 0.2em;
+    }
+
+    .doc-header {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      border-bottom: 3px solid #5c2e0c; padding-bottom: 16px; margin-bottom: 24px;
+    }
+    .doc-header h2 { font-size: 1.6rem; font-weight: 700; }
+    .doc-header .doc-meta {
+      font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: #8b7355;
+      text-align: right;
+    }
+
+    .paper-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) { .paper-grid { grid-template-columns: 1fr; } }
+
+    .paper-sheet {
+      background: #fff; border: 2px solid #c4b49a; padding: 20px;
+      box-shadow: 3px 3px 0 rgba(0,0,0,0.08); position: relative;
+    }
+    .paper-sheet::before {
+      content:''; position: absolute; top: 0; left: 30px; width: 2px; height: 100%; background: #ffe4e1;
+    }
+    .paper-sheet h3 {
+      font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; text-transform: uppercase;
+      letter-spacing: 0.1em; color: #8b7355; margin-bottom: 12px; padding-left: 20px;
+    }
+    .paper-sheet p, .paper-sheet div { padding-left: 20px; font-size: 0.9rem; line-height: 1.6; }
+
+    .highlight-line {
+      background: #fffacd; padding: 2px 4px; border-bottom: 2px solid #e9d66b;
+    }
+
+    .form-line { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; padding-left: 20px !important; }
+    .form-line label { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: #8b7355; white-space: nowrap; }
+    .form-line input, .form-line textarea, .form-line select {
+      flex: 1; border: none; border-bottom: 2px solid #c4b49a; background: transparent;
+      font-family: inherit; font-size: 0.9rem; outline: none; padding: 4px;
+    }
+    .form-line input:focus { border-bottom-color: #5c2e0c; }
+
+    .stamp-btn {
+      display: inline-block; background: #c0392b; color: #fff;
+      font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; padding: 8px 18px;
+      border: 3px solid #5c2e0c; cursor: pointer; box-shadow: 3px 3px 0 #5c2e0c;
+      margin-left: 20px; margin-top: 8px;
+    }
+    .stamp-btn:hover { background: #5c2e0c; }
+
+    .progress-doc { height: 20px; background: #f0ebe0; border: 2px solid #c4b49a; margin: 10px 0 10px 20px; position: relative; }
+    .progress-doc::after { content:''; position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: #8b4513; }
+    .progress-doc span { position: absolute; right: 6px; top: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; }
+
+    .memo-list { padding-left: 20px !important; }
+    .memo-list div { padding: 8px 0; border-bottom: 1px solid #eee; font-size: 0.85rem; }
+    .memo-list div:last-child { border-bottom: none; }
+
+    .file-actions {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px;
+    }
+    @media (max-width: 768px) { .file-actions { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="cabinet">
+    <div class="cabinet-header">
+      <h1>GROUPS ARCHIVE // 档案柜</h1>
+      <div class="stamp">TOP SECRET<br>NO. 047</div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="folder-tab active"><span class="label-dot"></span>地下茶水间</div>
+      <div class="folder-tab">带薪发呆互助会</div>
+      <div class="folder-tab">会议室占领联盟</div>
+      <div class="folder-tab">假装很忙演技派</div>
+      <div class="folder-tab">卫生间读报协会</div>
+      <div class="folder-tab" style="background:#e8d8bc;">+ 新建档案</div>
+    </div>
+
+    <div class="folder-content">
+      <div class="doc-header">
+        <div>
+          <h2>地下茶水间</h2>
+          <p style="font-size:0.85rem;color:#666;margin-top:4px;">档案编号：GW-G-001 · 分类：公开小组 · 创建日期：2026-03-15</p>
+        </div>
+        <div class="doc-meta">
+          34 成员<br>892 记录<br>邀请码：X7K9M2
+        </div>
+      </div>
+
+      <div class="paper-grid">
+        <div class="paper-sheet">
+          <h3>协作目标报告</h3>
+          <p>本周目标：<span class="highlight-line">假装开会</span></p>
+          <p style="margin-top:8px;">当前进度：</p>
+          <div class="progress-doc"><span>12 / 20</span></div>
+          <p style="font-size:0.8rem;color:#666;margin-top:8px;">达成后全员获得 50 鱼鳞 · 匿名化是强制的</p>
+
+          <h3 style="margin-top:20px;">行动申请</h3>
+          <div class="memo-list">
+            <div><strong>假装开会</strong> — 任意摊开笔记本的场所 · 奖励「演技新星」· <span style="color:#c0392b;">需 30 鱼鳞</span></div>
+            <div><strong>走廊漫游</strong> — 不超过 200 步的优雅漫游 · 奖励「幽灵行者」· <span style="color:#c0392b;">需 30 鱼鳞</span></div>
+          </div>
+        </div>
+
+        <div class="paper-sheet">
+          <h3>成员登记册</h3>
+          <div class="memo-list">
+            <div><strong>匿名鱼_A</strong> — 职务：管理员 · 记录数：12</div>
+            <div><strong>摸鱼专家_B</strong> — 职务：成员 · 记录数：8</div>
+            <div><strong>工位幽灵_C</strong> — 职务：成员 · 记录数：6</div>
+            <div><strong>键盘演奏家_D</strong> — 职务：成员 · 记录数：15</div>
+            <div><strong>茶水间诗人_E</strong> — 职务：成员 · 记录数：4</div>
+            <div><strong>走廊漫游者_F</strong> — 职务：成员 · 记录数：7</div>
+          </div>
+
+          <h3 style="margin-top:20px;">记录流水</h3>
+          <div class="memo-list">
+            <div>匿名鱼_A · 86.4 — 假装在写周报</div>
+            <div>摸鱼专家_B · 72.0 — 带了笔记本没插电</div>
+            <div>工位幽灵_C · 54.6 — 接水接了八百米</div>
+            <div>键盘演奏家_D · 91.2 — 带了一整章小说</div>
+            <div>茶水间诗人_E · 38.5 — 泡了一杯喝了一下午</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="file-actions">
+        <div class="paper-sheet">
+          <h3>加入申请</h3>
+          <div class="form-line"><label>邀请码</label><input type="text" placeholder="X7K9M2" /></div>
+          <button class="stamp-btn">批准加入</button>
+          <p style="font-size:0.75rem;color:#888;margin-top:10px;padding-left:20px;">仅保存邀请码，不收集真实身份。</p>
+        </div>
+        <div class="paper-sheet">
+          <h3>新建档案</h3>
+          <div class="form-line"><label>名称</label><input type="text" placeholder="档案名称" /></div>
+          <div class="form-line"><label>公告</label><textarea rows="2" placeholder="档案描述"></textarea></div>
+          <div class="form-line"><label>类型</label><select><option>公开档案</option><option>机密档案</option></select></div>
+          <button class="stamp-btn">归档 · 50 鱼鳞</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "gongwei-yuwang",
   "version": "1.0.0",
-  "description": "Gongwei Yuwang MVP",
+  "description": "The Desk Fish King community platform",
   "private": true,
   "main": "dist-server/server/index.js",
   "scripts": {
@@ -21,6 +21,7 @@
   "type": "module",
   "dependencies": {
     "@fastify/cors": "^11.2.0",
+    "@fastify/multipart": "^10.0.0",
     "@fastify/static": "^9.1.3",
     "@mmt817/pixel-ui": "^1.6.0",
     "bcryptjs": "^3.0.3",

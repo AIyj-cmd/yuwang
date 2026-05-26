@@ -1,7 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { ScoreBreakdown } from '../shared/scoring.js';
+import {
+  LEGACY_SINGLE_RECORD_SCORE_NORMALIZATION_DIVISOR,
+  SINGLE_RECORD_FISH_POWER_SCORE_MAX,
+  SINGLE_RECORD_FISH_POWER_SCORE_MIN,
+  clampSingleRecordFishPowerScore,
+  type ScoreBreakdown
+} from '../shared/scoring.js';
 import {
   AI_JUDGE_PROMPT_KEY,
   AI_JUDGE_PROMPT_NAME,
@@ -73,6 +79,25 @@ export type StoredAiPrompt = {
   updated_at: string;
   updated_by: string;
   last_tested_at: string;
+};
+
+export type GuildEventType =
+  | 'guild_created'
+  | 'member_joined'
+  | 'member_left'
+  | 'member_removed'
+  | 'announcement_created'
+  | 'record_contributed';
+
+export type GuildEvent = {
+  id: number;
+  guildId: number;
+  actorUserId: number | null;
+  eventType: GuildEventType;
+  targetType: string;
+  targetId: number | null;
+  content: string;
+  createdAt: string;
 };
 
 export type FishScaleTransactionType = 'earn_submission' | 'earn_interaction' | 'spend' | 'admin_adjustment';
@@ -193,6 +218,26 @@ mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(join(dataDir, 'gongwei-yuwang.sqlite'));
 
+let transactionSequence = 0;
+
+export const runInTransaction = <T>(fn: () => T): T => {
+  transactionSequence += 1;
+  const savepoint = `codex_tx_${transactionSequence}`;
+  db.exec(`SAVEPOINT ${savepoint}`);
+  try {
+    const result = fn();
+    db.exec(`RELEASE SAVEPOINT ${savepoint}`);
+    return result;
+  } catch (error) {
+    try {
+      db.exec(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+    } finally {
+      db.exec(`RELEASE SAVEPOINT ${savepoint}`);
+    }
+    throw error;
+  }
+};
+
 export const createNotificationIfNotExists = (input: CreateNotificationInput): CreateNotificationResult => {
   try {
     const userId = Number(input.userId ?? 0);
@@ -265,6 +310,62 @@ const addColumnIfMissing = (table: string, column: string, definition: string): 
   }
 };
 
+const appendScoreMigrationMarkerSql = `
+  CASE
+    WHEN score_version LIKE '%single_record_10pt_v1%' THEN score_version
+    ELSE COALESCE(NULLIF(score_version, ''), 'legacy_type_v1') || '+single_record_10pt_v1'
+  END
+`;
+
+const normalizeStoredSingleRecordScores = (): void => {
+  db.prepare(
+    `
+      UPDATE slacking_records
+      SET fish_power_score = ?,
+          score_version = ${appendScoreMigrationMarkerSql}
+      WHERE fish_power_score < ?
+         OR fish_power_score != fish_power_score
+    `
+  ).run(SINGLE_RECORD_FISH_POWER_SCORE_MIN, SINGLE_RECORD_FISH_POWER_SCORE_MIN);
+
+  db.prepare(
+    `
+      UPDATE slacking_records
+      SET fish_power_score = ROUND(MIN(?, MAX(?, fish_power_score / ?)), 1),
+          score_version = ${appendScoreMigrationMarkerSql}
+      WHERE fish_power_score > ?
+    `
+  ).run(
+    SINGLE_RECORD_FISH_POWER_SCORE_MAX,
+    SINGLE_RECORD_FISH_POWER_SCORE_MIN,
+    LEGACY_SINGLE_RECORD_SCORE_NORMALIZATION_DIVISOR,
+    SINGLE_RECORD_FISH_POWER_SCORE_MAX
+  );
+};
+
+const finiteScoreNumber = (value: number | undefined, fallback = 0): number => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+};
+
+const normalizeScoreBreakdownForStorage = (score: ScoreBreakdown): ScoreBreakdown => {
+  const fishPowerScore = clampSingleRecordFishPowerScore(score.fishPowerScore);
+  return {
+    ...score,
+    baseScore: finiteScoreNumber(score.baseScore),
+    durationScore: finiteScoreNumber(score.durationScore),
+    durationBaseScore: finiteScoreNumber(score.durationBaseScore),
+    durationMultiplier: finiteScoreNumber(score.durationMultiplier, 1),
+    riskMultiplier: finiteScoreNumber(score.riskMultiplier, 1),
+    disguiseBonus: finiteScoreNumber(score.disguiseBonus),
+    creativityBonus: finiteScoreNumber(score.creativityBonus),
+    rawScore: finiteScoreNumber(score.rawScore, fishPowerScore),
+    displayScore: clampSingleRecordFishPowerScore(score.displayScore ?? fishPowerScore),
+    fishPowerScore,
+    singleRecordScoreMax: SINGLE_RECORD_FISH_POWER_SCORE_MAX
+  };
+};
+
 export const initDatabase = (): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -277,6 +378,10 @@ export const initDatabase = (): void => {
       locale TEXT NOT NULL DEFAULT 'zh-CN',
       is_admin INTEGER NOT NULL DEFAULT 0,
       avatar_seed TEXT NOT NULL DEFAULT '',
+      avatar_url TEXT NOT NULL DEFAULT '',
+      avatar_storage_key TEXT NOT NULL DEFAULT '',
+      avatar_status TEXT NOT NULL DEFAULT 'active',
+      avatar_updated_at TEXT NOT NULL DEFAULT '',
       guild_id INTEGER,
       total_score REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
@@ -288,6 +393,38 @@ export const initDatabase = (): void => {
       token_hash TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL,
       expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      token_hash TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      nonce TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      revoked_at TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS user_avatar_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      old_avatar_storage_key TEXT NOT NULL DEFAULT '',
+      new_avatar_storage_key TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      actor_type TEXT NOT NULL DEFAULT 'user',
+      actor_id INTEGER,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (actor_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS avatar_upload_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
@@ -428,6 +565,19 @@ export const initDatabase = (): void => {
       joined_at TEXT NOT NULL,
       FOREIGN KEY (guild_id) REFERENCES guilds(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS guild_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id INTEGER NOT NULL,
+      actor_user_id INTEGER,
+      event_type TEXT NOT NULL,
+      target_type TEXT NOT NULL DEFAULT '',
+      target_id INTEGER,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (guild_id) REFERENCES guilds(id),
+      FOREIGN KEY (actor_user_id) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS circles (
@@ -632,6 +782,10 @@ export const initDatabase = (): void => {
   `);
 
   addColumnIfMissing('users', 'avatar_seed', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('users', 'avatar_url', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('users', 'avatar_storage_key', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('users', 'avatar_status', "TEXT NOT NULL DEFAULT 'active'");
+  addColumnIfMissing('users', 'avatar_updated_at', "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('users', 'guild_id', 'INTEGER');
   addColumnIfMissing('users', 'total_score', 'REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'status', "TEXT NOT NULL DEFAULT 'active'");
@@ -697,12 +851,32 @@ export const initDatabase = (): void => {
   db.exec("UPDATE slacking_records SET story_text = description WHERE story_text = ''");
   db.exec("UPDATE slacking_records SET activity_tags = '[]' WHERE activity_tags = ''");
   db.exec("UPDATE slacking_records SET duration_base_score = base_score * duration_multiplier WHERE duration_base_score = 0 AND score_version != 'time_v2'");
+  normalizeStoredSingleRecordScores();
   db.exec("UPDATE slacking_records SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE comments SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE guilds SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE circles SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE topics SET updated_at = created_at WHERE updated_at = ''");
   db.exec("UPDATE \"groups\" SET updated_at = created_at WHERE updated_at = ''");
+  db.exec('DROP INDEX IF EXISTS idx_reports_unique_user_target');
+  // Development-stage cleanup for the active-report unique index below:
+  // keep the newest pending/reviewing report per user-target pair, leaving
+  // resolved/rejected history unconstrained so users can report again later.
+  db.exec(`
+    DELETE FROM reports
+    WHERE status IN ('pending', 'reviewing')
+      AND id NOT IN (
+        SELECT id
+        FROM (
+          SELECT MAX(id) AS id
+          FROM reports
+          WHERE status IN ('pending', 'reviewing')
+          GROUP BY user_id, target_type, target_id
+        )
+      );
+  `);
+  db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(new Date().toISOString());
+  db.prepare("DELETE FROM admin_sessions WHERE expires_at <= ? OR revoked_at != ''").run(new Date().toISOString());
   db.prepare(
     `
       INSERT OR IGNORE INTO ai_prompts (
@@ -729,6 +903,8 @@ export const initDatabase = (): void => {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_record_interactions_record ON record_interactions(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_interactions_user ON record_interactions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_avatar_events_user_created_at ON user_avatar_events(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_avatar_upload_attempts_user_created_at ON avatar_upload_attempts(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_user_wallets_user ON user_wallets(user_id);
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_user_created_at ON fish_scale_transactions(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_fish_scale_transactions_type_created_at ON fish_scale_transactions(type, created_at);
@@ -741,6 +917,8 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_guilds_owner_user_id ON guilds(owner_user_id);
     CREATE INDEX IF NOT EXISTS idx_guilds_source ON guilds(source);
     CREATE INDEX IF NOT EXISTS idx_guilds_status ON guilds(status);
+    CREATE INDEX IF NOT EXISTS idx_guild_events_guild_created_at ON guild_events(guild_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_guild_events_type ON guild_events(event_type);
     CREATE INDEX IF NOT EXISTS idx_circle_members_user ON circle_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_record_circles_record ON record_circles(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_circles_circle ON record_circles(circle_id);
@@ -756,6 +934,11 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_unique_active_user_target
+      ON reports(user_id, target_type, target_id)
+      WHERE status IN ('pending', 'reviewing');
+    CREATE INDEX IF NOT EXISTS idx_admin_sessions_username ON admin_sessions(username);
+    CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_ai_prompts_key_active ON ai_prompts(key, is_active);
@@ -774,7 +957,25 @@ export const initDatabase = (): void => {
     CREATE INDEX IF NOT EXISTS idx_slacking_records_status ON slacking_records(status);
     CREATE INDEX IF NOT EXISTS idx_slacking_records_visibility ON slacking_records(visibility);
     CREATE INDEX IF NOT EXISTS idx_slacking_records_guild_id ON slacking_records(guild_id);
-    CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_slacking_records_fish_score_insert_check
+    BEFORE INSERT ON slacking_records
+    WHEN NEW.fish_power_score < ${SINGLE_RECORD_FISH_POWER_SCORE_MIN}
+      OR NEW.fish_power_score > ${SINGLE_RECORD_FISH_POWER_SCORE_MAX}
+      OR NEW.fish_power_score != NEW.fish_power_score
+    BEGIN
+      SELECT RAISE(ABORT, 'fish_power_score must be between 0 and 10');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_slacking_records_fish_score_update_check
+    BEFORE UPDATE OF fish_power_score ON slacking_records
+    WHEN NEW.fish_power_score < ${SINGLE_RECORD_FISH_POWER_SCORE_MIN}
+      OR NEW.fish_power_score > ${SINGLE_RECORD_FISH_POWER_SCORE_MAX}
+      OR NEW.fish_power_score != NEW.fish_power_score
+    BEGIN
+      SELECT RAISE(ABORT, 'fish_power_score must be between 0 and 10');
+    END;
   `);
   seedAdminDefaults();
   seedSocialDefaults();
@@ -840,6 +1041,101 @@ const seedSocialDefaults = (): void => {
   for (const circle of OFFICIAL_CIRCLES) {
     circleInsert.run(circle.name, circle.slug, circle.description, circle.icon, now);
   }
+};
+
+const publicEventName = (name?: string | null): string => {
+  const clean = String(name ?? '').trim().replace(/\s+/g, ' ');
+  return clean || '某位成员';
+};
+
+const guildEventContent = (input: {
+  eventType: GuildEventType;
+  actorDisplayName?: string | null;
+  targetDisplayName?: string | null;
+  contribution?: number | null;
+}): string => {
+  const actorName = publicEventName(input.actorDisplayName);
+  const targetName = publicEventName(input.targetDisplayName);
+  if (input.eventType === 'guild_created') return `${actorName}创建了工会。`;
+  if (input.eventType === 'member_joined') return `${actorName}加入了工会。`;
+  if (input.eventType === 'member_left') return `${actorName}退出了工会。`;
+  if (input.eventType === 'member_removed') return `${targetName}被移出了工会。`;
+  if (input.eventType === 'record_contributed') {
+    const contribution = Number(input.contribution ?? 0).toFixed(1);
+    return `${actorName}为工会贡献了 ${contribution} 点摸鱼能量。`;
+  }
+  return '工会发布了一条公告。';
+};
+
+const mapGuildEvent = (row: Record<string, unknown>): GuildEvent => ({
+  id: Number(row.id),
+  guildId: Number(row.guild_id),
+  actorUserId: row.actor_user_id === null || row.actor_user_id === undefined ? null : Number(row.actor_user_id),
+  eventType: String(row.event_type) as GuildEventType,
+  targetType: String(row.target_type ?? ''),
+  targetId: row.target_id === null || row.target_id === undefined ? null : Number(row.target_id),
+  content: String(row.content ?? ''),
+  createdAt: String(row.created_at ?? '')
+});
+
+export const createGuildEvent = (input: {
+  guildId: number;
+  actorUserId?: number | null;
+  eventType: GuildEventType;
+  targetType?: string;
+  targetId?: number | null;
+  actorDisplayName?: string | null;
+  targetDisplayName?: string | null;
+  contribution?: number | null;
+  createdAt?: string;
+}): GuildEvent | null => {
+  const guildId = Number(input.guildId);
+  if (!Number.isInteger(guildId) || guildId <= 0) return null;
+  const guild = db.prepare('SELECT id FROM guilds WHERE id = ? LIMIT 1').get(guildId);
+  if (!guild) return null;
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  const content = guildEventContent(input);
+  const result = db
+    .prepare(
+      `
+        INSERT INTO guild_events (
+          guild_id,
+          actor_user_id,
+          event_type,
+          target_type,
+          target_id,
+          content,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+    .run(
+      guildId,
+      input.actorUserId ?? null,
+      input.eventType,
+      input.targetType ?? '',
+      input.targetId ?? null,
+      content,
+      createdAt
+    );
+  return mapGuildEvent(db.prepare('SELECT * FROM guild_events WHERE id = ?').get(result.lastInsertRowid) as Record<string, unknown>);
+};
+
+export const listGuildEvents = (guildId: number, limit = 50): GuildEvent[] => {
+  const requestedLimit = Number.isFinite(limit) ? Math.floor(limit) : 50;
+  const safeLimit = Math.min(50, Math.max(1, requestedLimit));
+  const rows = db
+    .prepare(
+      `
+        SELECT *
+        FROM guild_events
+        WHERE guild_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+      `
+    )
+    .all(guildId, safeLimit) as Record<string, unknown>[];
+  return rows.map(mapGuildEvent);
 };
 
 const mapFishScaleWallet = (row: Record<string, unknown>): FishScaleWallet => {
@@ -1180,7 +1476,7 @@ export const adjustFishScale = (input: {
 };
 
 export const calculateRecordSubmissionFishScale = (fishPowerScore: number): number =>
-  Math.min(20, Math.floor(Math.max(0, fishPowerScore) / 10));
+  Math.min(20, Math.floor(clampSingleRecordFishPowerScore(fishPowerScore) * 2));
 
 export const grantRecordSubmissionFishScale = (input: {
   userId: number;
@@ -1726,6 +2022,7 @@ export const insertRecord = (
 ): StoredRecord => {
   const activityText = input.activityText.trim();
   const storyText = (input.storyText ?? input.description).trim();
+  const storedScore = normalizeScoreBreakdownForStorage(score);
   const circleSlugs = input.activityTags ?? getCircleSlugsForRecord({
     activityText,
     storyText,
@@ -1771,7 +2068,7 @@ export const insertRecord = (
       updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const guildContribution = input.guildId ? Number((score.fishPowerScore * 0.3).toFixed(1)) : 0;
+  const guildContribution = input.guildId ? Number((storedScore.fishPowerScore * 0.3).toFixed(1)) : 0;
 
   const result = insert.run(
     input.userId ?? null,
@@ -1787,16 +2084,16 @@ export const insertRecord = (
     input.creativity,
     storyText,
     storyText,
-    score.baseScore,
-    score.durationScore,
-    score.durationBaseScore,
-    score.durationMultiplier,
-    score.riskMultiplier,
-    score.disguiseBonus,
-    score.creativityBonus,
-    score.fishPowerScore,
-    score.scoreVersion,
-    JSON.stringify(score),
+    storedScore.baseScore,
+    storedScore.durationScore,
+    storedScore.durationBaseScore,
+    storedScore.durationMultiplier,
+    storedScore.riskMultiplier,
+    storedScore.disguiseBonus,
+    storedScore.creativityBonus,
+    storedScore.fishPowerScore,
+    storedScore.scoreVersion,
+    JSON.stringify(storedScore),
     input.title,
     input.systemComment,
     input.status,
@@ -1925,37 +2222,61 @@ export const assignRecordToCircles = (
 };
 
 export const syncRecordSocialCounts = (recordId: number): void => {
-  const reactions = db
+  const likes = db
     .prepare(
       `
-        SELECT
-          SUM(CASE WHEN reaction_type = 'like' THEN 1 ELSE 0 END) AS like_count,
-          SUM(CASE WHEN reaction_type = 'legend' THEN 1 ELSE 0 END) AS legend_count
-        FROM reactions
-        WHERE target_type = 'record'
-          AND target_id = ?
+        SELECT COUNT(*) AS count
+        FROM (
+          SELECT user_id
+          FROM record_interactions
+          WHERE record_id = ?
+            AND action = 'like'
+          UNION
+          SELECT user_id
+          FROM reactions
+          WHERE target_type = 'record'
+            AND target_id = ?
+            AND reaction_type = 'like'
+        )
       `
     )
-    .get(recordId) as { like_count: number | null; legend_count: number | null };
-  const legacy = db
+    .get(recordId, recordId) as { count: number };
+  const favorites = db
     .prepare(
       `
-        SELECT
-          SUM(CASE WHEN action = 'like' THEN 1 ELSE 0 END) AS like_count,
-          SUM(CASE WHEN action = 'favorite' THEN 1 ELSE 0 END) AS favorite_count,
-          SUM(CASE WHEN action = 'vote' THEN 1 ELSE 0 END) AS vote_count
+        SELECT COUNT(*) AS count
         FROM record_interactions
         WHERE record_id = ?
+          AND action = 'favorite'
       `
     )
-    .get(recordId) as { like_count: number | null; favorite_count: number | null; vote_count: number | null };
+    .get(recordId) as { count: number };
+  const legends = db
+    .prepare(
+      `
+        SELECT COUNT(*) AS count
+        FROM (
+          SELECT user_id
+          FROM record_interactions
+          WHERE record_id = ?
+            AND action = 'vote'
+          UNION
+          SELECT user_id
+          FROM reactions
+          WHERE target_type = 'record'
+            AND target_id = ?
+            AND reaction_type = 'legend'
+        )
+      `
+    )
+    .get(recordId, recordId) as { count: number };
   const comments = db
     .prepare("SELECT COUNT(*) AS count FROM comments WHERE record_id = ? AND status = 'approved'")
     .get(recordId) as { count: number };
   const reports = db.prepare("SELECT COUNT(*) AS count FROM reports WHERE target_type = 'record' AND target_id = ?").get(recordId) as { count: number };
 
-  const likeCount = Math.max(Number(reactions.like_count ?? 0), Number(legacy.like_count ?? 0));
-  const legendCount = Number(reactions.legend_count ?? 0) + Number(legacy.vote_count ?? 0);
+  const likeCount = Number(likes.count ?? 0);
+  const legendCount = Number(legends.count ?? 0);
   const commentCount = Number(comments.count ?? 0);
   const hotBonus = likeCount + commentCount * 2 + legendCount * 8 >= 10 ? 20 : 0;
 
@@ -1979,8 +2300,8 @@ export const syncRecordSocialCounts = (recordId: number): void => {
     `
   ).run(
     likeCount,
-    Number(legacy.favorite_count ?? 0),
-    Number(legacy.vote_count ?? 0),
+    Number(favorites.count ?? 0),
+    legendCount,
     legendCount,
     Number(reports.count ?? 0),
     commentCount,

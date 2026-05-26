@@ -8,6 +8,8 @@ export type AuthUser = {
   displayName: string;
   bio: string;
   locale: string;
+  avatarSeed: string;
+  avatarUrl: string;
   isAdmin: boolean;
   status: string;
   muteUntil: string;
@@ -22,6 +24,8 @@ const toPublicUser = (row: Record<string, unknown>): AuthUser => ({
   displayName: String(row.display_name),
   bio: String(row.bio ?? ''),
   locale: String(row.locale ?? 'zh-CN'),
+  avatarSeed: String(row.avatar_seed ?? ''),
+  avatarUrl: String(row.avatar_url ?? ''),
   isAdmin: Boolean(row.is_admin),
   status: String(row.status ?? 'active'),
   muteUntil: String(row.mute_until ?? ''),
@@ -36,6 +40,8 @@ const hashPassword = (password: string, salt = randomBytes(16).toString('hex')) 
 });
 
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
+const DUMMY_PASSWORD_SALT = '00000000000000000000000000000000';
+const DUMMY_PASSWORD_HASH = hashPassword('dummy-password', DUMMY_PASSWORD_SALT).hash;
 
 export const createUser = (input: {
   username: string;
@@ -44,7 +50,6 @@ export const createUser = (input: {
   locale?: string;
 }): { user: AuthUser; token: string } => {
   const now = new Date().toISOString();
-  const count = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
   const password = hashPassword(input.password);
   const result = db
     .prepare(
@@ -59,7 +64,7 @@ export const createUser = (input: {
       password.hash,
       password.salt,
       input.locale ?? 'zh-CN',
-      Number(count.count === 0),
+      0,
       now,
       now
     );
@@ -72,13 +77,13 @@ export const createUser = (input: {
 
 export const verifyUser = (username: string, password: string): { user: AuthUser; token: string } | null => {
   const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as Record<string, unknown> | undefined;
-  if (!row) return null;
 
-  const expected = Buffer.from(String(row.password_hash), 'hex');
-  const actual = Buffer.from(hashPassword(password, String(row.password_salt)).hash, 'hex');
+  const expected = Buffer.from(String(row?.password_hash ?? DUMMY_PASSWORD_HASH), 'hex');
+  const actual = Buffer.from(hashPassword(password, String(row?.password_salt ?? DUMMY_PASSWORD_SALT)).hash, 'hex');
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     return null;
   }
+  if (!row) return null;
 
   const user = toPublicUser(row);
   const token = createSession(user.id);
@@ -89,6 +94,7 @@ export const createSession = (userId: number): string => {
   const token = randomBytes(32).toString('hex');
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 30).toISOString();
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?').run(userId, now.toISOString());
   db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(
     hashToken(token),
     userId,

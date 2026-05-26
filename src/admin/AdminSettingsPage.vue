@@ -28,8 +28,13 @@ const load = async () => {
 
 const save = async () => {
   saved.value = false;
-  Object.assign(settings, (await saveAdminSettings(settings)).settings);
-  saved.value = true;
+  error.value = '';
+  try {
+    Object.assign(settings, (await saveAdminSettings(settings)).settings);
+    saved.value = true;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存失败';
+  }
 };
 
 onMounted(load);

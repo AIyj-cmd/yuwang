@@ -1,5 +1,5 @@
-export const AI_JUDGE_SCORE_VERSION = 'ai_judge_v1';
-export const AI_JUDGE_FALLBACK_SCORE_VERSION = 'ai_judge_v1_fallback';
+export const AI_JUDGE_SCORE_VERSION = 'ai_judge_v2_10pt';
+export const AI_JUDGE_FALLBACK_SCORE_VERSION = 'ai_judge_v2_10pt_fallback';
 export const AI_JUDGE_PROMPT_KEY = 'ai_judge_system_prompt';
 export const AI_JUDGE_PROMPT_NAME = 'AI 评分裁判系统提示词';
 export const AI_JUDGE_PROVIDER_DEEPSEEK = 'deepseek';
@@ -64,9 +64,12 @@ export type ScoreBreakdown = {
   outcomeBonus?: number;
   specialBonuses?: AiSpecialBonus[];
   specialBonusTotal?: number;
+  specialBonusScore?: number;
+  descriptionQualityScore?: number;
   rawScore?: number;
   displayScore?: number;
   fishPowerScore: number;
+  singleRecordScoreMax?: number;
   scoreVersion: string;
   aiProvider?: string;
   aiModel?: string;
@@ -78,4 +81,3 @@ export type ScoreBreakdown = {
   reason?: string;
   comment?: string;
 };
-

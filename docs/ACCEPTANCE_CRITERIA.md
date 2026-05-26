@@ -1,27 +1,32 @@
 # ACCEPTANCE_CRITERIA.md
 
-## 工会经营系统 v1 / 第一阶段
+## Single Record Fish Power Score 0-10
 
-- [x] `npm run typecheck` 通过。
-- [x] `npm run build` 通过。
-- [x] 使用隔离 SQLite 工作目录完成 Fastify inject 烟测，覆盖创建、扣费、权限、退出/移除、公开过滤和后台全量可见。
-- [x] `POST /api/guilds` 要求登录，余额不足返回 `鱼鳞不足，今天再摸一会儿？`，事务回滚且不新增 guild。
-- [x] 用户余额 >= 50 时创建成功，返回 `guild`、`wallet`、`transaction` 和 `"工会创建成功，会长已上任。"`。
-- [x] 创建成功后 `user_wallets.fish_scale_balance` 减少 50。
-- [x] 创建成功后 `fish_scale_transactions.amount=-50`、`reason='guild_creation_spend'`、`related_type='guild'`、`related_id=新工会 ID`。
-- [x] 创建成功后 `guilds.source='user'`、`owner_user_id=当前用户 ID`、`created_by_user_id=当前用户 ID`、`join_policy='open'`、`status='active'`。
-- [x] 创建成功后 `guild_members.role='owner'`，`users.guild_id=新工会 ID`。
-- [x] 每个用户最多拥有 1 个 `source='user' AND status!='banned'` 的工会，重复创建返回 409。
-- [x] 工会名称重复返回 409。
-- [x] 工会名称或描述包含疑似敏感内容时返回 400。
-- [x] 非 owner 修改工会返回 403。
-- [x] 普通用户修改官方工会返回 403。
-- [x] owner 可以修改自己创建的用户工会，更新 `updated_at`。
-- [x] 普通成员可以退出工会，且不修改历史 `slacking_records.guild_id`。
-- [x] owner 不能直接退出工会。
-- [x] owner 可以踢出普通成员。
-- [x] owner 不能踢自己，不能踢 owner。
-- [x] `GET /api/guilds` 不返回 hidden、banned、inactive 工会。
-- [x] `GET /api/guilds/:id` 对 hidden、banned、inactive 工会返回 404。
-- [x] `GET /api/admin/guilds` 仍返回全部工会。
-- [x] 未修改前端页面、组件、样式、布局或路由页面。
+- [x] `fishPowerScore` represents a single-record Fish Power Score in `[0, 10]`.
+- [x] New records are scored by backend code, not by client-supplied score fields.
+- [x] AI judge success path clamps final `fishPowerScore` to `[0, 10]`.
+- [x] AI judge fallback path clamps final `fishPowerScore` to `[0, 10]`.
+- [x] Negative, missing, non-finite, or out-of-range final scores are normalized before insert.
+- [x] SQLite triggers reject future inserts or updates with `fish_power_score` outside `[0, 10]`.
+- [x] Existing records with `fish_power_score > 10` are migrated idempotently with `ROUND(MIN(10, MAX(0, fish_power_score / 12)), 1)`.
+- [x] Existing records already in `[0, 10]` are not repeatedly divided on later startups.
+- [x] `users.total_score` and response `cumulativeScore` remain cumulative sums and are not capped at 10.
+- [x] Title thresholds are adjusted for the new cumulative scale so progression remains reachable.
+- [x] Leaderboards keep the same response shape and aggregate the new record score semantics.
+- [x] Wallet balances, fish-scale transactions, interaction rewards, guild contribution, group goals, review status, user status, and system settings are not converted into 0-10 fields.
+- [x] Existing `fishPowerScore`/`score`/`breakdown` response field names are preserved for frontend compatibility.
+- [x] Admin prompt test and record detail use the same clamped backend scoring semantics.
+- [x] No `src/` frontend page, component, style, layout, route, or visual copy file is modified for this change.
+- [x] `package.json` and lockfile are not modified for this change.
+
+Verification required before completion:
+
+- [ ] `npm run typecheck` (currently blocked by existing `src/` type errors outside this backend scoring change).
+- [ ] `npm run build` (currently blocked by the same existing `src/` type errors).
+- [x] `npx tsc -p tsconfig.server.json --noEmit`
+- [x] Smoke test ordinary record submission returns `fishPowerScore` in `[0, 10]`.
+- [x] Smoke test exaggerated/high-risk record submission still returns `fishPowerScore <= 10`.
+- [x] Smoke test abnormal AI-style scoring input is clamped to `10`.
+- [x] Smoke test AI fallback scoring remains in `[0, 10]`.
+- [x] Smoke test `GET /api/leaderboards` returns without error.
+- [x] Smoke test admin auth/dashboard endpoints still return expected auth/config status.

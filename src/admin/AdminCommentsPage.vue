@@ -21,14 +21,24 @@ const load = async () => {
 
 const act = async (comment: AdminComment, action: 'approve' | 'hide' | 'reject' | 'restore') => {
   if ((action === 'hide' || action === 'reject') && !window.confirm(`确认处理评论 #${comment.id}？`)) return;
-  await updateAdminCommentStatus(comment.id, { action, reviewNote: '管理后台处理' });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminCommentStatus(comment.id, { action, reviewNote: '管理后台处理' });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 const remove = async (comment: AdminComment) => {
   if (!window.confirm(`确认删除评论 #${comment.id}？`)) return;
-  await deleteAdminComment(comment.id);
-  await load();
+  error.value = '';
+  try {
+    await deleteAdminComment(comment.id);
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除失败';
+  }
 };
 
 onMounted(load);

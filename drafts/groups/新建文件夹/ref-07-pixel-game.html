@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — 像素游戏背包</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+SC:wght@400;700&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; image-rendering: pixelated; }
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: #202028;
+      color: #fff;
+      min-height: 100vh;
+    }
+    /* 像素边框工具类 */
+    .pixel-box {
+      border: 4px solid #fff;
+      box-shadow: 8px 8px 0 rgba(0,0,0,0.5), inset 0 0 0 4px #000;
+      background: #3e3e4e;
+    }
+    .pixel-btn {
+      display: inline-block; background: #e76f51; border: 4px solid #fff;
+      padding: 10px 18px; font-family: 'Press Start 2P', cursive; font-size: 0.6rem;
+      color: #fff; cursor: pointer; box-shadow: 4px 4px 0 #000;
+      transition: all 0.1s;
+    }
+    .pixel-btn:hover { transform: translate(2px,2px); box-shadow: 2px 2px 0 #000; }
+    .pixel-btn.blue { background: #2a9d8f; }
+    .pixel-btn.gold { background: #e9c46a; color: #000; }
+
+    .game-page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    /* 顶部状态条 */
+    .status-bar {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;
+    }
+    @media (max-width: 768px) { .status-bar { grid-template-columns: 1fr 1fr; } }
+    .stat-block {
+      background: #2a2a3a; border: 4px solid #555; padding: 14px; text-align: center;
+    }
+    .stat-block .label { font-family: 'Press Start 2P', cursive; font-size: 0.5rem; color: #888; margin-bottom: 8px; }
+    .stat-block .value { font-family: 'Press Start 2P', cursive; font-size: 1rem; color: #e9c46a; }
+
+    /* 主区域：背包网格 */
+    .main-area { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+    @media (max-width: 900px) { .main-area { grid-template-columns: 1fr; } }
+
+    .inventory-title {
+      font-family: 'Press Start 2P', cursive; font-size: 0.75rem; color: #e9c46a;
+      margin-bottom: 16px; padding-bottom: 10px; border-bottom: 4px solid #555;
+    }
+
+    .inv-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px;
+    }
+    .inv-slot {
+      aspect-ratio: 1; background: #2a2a3a; border: 4px solid #555;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; position: relative; transition: all 0.1s;
+    }
+    .inv-slot:hover { border-color: #fff; background: #3a3a4e; }
+    .inv-slot.active { border-color: #e9c46a; box-shadow: 0 0 0 4px rgba(233,196,106,0.3); }
+    .inv-slot .icon { font-size: 2.5rem; margin-bottom: 6px; }
+    .inv-slot .name {
+      font-family: 'Press Start 2P', cursive; font-size: 0.45rem; color: #ccc; text-align: center; line-height: 1.4;
+    }
+    .inv-slot .count {
+      position: absolute; bottom: 4px; right: 4px;
+      font-family: 'Press Start 2P', cursive; font-size: 0.5rem; color: #e9c46a;
+    }
+    .inv-slot.empty { border-style: dashed; opacity: 0.4; }
+    .inv-slot.empty .icon { font-size: 1.5rem; color: #555; }
+
+    /* 右侧面板：装备详情 */
+    .item-detail {
+      background: #2a2a3a; border: 4px solid #555; padding: 20px;
+    }
+    .item-detail .eq-icon { font-size: 4rem; text-align: center; margin-bottom: 12px; }
+    .item-detail h3 {
+      font-family: 'Press Start 2P', cursive; font-size: 0.7rem; color: #e9c46a;
+      text-align: center; margin-bottom: 16px; line-height: 1.5;
+    }
+    .eq-stat {
+      display: flex; justify-content: space-between; padding: 8px 0;
+      border-bottom: 2px solid #3a3a4e; font-size: 0.8rem;
+    }
+    .eq-stat label { color: #888; }
+    .eq-stat b { color: #2a9d8f; }
+    .rarity { text-align: center; margin: 12px 0; font-family: 'Press Start 2P', cursive; font-size: 0.5rem; color: #e76f51; }
+
+    .hp-bar { height: 16px; background: #1a1a2e; border: 2px solid #fff; margin: 8px 0; position: relative; }
+    .hp-bar .fill { height: 100%; background: #e9c46a; }
+    .hp-bar span { position: absolute; right: 4px; top: 0; font-family: 'Press Start 2P', cursive; font-size: 0.45rem; }
+
+    /* 下方：战斗记录 */
+    .battle-log {
+      margin-top: 24px; background: #1a1a2e; border: 4px solid #555; padding: 16px;
+      font-family: 'Press Start 2P', cursive; font-size: 0.55rem; line-height: 1.8;
+      max-height: 200px; overflow-y: auto; color: #aaa;
+    }
+    .battle-log .turn { color: #e9c46a; }
+    .battle-log .dmg { color: #e76f51; }
+    .battle-log .heal { color: #2a9d8f; }
+
+    /* 操作栏 */
+    .action-bar {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px;
+    }
+    @media (max-width: 768px) { .action-bar { grid-template-columns: 1fr; } }
+    .action-panel { background: #2a2a3a; border: 4px solid #555; padding: 20px; }
+    .action-panel h4 { font-family: 'Press Start 2P', cursive; font-size: 0.6rem; color: #aaa; margin-bottom: 12px; }
+    .action-panel input, .action-panel textarea, .action-panel select {
+      width: 100%; background: #1a1a2e; border: 4px solid #444; padding: 10px;
+      color: #fff; font-family: 'Noto Sans SC', sans-serif; font-size: 0.9rem; margin-bottom: 10px; outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-page">
+    <!-- 状态条 -->
+    <div class="status-bar">
+      <div class="stat-block">
+        <div class="label">GROUPS</div>
+        <div class="value">05</div>
+      </div>
+      <div class="stat-block">
+        <div class="label">RECORDS</div>
+        <div class="value">127</div>
+      </div>
+      <div class="stat-block">
+        <div class="label">SCALE</div>
+        <div class="value">842</div>
+      </div>
+      <div class="stat-block">
+        <div class="label">GOAL</div>
+        <div class="value" style="color:#e76f51;">12/20</div>
+      </div>
+    </div>
+
+    <div class="main-area">
+      <!-- 背包区 -->
+      <div>
+        <div class="inventory-title">INVENTORY / MY GROUPS</div>
+        <div class="inv-grid">
+          <div class="inv-slot active">
+            <div class="icon">🍵</div>
+            <div class="name">地下<br>茶水间</div>
+            <div class="count">x34</div>
+          </div>
+          <div class="inv-slot">
+            <div class="icon">😶</div>
+            <div class="name">发呆<br>互助会</div>
+            <div class="count">x18</div>
+          </div>
+          <div class="inv-slot">
+            <div class="icon">🚪</div>
+            <div class="name">会议室<br>占领联盟</div>
+            <div class="count">x56</div>
+          </div>
+          <div class="inv-slot">
+            <div class="icon">🎭</div>
+            <div class="name">演技<br>评级派</div>
+            <div class="count">x07</div>
+          </div>
+          <div class="inv-slot">
+            <div class="icon">📰</div>
+            <div class="name">读报<br>协会</div>
+            <div class="count">x12</div>
+          </div>
+          <div class="inv-slot empty">
+            <div class="icon">+</div>
+            <div class="name">EMPTY<br>SLOT</div>
+          </div>
+          <div class="inv-slot empty">
+            <div class="icon">+</div>
+            <div class="name">EMPTY<br>SLOT</div>
+          </div>
+          <div class="inv-slot empty">
+            <div class="icon">+</div>
+            <div class="name">EMPTY<br>SLOT</div>
+          </div>
+        </div>
+
+        <div class="battle-log">
+          <div><span class="turn">TURN 01:</span> 匿名鱼_A 使用了「假装写周报」造成 <span class="dmg">86.4</span> 点伤害!</div>
+          <div><span class="turn">TURN 02:</span> 摸鱼专家_B 使用了「没带充电器」造成 <span class="dmg">72.0</span> 点伤害!</div>
+          <div><span class="turn">TURN 03:</span> 工位幽灵_C 使用了「走廊接水」造成 <span class="dmg">54.6</span> 点伤害!</div>
+          <div><span class="turn">TURN 04:</span> 键盘演奏家_D 使用了「厕所看小说」造成 <span class="dmg">91.2</span> 点暴击!</div>
+          <div><span class="turn">TURN 05:</span> 茶水间诗人_E 使用了「一杯喝下午」恢复 <span class="heal">38.5</span> 点理智!</div>
+        </div>
+      </div>
+
+      <!-- 装备详情 -->
+      <div>
+        <div class="inventory-title">EQUIPMENT / DETAIL</div>
+        <div class="item-detail">
+          <div class="eq-icon">🍵</div>
+          <h3>地下茶水间<br>[传说]</h3>
+          <div class="rarity">★★★★★ LEGENDARY</div>
+          <div class="eq-stat"><label>攻击力</label><b>892</b></div>
+          <div class="eq-stat"><label>耐久度</label><b>34</b></div>
+          <div class="eq-stat"><label>速度</label><b>+7</b></div>
+          <div class="eq-stat"><label>稀有度</label><b>公开</b></div>
+          <div style="margin-top:12px;">
+            <div style="font-size:0.7rem;color:#888;margin-bottom:4px;">WEEKLY GOAL</div>
+            <div class="hp-bar"><div class="fill" style="width:60%"></div><span>12/20</span></div>
+          </div>
+          <div style="margin-top:16px;">
+            <button class="pixel-btn blue" style="width:100%;margin-bottom:8px;">USE ITEM</button>
+            <button class="pixel-btn" style="width:100%;">CHALLENGE · 30</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <div class="action-panel">
+        <h4>JOIN PARTY</h4>
+        <input type="text" placeholder="INVITE CODE" />
+        <button class="pixel-btn gold" style="width:100%;">JOIN GROUP</button>
+      </div>
+      <div class="action-panel">
+        <h4>FORGE NEW</h4>
+        <input type="text" placeholder="ITEM NAME" />
+        <textarea rows="2" placeholder="DESCRIPTION"></textarea>
+        <select><option>PUBLIC</option><option>INVITE</option></select>
+        <button class="pixel-btn blue" style="width:100%;">CREATE · 50 SCALE</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

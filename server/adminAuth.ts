@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { db } from './database.js';
 
@@ -9,6 +9,7 @@ const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 8;
 export type AdminSession = {
   username: string;
   expiresAt: string;
+  tokenHash: string;
 };
 
 const adminConfig = () => ({
@@ -23,6 +24,7 @@ const isAdminConfigured = (): boolean => {
 };
 
 const sign = (payload: string): string => createHmac('sha256', adminConfig().sessionSecret).update(payload).digest('base64url');
+const hashAdminToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
 const safeEqual = (a: string, b: string): boolean => {
   const left = Buffer.from(a);
@@ -35,7 +37,11 @@ const parseCookies = (header?: string): Record<string, string> => {
   for (const part of (header ?? '').split(';')) {
     const [name, ...value] = part.trim().split('=');
     if (!name || value.length === 0) continue;
-    cookies[name] = decodeURIComponent(value.join('='));
+    try {
+      cookies[name] = decodeURIComponent(value.join('='));
+    } catch {
+      continue;
+    }
   }
   return cookies;
 };
@@ -63,46 +69,93 @@ export const clearAdminCookie = (reply: FastifyReply): void => {
 
 export const createAdminSessionToken = (username: string): string => {
   const now = Math.floor(Date.now() / 1000);
+  const nonce = randomBytes(12).toString('hex');
+  const expiresAt = new Date((now + ADMIN_SESSION_TTL_SECONDS) * 1000).toISOString();
   const payload = Buffer.from(
     JSON.stringify({
       username,
       iat: now,
       exp: now + ADMIN_SESSION_TTL_SECONDS,
-      nonce: randomBytes(12).toString('hex')
+      nonce
     })
   ).toString('base64url');
-  return `${payload}.${sign(payload)}`;
+  const token = `${payload}.${sign(payload)}`;
+  db.prepare("DELETE FROM admin_sessions WHERE expires_at <= ? OR revoked_at != ''").run(new Date().toISOString());
+  db.prepare('INSERT INTO admin_sessions (token_hash, username, nonce, expires_at, created_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    hashAdminToken(token),
+    username,
+    nonce,
+    expiresAt,
+    new Date(now * 1000).toISOString(),
+    ''
+  );
+  return token;
 };
 
 export const getAdminSession = (request: FastifyRequest): AdminSession | null => {
   if (!isAdminConfigured()) return null;
   const token = parseCookies(request.headers.cookie)[ADMIN_COOKIE_NAME];
   if (!token || !token.includes('.')) return null;
-  const [payload, signature] = token.split('.');
+  const tokenParts = token.split('.');
+  if (tokenParts.length !== 2) return null;
+  const [payload, signature] = tokenParts;
   if (!payload || !signature || !safeEqual(signature, sign(payload))) return null;
 
+  let decoded: { username?: string; exp?: number; nonce?: string };
   try {
-    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+    decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
       username?: string;
       exp?: number;
-    };
-    if (decoded.username !== adminConfig().username || !decoded.exp || decoded.exp <= Math.floor(Date.now() / 1000)) {
-      return null;
-    }
-    return {
-      username: decoded.username,
-      expiresAt: new Date(decoded.exp * 1000).toISOString()
+      nonce?: string;
     };
   } catch {
     return null;
   }
+
+  if (decoded.username !== adminConfig().username || !decoded.exp || !decoded.nonce || decoded.exp <= Math.floor(Date.now() / 1000)) {
+    return null;
+  }
+
+  const tokenHash = hashAdminToken(token);
+  let stored: { expires_at: string } | undefined;
+  try {
+    stored = db
+      .prepare(
+        `
+          SELECT expires_at
+          FROM admin_sessions
+          WHERE token_hash = ?
+            AND username = ?
+            AND nonce = ?
+            AND revoked_at = ''
+            AND expires_at > ?
+          LIMIT 1
+        `
+      )
+      .get(tokenHash, decoded.username, decoded.nonce, new Date().toISOString()) as { expires_at: string } | undefined;
+  } catch (error) {
+    request.log.error({ err: error }, 'failed to query admin session');
+    throw error;
+  }
+  if (!stored) return null;
+  return {
+    username: decoded.username,
+    expiresAt: String(stored.expires_at),
+    tokenHash
+  };
+};
+
+export const revokeAdminSession = (request: FastifyRequest): void => {
+  const token = parseCookies(request.headers.cookie)[ADMIN_COOKIE_NAME];
+  if (!token) return;
+  db.prepare('UPDATE admin_sessions SET revoked_at = ? WHERE token_hash = ?').run(new Date().toISOString(), hashAdminToken(token));
 };
 
 export const verifyAdminCredentials = async (username: string, password: string): Promise<boolean> => {
   if (!isAdminConfigured()) return false;
   const config = adminConfig();
-  if (username !== config.username) return false;
-  return bcrypt.compare(password, config.passwordHash);
+  const passwordMatches = await bcrypt.compare(password, config.passwordHash);
+  return username === config.username && passwordMatches;
 };
 
 export const requireAdminSession = (request: FastifyRequest, reply: FastifyReply): AdminSession | null => {

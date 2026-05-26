@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小组 — 长滚动冒险</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Noto+Sans+SC:wght@400;700;900&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Noto Sans SC', sans-serif; color: #111; }
+
+    /* 章节通用 */
+    .chapter {
+      min-height: 100vh; padding: 60px 24px; position: relative;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .chapter-inner { max-width: 900px; margin: 0 auto; width: 100%; }
+    .chapter-num {
+      font-family: 'Noto Serif SC', serif; font-size: 6rem; font-weight: 900;
+      color: rgba(0,0,0,0.08); position: absolute; top: 40px; left: 40px; line-height: 1;
+    }
+
+    /* 第一章：封面 */
+    .ch-cover { background: #ff6b6b; border-bottom: 8px solid #111; }
+    .ch-cover h1 {
+      font-family: 'Noto Serif SC', serif; font-size: 4rem; font-weight: 900; line-height: 1;
+      text-transform: uppercase; letter-spacing: -0.02em;
+    }
+    .ch-cover .sub { font-size: 1.2rem; margin-top: 16px; max-width: 500px; line-height: 1.6; }
+    .scroll-hint {
+      margin-top: 40px; font-size: 0.85rem; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 8px; animation: bounceDown 2s infinite;
+    }
+    @keyframes bounceDown { 0%,100%{transform:translateY(0)} 50%{transform:translateY(8px)} }
+
+    /* 第二章：加入 */
+    .ch-join { background: #ffe66d; }
+    .ch-join .chapter-num { color: rgba(0,0,0,0.1); }
+    .big-form input, .big-form textarea, .big-form select {
+      width: 100%; border: 4px solid #111; padding: 16px; font-size: 1.1rem; font-family: inherit;
+      background: #fff; margin-bottom: 16px; outline: none;
+    }
+    .big-form button {
+      background: #111; color: #fff; border: 4px solid #111; padding: 16px 32px;
+      font-size: 1rem; font-weight: 700; cursor: pointer; box-shadow: 6px 6px 0 rgba(0,0,0,0.2);
+    }
+    .big-form button:hover { background: #fff; color: #111; }
+
+    /* 第三章：列表旅程 */
+    .ch-list { background: #f7f5f0; }
+    .group-stop {
+      border-left: 8px solid #111; padding: 32px; margin-bottom: 32px;
+      background: #fff; box-shadow: 8px 8px 0 rgba(0,0,0,0.08);
+      position: relative;
+    }
+    .group-stop::before {
+      content: attr(data-num); position: absolute; top: -20px; right: 20px;
+      font-family: 'Noto Serif SC', serif; font-size: 5rem; font-weight: 900; color: rgba(0,0,0,0.06);
+    }
+    .group-stop h3 { font-size: 1.6rem; font-weight: 900; margin-bottom: 10px; }
+    .group-stop p { font-size: 1rem; color: #444; line-height: 1.7; max-width: 600px; }
+    .group-stop .stats { display: flex; gap: 24px; margin-top: 16px; font-size: 0.85rem; font-weight: 700; }
+    .group-stop.active { border-left-color: #ff6b6b; background: #fff5f5; }
+
+    /* 第四章：挑战Boss */
+    .ch-boss { background: #111; color: #fff; }
+    .ch-boss .chapter-num { color: rgba(255,255,255,0.06); }
+    .boss-bar {
+      height: 48px; background: #333; border: 4px solid #fff; margin: 24px 0; position: relative;
+    }
+    .boss-bar::after { content:''; position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: #ff6b6b; }
+    .boss-bar span { position: absolute; right: 16px; top: 10px; font-weight: 700; }
+    .attack-btn {
+      display: inline-block; background: #ff6b6b; color: #fff; border: 4px solid #fff;
+      padding: 16px 40px; font-size: 1.1rem; font-weight: 700; cursor: pointer;
+      box-shadow: 6px 6px 0 rgba(255,255,255,0.2); margin-right: 12px; margin-bottom: 12px;
+    }
+    .attack-btn:hover { background: #fff; color: #111; }
+
+    /* 第五章：结局/记录流 */
+    .ch-end { background: #4ecdc4; }
+    .ch-end .chapter-num { color: rgba(0,0,0,0.08); }
+    .feed-timeline { position: relative; padding-left: 30px; }
+    .feed-timeline::before {
+      content:''; position: absolute; left: 8px; top: 0; bottom: 0; width: 4px; background: #111;
+    }
+    .t-node { position: relative; margin-bottom: 24px; }
+    .t-node::before {
+      content:''; position: absolute; left: -30px; top: 4px; width: 16px; height: 16px;
+      background: #111; border: 3px solid #4ecdc4; border-radius: 50%;
+    }
+    .t-node b { font-size: 1rem; }
+    .t-node p { font-size: 0.9rem; margin-top: 4px; }
+
+    /* 过渡装饰 */
+    .divider-block {
+      height: 200px; background: #111; display: flex; align-items: center; justify-content: center;
+    }
+    .divider-block span { color: #fff; font-family: 'Noto Serif SC', serif; font-size: 2rem; font-weight: 900; }
+
+    @media (max-width: 768px) {
+      .ch-cover h1 { font-size: 2.5rem; }
+      .chapter-num { font-size: 4rem; }
+    }
+  </style>
+</head>
+<body>
+  <section class="chapter ch-cover">
+    <div class="chapter-inner">
+      <div class="chapter-num">01</div>
+      <h1>小组<br>冒险记</h1>
+      <p class="sub">五个据点，一百二十七条记录。你的摸鱼之旅从这里开始。每个小组都是一个关卡，每条记录都是一次战斗。</p>
+      <div class="scroll-hint">↓ 向下滚动开始冒险</div>
+    </div>
+  </section>
+
+  <div class="divider-block"><span>▲ ▼</span></div>
+
+  <section class="chapter ch-join">
+    <div class="chapter-inner">
+      <div class="chapter-num">02</div>
+      <h2 style="font-size:2rem;font-weight:900;margin-bottom:24px;">建立连接</h2>
+      <p style="font-size:1rem;margin-bottom:24px;max-width:500px;">输入邀请码加入已有据点，或者消耗 50 鱼鳞建立你自己的地下组织。</p>
+      <div class="big-form">
+        <input type="text" placeholder="邀请码，例如 X7K9M2" />
+        <button>加入小组</button>
+      </div>
+      <div class="big-form" style="margin-top:40px;">
+        <input type="text" placeholder="新据点名称" />
+        <textarea rows="3" placeholder="据点公告与规则"></textarea>
+        <select><option>公开据点</option><option>邀请码据点</option></select>
+        <button style="background:#111;color:#ffe66d;">创建据点 · 50 鱼鳞</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-block" style="background:#ffe66d;"><span style="color:#111;">◆ ◆ ◆</span></div>
+
+  <section class="chapter ch-list">
+    <div class="chapter-inner">
+      <div class="chapter-num">03</div>
+      <h2 style="font-size:2rem;font-weight:900;margin-bottom:32px;">途经的据点</h2>
+
+      <div class="group-stop active" data-num="01">
+        <h3>地下茶水间</h3>
+        <p>这是你的主要据点。三十四位成员在这里交换情报，八百九十二条记录构成了这座堡垒的历史。本周的目标是假装开会，还差八条记录。</p>
+        <div class="stats"><span>34 成员</span><span>892 记录</span><span>公开</span></div>
+      </div>
+      <div class="group-stop" data-num="02">
+        <h3>带薪发呆互助会</h3>
+        <p>一片寂静的绿洲。十八位成员在这里练习什么都不做的艺术。禁止讨论工作——这是唯一严格的规则。</p>
+        <div class="stats"><span>18 成员</span><span>445 记录</span><span>邀请制</span></div>
+      </div>
+      <div class="group-stop" data-num="03">
+        <h3>会议室占领联盟</h3>
+        <p>最大的游击组织。五十六位成员精通会议室占领战术，从预定空房间到带着没电的笔记本假装演示。</p>
+        <div class="stats"><span>56 成员</span><span>1.2k 记录</span><span>公开</span></div>
+      </div>
+      <div class="group-stop" data-num="04">
+        <h3>假装很忙演技派</h3>
+        <p>奥斯卡分会场。七位演技评级大师建立了严格的评级体系，从"皱眉看屏幕"到"愤怒敲键盘"。</p>
+        <div class="stats"><span>7 成员</span><span>67 记录</span><span>邀请制</span></div>
+      </div>
+      <div class="group-stop" data-num="05">
+        <h3>卫生间读报协会</h3>
+        <p>仅限内部成员。日报精选与深度评论。十二位成员保持着一个不成文的规矩：每次不少于十五分钟。</p>
+        <div class="stats"><span>12 成员</span><span>198 记录</span><span>邀请制</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-block"><span>⚔ ⚔ ⚔</span></div>
+
+  <section class="chapter ch-boss">
+    <div class="chapter-inner">
+      <div class="chapter-num">04</div>
+      <h2 style="font-size:2rem;font-weight:900;margin-bottom:16px;color:#ff6b6b;">BOSS 战：本周目标</h2>
+      <p style="font-size:1rem;color:#aaa;max-width:500px;margin-bottom:24px;">假装开会 — 在任意可摊开笔记本的场所提交记录。达成后全员获得 50 鱼鳞。</p>
+      <div class="boss-bar"><span>12 / 20</span></div>
+      <div>
+        <button class="attack-btn">发起：假装开会 · 30 鱼鳞</button>
+        <button class="attack-btn">发起：走廊漫游 · 30 鱼鳞</button>
+      </div>
+      <div style="margin-top:40px;">
+        <h3 style="font-size:1rem;color:#888;margin-bottom:12px;">战友列表</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <span style="border:2px solid #555;padding:6px 14px;font-size:0.85rem;">匿名鱼_A</span>
+          <span style="border:2px solid #555;padding:6px 14px;font-size:0.85rem;">摸鱼专家_B</span>
+          <span style="border:2px solid #555;padding:6px 14px;font-size:0.85rem;">工位幽灵_C</span>
+          <span style="border:2px solid #555;padding:6px 14px;font-size:0.85rem;">键盘演奏家_D</span>
+          <span style="border:2px solid #555;padding:6px 14px;font-size:0.85rem;">茶水间诗人_E</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-block" style="background:#4ecdc4;"><span style="color:#111;">★ ★ ★</span></div>
+
+  <section class="chapter ch-end">
+    <div class="chapter-inner">
+      <div class="chapter-num">05</div>
+      <h2 style="font-size:2rem;font-weight:900;margin-bottom:32px;">战绩年表</h2>
+      <div class="feed-timeline">
+        <div class="t-node"><b>匿名鱼_A · 86.4</b><p>45 分钟 · 桌面伪装 · 假装在写周报</p></div>
+        <div class="t-node"><b>摸鱼专家_B · 72.0</b><p>30 分钟 · 会议室潜伏 · 带了笔记本没插电</p></div>
+        <div class="t-node"><b>工位幽灵_C · 54.6</b><p>20 分钟 · 走廊漫游 · 接水接了八百米</p></div>
+        <div class="t-node"><b>键盘演奏家_D · 91.2</b><p>60 分钟 · 厕所避难 · 带了一整章小说</p></div>
+        <div class="t-node"><b>茶水间诗人_E · 38.5</b><p>15 分钟 · 茶水间滞留 · 泡了一杯喝了一下午</p></div>
+      </div>
+      <div style="margin-top:40px;text-align:center;">
+        <p style="font-size:1.2rem;font-weight:700;">未完待续...</p>
+        <p style="font-size:0.9rem;color:#444;margin-top:8px;">下一章：赛季鱼王榜 · 敬请期待</p>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

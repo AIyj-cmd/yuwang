@@ -11,6 +11,21 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    cssMinify: false
+    cssMinify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/vue') || id.includes('node_modules/vue-router')) {
+            return 'vendor';
+          }
+          if (id.includes('node_modules/@mmt817/pixel-ui')) {
+            return 'pixel-ui';
+          }
+          if (id.includes('/src/admin/')) {
+            return 'admin';
+          }
+        }
+      }
+    }
   }
 });

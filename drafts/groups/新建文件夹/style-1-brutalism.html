@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的小组 — 新粗野主义</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Space Grotesk', 'Arial Black', sans-serif;
+      background: #ff6b6b;
+      color: #000;
+      font-size: 16px;
+      line-height: 1.35;
+    }
+    .page { max-width: 1200px; margin: 0 auto; padding: 0 20px 80px; }
+    .header {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      padding: 50px 0 36px; border-bottom: 5px solid #000;
+    }
+    .header h1 { font-size: 4.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: -0.04em; line-height: 0.9; }
+    .header-badge { background: #ffe66d; border: 4px solid #000; padding: 12px 20px; font-size: 1.1rem; font-weight: 700; box-shadow: 6px 6px 0 #000; transform: rotate(-2deg); }
+
+    .section-block { margin-top: 48px; padding: 28px; background: #fff; border: 4px solid #000; box-shadow: 8px 8px 0 #000; }
+    .section-block h2 { font-size: 2rem; font-weight: 700; text-transform: uppercase; margin-bottom: 18px; letter-spacing: -0.02em; }
+    .section-block.alt { background: #4ecdc4; }
+    .section-block.warn { background: #ffe66d; }
+
+    .joinbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .joinbar input, .field input, .field textarea, .field select {
+      border: 3px solid #000; padding: 12px 14px; font-family: inherit; font-size: 1rem; outline: none; box-shadow: 4px 4px 0 #000;
+    }
+    .joinbar input { flex: 1; min-width: 200px; }
+    .btn {
+      display: inline-block; background: #000; color: #fff; border: 4px solid #000; padding: 12px 24px;
+      font-size: 1rem; font-weight: 700; text-transform: uppercase; cursor: pointer; box-shadow: 4px 4px 0 #ff6b6b; transition: all .1s;
+    }
+    .btn:hover { background: #fff; color: #000; box-shadow: 6px 6px 0 #000; }
+    .btn-soft { background: #fff; color: #000; border: 3px solid #000; box-shadow: 3px 3px 0 #000; }
+    .btn-soft:hover { background: #000; color: #fff; }
+
+    .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .field span { font-weight: 700; text-transform: uppercase; font-size: 0.875rem; }
+    .field input, .field textarea, .field select { width: 100%; max-width: 560px; }
+    .hint { font-size: 0.875rem; font-weight: 700; margin-top: 8px; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; margin-top: 20px; }
+    .card {
+      background: #fff; border: 4px solid #000; padding: 22px; box-shadow: 8px 8px 0 #000;
+      transition: transform .1s, box-shadow .1s; cursor: pointer;
+    }
+    .card:hover { transform: translate(-4px, -4px); box-shadow: 12px 12px 0 #000; }
+    .card.active { background: #4ecdc4; }
+    .card h3 { font-size: 1.35rem; font-weight: 700; text-transform: uppercase; margin-bottom: 10px; }
+    .card p { font-size: 0.9375rem; margin-bottom: 14px; }
+    .tag {
+      display: inline-block; background: #ffe66d; border: 3px solid #000; padding: 4px 10px;
+      font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-right: 8px; margin-bottom: 10px;
+    }
+    .tag.dark { background: #000; color: #fff; }
+    .stats-bar { display: flex; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 3px solid #000; }
+    .stat { font-size: 0.875rem; font-weight: 700; }
+    .stat span { display: block; font-size: 1.6rem; }
+
+    .detail-grid { display: grid; grid-template-columns: 1fr; gap: 24px; margin-top: 20px; }
+    @media (min-width: 900px) { .detail-grid { grid-template-columns: 1fr 1fr; } }
+
+    .progress { height: 32px; background: #fff; border: 4px solid #000; margin-top: 12px; position: relative; }
+    .progress::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: #ff6b6b; }
+
+    .member-pile { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .member-chip {
+      background: #fff; border: 3px solid #000; padding: 8px 14px; font-weight: 700; font-size: 0.875rem; box-shadow: 4px 4px 0 #000;
+    }
+    .member-chip.owner { background: #000; color: #ffe66d; }
+
+    .row { border: 3px solid #000; padding: 14px; margin-top: 12px; background: #fff; box-shadow: 4px 4px 0 #000; }
+    .row-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .row-head strong { font-size: 1.05rem; }
+    .row-sub { font-size: 0.875rem; margin-top: 6px; display: block; }
+
+    .feed-item { border-bottom: 3px solid #000; padding: 12px 0; }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-item b { display: block; margin-bottom: 4px; }
+
+    @media (max-width: 768px) {
+      .header { flex-direction: column; align-items: flex-start; gap: 18px; }
+      .header h1 { font-size: 2.6rem; }
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1>我的<br>小组</h1>
+      <div class="header-badge">已加入 5 组<br>127 条记录</div>
+    </div>
+
+    <div class="section-block warn">
+      <h2>加入小组</h2>
+      <div class="joinbar">
+        <input type="text" placeholder="输入邀请码，例如 X7K9M2" />
+        <button class="btn">加入小组 →</button>
+      </div>
+      <p class="hint">仅保存邀请码，不收集真实身份。</p>
+    </div>
+
+    <div class="section-block">
+      <h2>创建小组</h2>
+      <label class="field"><span>小组名称</span><input type="text" placeholder="地下茶水间" /></label>
+      <label class="field"><span>小组公告</span><textarea rows="3" maxlength="120" placeholder="小组规则与公告，不要写真实身份信息"></textarea></label>
+      <label class="field"><span>小组类型</span>
+        <select><option>公开小组</option><option>邀请码小组</option></select>
+      </label>
+      <p class="hint">创建小组将消耗 50 鱼鳞。</p>
+      <button class="btn">创建小组 · 50 鱼鳞</button>
+    </div>
+
+    <div class="section-block alt">
+      <h2>我加入的小组</h2>
+      <div class="cards">
+        <div class="card active">
+          <span class="tag dark">当前</span>
+          <h3>地下茶水间</h3>
+          <p>公开小组 · 邀请码 x7k9m2<br>本周挑战：假装开会</p>
+          <div class="stats-bar">
+            <div class="stat"><span>34</span>成员</div>
+            <div class="stat"><span>892</span>记录</div>
+            <div class="stat"><span>7</span>今日</div>
+          </div>
+        </div>
+        <div class="card">
+          <span class="tag dark">邀请制</span>
+          <h3>带薪发呆互助会</h3>
+          <p>专注发呆技巧交流<br>禁止讨论工作</p>
+          <div class="stats-bar">
+            <div class="stat"><span>18</span>成员</div>
+            <div class="stat"><span>445</span>记录</div>
+          </div>
+        </div>
+        <div class="card">
+          <span class="tag">公开</span>
+          <h3>会议室占领联盟</h3>
+          <p>记录占领会议室的各种姿势<br>战术分享区</p>
+          <div class="stats-bar">
+            <div class="stat"><span>56</span>成员</div>
+            <div class="stat"><span>1.2k</span>记录</div>
+          </div>
+        </div>
+        <div class="card">
+          <span class="tag">邀请制</span>
+          <h3>假装很忙演技派</h3>
+          <p>演技评级体系<br>奥斯卡分会场</p>
+          <div class="stats-bar">
+            <div class="stat"><span>7</span>成员</div>
+            <div class="stat"><span>67</span>记录</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-block">
+      <h2>小组详情 · 地下茶水间</h2>
+      <div class="detail-grid">
+        <div>
+          <h3 style="text-transform:uppercase; margin-bottom:12px;">本周协作目标</h3>
+          <div class="row">
+            <div class="row-head"><strong>假装开会</strong><small>12 / 20</small></div>
+            <div class="progress"></div>
+            <p class="row-sub">达成后全员获得 50 鱼鳞 · 匿名化是强制的</p>
+          </div>
+
+          <h3 style="text-transform:uppercase; margin: 24px 0 12px;">小组挑战</h3>
+          <div class="row">
+            <div class="row-head"><strong>假装开会</strong><button class="btn btn-soft">发起 · 30 鱼鳞</button></div>
+            <span class="row-sub">在任意可摊开笔记本的场所提交记录 · 奖励「演技新星」</span>
+          </div>
+          <div class="row">
+            <div class="row-head"><strong>走廊漫游</strong><button class="btn btn-soft">发起 · 30 鱼鳞</button></div>
+            <span class="row-sub">步数不超过 200 的优雅漫游 · 奖励「幽灵行者」</span>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="text-transform:uppercase; margin-bottom:12px;">活跃成员</h3>
+          <div class="member-pile">
+            <div class="member-chip owner">匿名鱼_A</div>
+            <div class="member-chip">摸鱼专家_B</div>
+            <div class="member-chip">工位幽灵_C</div>
+            <div class="member-chip">键盘演奏家_D</div>
+            <div class="member-chip">茶水间诗人_E</div>
+            <div class="member-chip">走廊漫游者_F</div>
+            <div class="member-chip">会议室领主_G</div>
+          </div>
+
+          <h3 style="text-transform:uppercase; margin: 24px 0 12px;">小组记录流</h3>
+          <div class="row" style="max-height: 320px; overflow:auto;">
+            <div class="feed-item"><b>匿名鱼_A · 86.4</b><span>45 分钟 · 桌面伪装 · 假装在写周报</span></div>
+            <div class="feed-item"><b>摸鱼专家_B · 72.0</b><span>30 分钟 · 会议室潜伏 · 带了笔记本没插电</span></div>
+            <div class="feed-item"><b>工位幽灵_C · 54.6</b><span>20 分钟 · 走廊漫游 · 接水接了八百米</span></div>
+            <div class="feed-item"><b>键盘演奏家_D · 91.2</b><span>60 分钟 · 厕所避难 · 带了一整章小说</span></div>
+            <div class="feed-item"><b>茶水间诗人_E · 38.5</b><span>15 分钟 · 茶水间滞留 · 泡了一杯喝了一下午</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

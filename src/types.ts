@@ -105,6 +105,8 @@ export type RecordSummary = {
   scoreVersion: string;
   createdAt: string;
   breakdown: ScoreBreakdown;
+  avatarUrl?: string;
+  avatarSeed?: string;
 };
 
 export type FishScaleWallet = {
@@ -429,6 +431,8 @@ export type Guild = {
   joined: boolean;
   role: string;
 };
+
+export type CachedGuild = Pick<Guild, 'id' | 'name' | 'description' | 'icon' | 'role'>;
 
 export type GuildRankingRow = {
   rank: number;
