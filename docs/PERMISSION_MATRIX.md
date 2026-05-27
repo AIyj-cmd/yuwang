@@ -67,6 +67,23 @@ Rules:
 
 ---
 
+## 3.1 Guild Public Creator Display
+
+| Behavior | Visitor | Normal user | Guild creator/owner | Admin |
+|---|---|---|---|---|
+| Read public guild list/detail | Allowed | Allowed | Allowed | Allowed via public route; admin routes remain separate |
+| See `creatorDisplayName` | Allowed public display only | Allowed public display only | Same public display | Same public display on public route |
+| See creator email/internal username/admin fields | Not allowed | Not allowed | Not allowed through public guild route | Admin-only routes if explicitly implemented |
+
+Rules:
+
+- `creatorDisplayName` is derived from `users.display_name` only.
+- Missing creator/owner references return `null`.
+- Public guild APIs must not add new raw user ID, email, internal username, or admin fields for creator display.
+- Public guild payloads keep legacy `ownerUserId` and `createdByUserId` field names for response-shape compatibility, but return `null`; they are not a permission source for frontend display decisions.
+
+---
+
 ## 4. Reports
 
 Rules:

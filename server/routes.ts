@@ -929,8 +929,9 @@ const publicGuild = (row: Record<string, unknown>, userId?: number) => {
     slug: String(row.slug),
     description: String(row.description),
     icon: String(row.icon),
-    ownerUserId: row.owner_user_id === null || row.owner_user_id === undefined ? null : Number(row.owner_user_id),
-    createdByUserId: row.created_by_user_id === null || row.created_by_user_id === undefined ? null : Number(row.created_by_user_id),
+    ownerUserId: null,
+    createdByUserId: null,
+    creatorDisplayName: getGuildCreatorDisplayName(row),
     source: String(row.source ?? 'official'),
     joinPolicy: String(row.join_policy ?? 'open'),
     status: String(row.status ?? 'active'),
@@ -1038,6 +1039,18 @@ const uniqueUserGuildSlug = (): string => {
     slug = `user-guild-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   }
   return slug;
+};
+
+const getGuildCreatorDisplayName = (row: Record<string, unknown>): string | null => {
+  const creatorUserId = row.created_by_user_id ?? row.owner_user_id;
+  if (creatorUserId === null || creatorUserId === undefined) return null;
+  const creatorId = Number(creatorUserId);
+  if (!Number.isInteger(creatorId) || creatorId <= 0) return null;
+  const creator = db.prepare('SELECT display_name FROM users WHERE id = ?').get(creatorId) as
+    | { display_name: string }
+    | undefined;
+  const displayName = String(creator?.display_name ?? '').trim();
+  return displayName || null;
 };
 
 const createShareCard = (record: ReturnType<typeof publicRecord>) => {

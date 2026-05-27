@@ -137,6 +137,27 @@ Verification:
 
 ---
 
+## 5.1 Guild Creator Display Contract
+
+- [x] `guilds` has existing `owner_user_id` and `created_by_user_id` fields.
+- [x] `GET /api/guilds` returns additive `creatorDisplayName` on each guild object.
+- [x] `GET /api/guilds/:id` returns additive `creatorDisplayName` on the detail guild object.
+- [x] `creatorDisplayName` is derived from public `users.display_name` only.
+- [x] Missing creator/owner references return `creatorDisplayName: null`.
+- [x] Public guild payloads do not expose raw creator/owner user IDs; legacy ID slots remain present as `null`.
+- [x] No new database table, field, migration, or index is introduced for creator display.
+- [x] No frontend page/component/style/API-client file is modified for this backend contract change.
+- [x] No package or lockfile change is introduced.
+
+Verification:
+
+- [x] `npx tsc -p tsconfig.server.json --noEmit`.
+- [x] `npm run typecheck`.
+- [x] `npm run build`.
+- [x] Smoke test `GET /api/guilds` returns `creatorDisplayName`.
+
+---
+
 ## 6. Community Home V2 Backend/API Readiness
 
 Codex must complete before Claude V2 page wiring:

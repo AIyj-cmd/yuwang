@@ -1,0 +1,497 @@
+/**
+ * Guild Hall (/guilds) · v1.4 视觉样式
+ * 配套 src/pages/GuildsPage.vue 使用。所有 token 走 src/styles/tokens.css。
+ * 不依赖 @mmt817/pixel-ui,所有边/影/色按 Neo-pixel Flat 软化方案。
+ */
+
+.guilds-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-12);
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ============ 顶部 ============ */
+.guilds-page .gh-head {
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--v2-shadow-flat-md);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.guilds-page .gh-head-title { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.guilds-page .gh-emblem {
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  background: var(--color-primary);
+  border: 1.5px solid var(--v2-border-emphasis);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+.guilds-page .gh-head-text h1 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+}
+.guilds-page .gh-head-text p {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+}
+.guilds-page .gh-tabs { display: inline-flex; gap: var(--space-2); flex-wrap: wrap; }
+.guilds-page .gh-tab {
+  height: 32px;
+  padding: 0 var(--space-4);
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  box-shadow: none !important;
+  filter: none !important;
+}
+.guilds-page .gh-tab:hover:not(.active) { color: var(--color-text-primary); background: var(--color-primary-soft); }
+.guilds-page .gh-tab.active {
+  background: var(--color-primary);
+  border-color: var(--v2-border-emphasis);
+  color: var(--color-text-primary);
+}
+
+/* ============ 提示 ============ */
+.guilds-page .gh-toast {
+  padding: 10px var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: 1.5px solid transparent;
+}
+.guilds-page .gh-toast--ok {
+  background: var(--color-accent-mint-soft);
+  border-color: var(--color-accent-mint);
+  color: var(--color-text-on-mint);
+}
+.guilds-page .gh-toast--err {
+  background: var(--color-bg-active-danger);
+  border-color: var(--color-accent-coral);
+  color: var(--color-text-on-coral);
+}
+
+/* ============ Loading / Error ============ */
+.guilds-page .gh-state {
+  display: flex; flex-direction: column;
+  align-items: center; gap: var(--space-3);
+  padding: var(--space-12) var(--space-5);
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.guilds-page .gh-state strong { font-size: var(--text-md); color: var(--color-text-primary); }
+.guilds-page .gh-state span { font-size: var(--text-sm); color: var(--color-text-secondary); }
+.guilds-page .gh-skeleton-list { display: grid; gap: var(--space-3); }
+.guilds-page .gh-skeleton {
+  display: block;
+  height: 76px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  animation: gh-pulse 1.4s ease-in-out infinite;
+}
+@keyframes gh-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
+/* ============ 我的工会 hero ============ */
+.guilds-page .gh-mine-card {
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--v2-shadow-flat-md);
+  padding: var(--space-5);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+.guilds-page .gh-mine-emblem {
+  width: 64px; height: 64px;
+  display: grid; place-items: center;
+  font-size: 32px;
+  background: var(--color-primary);
+  border: 1.5px solid var(--v2-border-emphasis);
+  border-radius: var(--radius-md);
+  line-height: 1;
+}
+.guilds-page .gh-mine-id { min-width: 0; }
+.guilds-page .gh-kicker {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  margin-bottom: 2px;
+}
+.guilds-page .gh-mine-id strong {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guilds-page .gh-mine-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+.guilds-page .gh-mine-stats { display: flex; gap: var(--space-4); }
+.guilds-page .gh-mine-stats > div { text-align: right; }
+.guilds-page .gh-mine-stats b {
+  display: block;
+  font-size: var(--text-md);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+}
+.guilds-page .gh-mine-stats span {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+.guilds-page .gh-mine-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ============ 工会列表 ============ */
+.guilds-page .gh-caption {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+  padding: 0 var(--space-2);
+}
+.guilds-page .gh-cols-hint {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(120px, 1.4fr) 80px 28px;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+  font-size: 11px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+}
+.guilds-page .gh-cols-hint .hint-score { text-align: right; }
+.guilds-page .gh-list { list-style: none; display: grid; gap: var(--space-3); padding: 0; margin: 0; }
+
+/* ============ 工会卡片 ============ */
+.guilds-page .gh-card {
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--v2-shadow-flat-md);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+.guilds-page .gh-card.is-mine {
+  border-color: var(--color-accent-mint);
+  background: var(--color-accent-mint-soft);
+}
+.guilds-page .gh-card.is-open { border-color: var(--v2-border-emphasis); }
+.guilds-page .gh-card-main {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: var(--space-3) var(--space-5);
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(120px, 1.4fr) 80px 28px;
+  gap: var(--space-3);
+  align-items: center;
+  box-shadow: none !important;
+  filter: none !important;
+}
+.guilds-page .gh-card-main:hover { background: var(--color-bg-base); }
+.guilds-page .gh-card.is-mine .gh-card-main:hover { background: var(--color-accent-mint-soft); }
+
+/* 排名徽章 */
+.guilds-page .gh-rank {
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-md);
+  border: 1.5px solid transparent;
+  font-family: var(--font-mono);
+  font-weight: var(--weight-bold);
+}
+.guilds-page .gh-rank[data-variant='gold']    { background: var(--color-primary); border-color: var(--v2-border-emphasis); color: var(--color-text-primary); }
+.guilds-page .gh-rank[data-variant='silver']  { background: var(--color-accent-mint); border-color: var(--color-accent-mint); color: var(--color-text-on-mint); }
+.guilds-page .gh-rank[data-variant='bronze']  { background: var(--color-accent-coral); border-color: var(--color-accent-coral); color: var(--color-text-on-coral); }
+.guilds-page .gh-rank[data-variant='neutral'] { background: var(--color-bg-subtle); border-color: var(--v2-border-card); color: var(--color-text-secondary); }
+.guilds-page .gh-rank-num { font-size: var(--text-sm); }
+
+/* 工会身份 */
+.guilds-page .gh-guild { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.guilds-page .gh-guild-emblem {
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  font-size: 22px;
+  background: var(--color-primary-soft);
+  border: 1.5px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  line-height: 1;
+}
+.guilds-page .gh-guild-emblem[data-variant='gold']    { background: var(--color-primary); }
+.guilds-page .gh-guild-emblem[data-variant='silver']  { background: var(--color-accent-mint-soft); }
+.guilds-page .gh-guild-emblem[data-variant='bronze']  { background: var(--color-accent-coral-soft); }
+.guilds-page .gh-guild-emblem[data-variant='neutral'] { background: var(--color-bg-subtle); }
+.guilds-page .gh-guild-id { min-width: 0; }
+.guilds-page .gh-guild-id strong {
+  display: block;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guilds-page .gh-guild-id small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+}
+.guilds-page .gh-guild-id em {
+  font-style: normal;
+  font-weight: var(--weight-bold);
+  color: var(--color-text-on-mint);
+}
+
+/* 进度条 */
+.guilds-page .gh-bar-cell { display: flex; align-items: center; min-width: 0; }
+.guilds-page .gh-bar {
+  width: 100%; height: 6px;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.guilds-page .gh-bar-fill {
+  display: block; height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-pill);
+  transition: width var(--transition-slow);
+}
+.guilds-page .gh-score {
+  text-align: right;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+}
+.guilds-page .gh-chev {
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  transition: transform var(--transition-base);
+  display: grid; place-items: center;
+}
+.guilds-page .gh-chev.rotated { transform: rotate(180deg); }
+
+/* 详情 */
+.guilds-page .gh-detail {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--v2-divider);
+  background: var(--color-bg-card);
+}
+.guilds-page .gh-card.is-mine .gh-detail { background: var(--color-accent-mint-soft); }
+.guilds-page .gh-detail-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-body);
+  line-height: var(--leading-relaxed);
+  margin: 0 0 var(--space-3);
+}
+.guilds-page .gh-detail-state {
+  padding: var(--space-3) 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+.guilds-page .gh-detail-state--err { color: var(--color-text-on-coral); }
+.guilds-page .gh-detail-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.guilds-page .gh-detail-block { min-width: 0; }
+.guilds-page .gh-detail-block h4 {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+}
+.guilds-page .gh-detail-block h4 span { color: var(--color-text-secondary); font-weight: var(--weight-semibold); }
+.guilds-page .gh-detail-empty {
+  padding: var(--space-3) 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  border: 1px dashed var(--v2-border-card);
+  border-radius: var(--radius-md);
+}
+.guilds-page .gh-roster,
+.guilds-page .gh-rec { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
+.guilds-page .gh-roster li {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px var(--space-3);
+  background: var(--color-bg-base);
+  border: 1px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.guilds-page .gh-roster-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-semibold); }
+.guilds-page .gh-roster-role { font-size: var(--text-xs); color: var(--color-text-secondary); }
+.guilds-page .gh-roster-role[data-owner='true'] {
+  color: var(--color-text-on-coral);
+  background: var(--color-accent-coral-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-accent-coral);
+  font-weight: var(--weight-bold);
+}
+.guilds-page .gh-rec li {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-base);
+  border: 1px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+}
+.guilds-page .gh-rec-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: var(--space-2); margin-bottom: 2px;
+}
+.guilds-page .gh-rec-top b {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.guilds-page .gh-rec-top em {
+  font-style: normal;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+.guilds-page .gh-rec-sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+.guilds-page .gh-detail-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-4); }
+
+/* ============ 按钮 ============ */
+.guilds-page .btn-primary,
+.guilds-page .btn-ghost,
+.guilds-page .btn-state {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  box-shadow: none !important;
+  filter: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+.guilds-page .btn-primary {
+  background: var(--color-primary);
+  color: var(--color-text-primary);
+  border: 1.5px solid var(--v2-border-emphasis);
+}
+.guilds-page .btn-primary:hover { background: var(--color-primary-hover); }
+.guilds-page .btn-ghost {
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  border: 1.5px solid var(--v2-border-card);
+}
+.guilds-page .btn-ghost:hover { color: var(--color-text-primary); background: var(--color-bg-base); }
+.guilds-page .btn-state {
+  background: var(--color-accent-mint-soft);
+  color: var(--color-text-on-mint);
+  border: 1.5px solid var(--color-accent-mint);
+}
+.guilds-page .btn-primary:disabled,
+.guilds-page .btn-ghost:disabled,
+.guilds-page .btn-state:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ============ 创建工会入口 ============ */
+.guilds-page .gh-create {
+  margin-top: var(--space-4);
+  background: var(--color-bg-card);
+  border: 1.5px dashed var(--v2-border-emphasis);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  display: flex; align-items: center; gap: var(--space-3);
+}
+.guilds-page .gh-create--locked {
+  border-style: dashed;
+  background: var(--color-bg-subtle);
+}
+.guilds-page .gh-create-icon {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  background: var(--color-primary-soft);
+  border: 1.5px solid var(--v2-border-card);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+.guilds-page .gh-create-text { flex: 1; min-width: 0; }
+.guilds-page .gh-create-text strong { display: block; font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.guilds-page .gh-create-text span { display: block; margin-top: 2px; font-size: var(--text-xs); color: var(--color-text-secondary); }
+
+/* ============ 响应式 ============ */
+@media (max-width: 720px) {
+  .guilds-page { padding: var(--space-4); }
+  .guilds-page .gh-cols-hint { display: none; }
+  .guilds-page .gh-card-main {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto auto;
+    row-gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+  .guilds-page .gh-rank { grid-column: 1; grid-row: 1; }
+  .guilds-page .gh-guild { grid-column: 2; grid-row: 1; }
+  .guilds-page .gh-bar-cell { grid-column: 1 / -1; grid-row: 2; }
+  .guilds-page .gh-score { grid-column: 1 / -1; grid-row: 3; text-align: left; font-size: var(--text-sm); }
+  .guilds-page .gh-chev { position: absolute; top: var(--space-3); right: var(--space-3); }
+  .guilds-page .gh-card { position: relative; }
+  .guilds-page .gh-mine-card { grid-template-columns: auto 1fr; }
+  .guilds-page .gh-mine-stats { grid-column: 1 / -1; justify-content: space-between; }
+  .guilds-page .gh-mine-stats > div { text-align: left; }
+  .guilds-page .gh-detail-cols { grid-template-columns: 1fr; }
+}

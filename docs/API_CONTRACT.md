@@ -212,6 +212,43 @@ Frontend rule: Claude must call this real endpoint for Community Home V2 record 
 
 ---
 
+## 1.3 Guild Public APIs
+
+Guild list/detail endpoints expose an additive public creator display field for UI display. Existing fields remain unchanged for compatibility.
+
+- Method/path:
+  - `GET /api/guilds`
+  - `GET /api/guilds/:id`
+- Auth: optional `Authorization: Bearer <token>`.
+- Request body: none for `GET`.
+- Response body: existing guild object shape plus:
+
+```json
+{
+  "guilds": [
+    {
+      "id": 1,
+      "name": "茶水间远征军",
+      "creatorDisplayName": null
+    }
+  ]
+}
+```
+
+Field semantics:
+
+- `creatorDisplayName`: public-safe `users.display_name` for `guilds.created_by_user_id`, falling back to `guilds.owner_user_id`; returns `null` when creator/owner is missing or no user row exists.
+- This field is display-only. Frontend should use it for "创建人" and must not derive identity from user IDs.
+- No email, internal username, admin field, or additional raw user identifier is added for creator display.
+- Official/system guilds usually return `creatorDisplayName: null`.
+
+Compatibility:
+
+- Existing guild fields are not renamed or removed. Public guild payloads keep legacy `ownerUserId` and `createdByUserId` slots but return `null` so raw user IDs are not exposed through public guild APIs.
+- `creatorDisplayName` is additive and safe for older frontend clients to ignore.
+
+---
+
 ## 2. `POST /api/records`
 
 - Method/path: `POST /api/records`.
