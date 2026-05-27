@@ -6,6 +6,7 @@ import type {
   CircleDetailResponse,
   CirclesResponse,
   CommunityFeedResponse,
+  CommunityOverviewResponse,
   FeedResponse,
   FeedRecord,
   GroupChallengeResponse,
@@ -220,6 +221,14 @@ export const fetchCommunityFeed = async (filter: string, token?: string | null):
   const query = new URLSearchParams({ filter });
   return parseResponse<CommunityFeedResponse>(
     await fetch(`/api/community/feed?${query.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  );
+};
+
+// Community Home V2: overview (right rail data + feature flags + my stats).
+// Visitor token-less call returns myStats: null; logged-in returns current user only.
+export const fetchCommunityOverview = async (token?: string | null): Promise<CommunityOverviewResponse> => {
+  return parseResponse<CommunityOverviewResponse>(
+    await fetch('/api/community/overview', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
   );
 };
 

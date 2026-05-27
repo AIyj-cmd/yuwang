@@ -5,9 +5,15 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 3px solid var(--color-border);
+  /*
+   * v1.2(2026-05-27)软化:
+   * 旧版用 3px solid var(--color-border) (pond 主题下是 #18202a 纯黑)
+   * 加 4px 黑色硬阴影,顶部一条粗黑横线很压迫。
+   * 改为 1px 柔和米灰 hairline + 无硬阴影,只保留必要分隔。
+   */
+  border-bottom: 1px solid #ECE6D6;
   background: var(--color-surface);
-  box-shadow: 0 4px 0 var(--color-border);
+  box-shadow: none;
 }
 
 .top-nav-bar {

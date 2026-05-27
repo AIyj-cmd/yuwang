@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
@@ -503,6 +504,17 @@ const getLeaderboardRows = (board: LeaderboardType, keyword = ''): LeaderboardRo
   return getAggregateLeaderboard(board, null, keyword);
 };
 
+const communityFeatureFlags = {
+  mutualFollowing: false,
+  topics: false,
+  profilePages: false
+} as const;
+
+const publicCommunityTopRow = (row: ReturnType<typeof getLeaderboardRows>[number]) => {
+  const { username: _username, ...safeRow } = row;
+  return safeRow;
+};
+
 const getViewerFlags = (recordId: number, userId?: number) => {
   if (!userId) return { liked: false, favorited: false, voted: false };
   const rows = db
@@ -524,17 +536,22 @@ const getViewerFlags = (recordId: number, userId?: number) => {
 };
 
 const getRecordReactionFlags = (recordId: number, userId?: number) => {
-  if (!userId) return { liked: false, legendNominated: false, reported: false };
+  if (!userId) return { liked: false, favorited: false, legendNominated: false, reported: false };
+  const interactions = db
+    .prepare('SELECT action FROM record_interactions WHERE record_id = ? AND user_id = ?')
+    .all(recordId, userId) as { action: string }[];
   const reactions = db
     .prepare("SELECT reaction_type FROM reactions WHERE target_type = 'record' AND target_id = ? AND user_id = ?")
     .all(recordId, userId) as { reaction_type: string }[];
   const report = db
-    .prepare("SELECT id FROM reports WHERE target_type = 'record' AND target_id = ? AND user_id = ? LIMIT 1")
+    .prepare("SELECT id FROM reports WHERE target_type = 'record' AND target_id = ? AND user_id = ? AND status IN ('pending', 'reviewing') LIMIT 1")
     .get(recordId, userId);
+  const actions = new Set(interactions.map((row) => row.action));
   const set = new Set(reactions.map((row) => row.reaction_type));
   return {
-    liked: set.has('like'),
-    legendNominated: set.has('legend'),
+    liked: actions.has('like') || set.has('like'),
+    favorited: actions.has('favorite'),
+    legendNominated: actions.has('vote') || set.has('legend'),
     reported: Boolean(report)
   };
 };
@@ -592,8 +609,12 @@ const recordTags = (record: ReturnType<typeof publicRecord>) => {
   return rows;
 };
 
+const publicAvatarSeedForRecord = (recordId: number, nickname: string): string =>
+  createHash('sha256').update(`community-record:${recordId}:${nickname}`).digest('hex').slice(0, 24);
+
 const publicFeedRecord = (record: Record<string, unknown>, userId?: number) => {
   const mapped = publicRecord(record);
+  const tags = recordTags(mapped);
   const guild =
     mapped.guildId === null
       ? null
@@ -602,9 +623,114 @@ const publicFeedRecord = (record: Record<string, unknown>, userId?: number) => {
           | undefined);
   return {
     ...mapped,
-    tags: recordTags(mapped),
+    fishPowerScore: mapped.score,
+    primaryTag: tags[0] ?? null,
+    avatarSeed: publicAvatarSeedForRecord(mapped.id, mapped.nickname),
+    avatarUrl: '',
+    tags,
     guild: guild ?? null,
     viewer: getRecordReactionFlags(mapped.id, userId)
+  };
+};
+
+const publicCommunityFeedRecord = (record: Record<string, unknown>, userId?: number) => ({
+  ...publicFeedRecord(record, userId),
+  userId: null,
+  username: '',
+  reviewNote: ''
+});
+
+const getCommunityMyStats = (user: AuthUser) => {
+  const week = getWeekRange();
+  const weekly = db
+    .prepare(
+      `
+        SELECT COUNT(*) AS record_count, COALESCE(AVG(fish_power_score), 0) AS average_score
+        FROM slacking_records
+        WHERE user_id = ?
+          AND status != 'rejected'
+          AND created_at >= ?
+          AND created_at < ?
+      `
+    )
+    .get(user.id, week.start, week.end) as { record_count: number; average_score: number };
+  const cumulativeScore = Number(getUserTotalScore(user.id).toFixed(1));
+  const wallet = db.prepare('SELECT fish_scale_balance FROM user_wallets WHERE user_id = ?').get(user.id) as
+    | { fish_scale_balance: number }
+    | undefined;
+  const higherRanked = db
+    .prepare(
+      `
+        SELECT COUNT(*) AS count
+        FROM (
+          SELECT user_id, COALESCE(SUM(fish_power_score), 0) AS total_score
+          FROM slacking_records
+          WHERE user_id IS NOT NULL
+            AND status != 'rejected'
+          GROUP BY user_id
+          HAVING total_score > ?
+        )
+      `
+    )
+    .get(cumulativeScore) as { count: number };
+
+  return {
+    weeklyRecordCount: Number(weekly.record_count ?? 0),
+    weeklyAverageScore: Number(Number(weekly.average_score ?? 0).toFixed(1)),
+    cumulativeScore,
+    fishScales: Number(wallet?.fish_scale_balance ?? 0),
+    globalRank: cumulativeScore > 0 ? Number(higherRanked.count ?? 0) + 1 : null
+  };
+};
+
+const getCommunitySiteToday = () => {
+  const today = getTodayRange();
+  const todayRecords = db
+    .prepare(
+      `
+        SELECT
+          COUNT(*) AS today_records,
+          COUNT(DISTINCT COALESCE(CAST(user_id AS TEXT), 'anon:' || nickname)) AS today_active_users
+        FROM slacking_records
+        WHERE status = 'approved'
+          AND visibility = 'public'
+          AND created_at >= ?
+          AND created_at < ?
+      `
+    )
+    .get(today.start, today.end) as { today_records: number; today_active_users: number };
+  const todayLikes = db
+    .prepare(
+      `
+        SELECT COUNT(*) AS count
+        FROM record_interactions
+        WHERE action = 'like'
+          AND created_at >= ?
+          AND created_at < ?
+      `
+    )
+    .get(today.start, today.end) as { count: number };
+  const totals = db
+    .prepare(
+      `
+        SELECT
+          COUNT(*) AS total_records,
+          COALESCE(SUM(like_count), 0) AS total_likes
+        FROM slacking_records
+        WHERE status = 'approved'
+          AND visibility = 'public'
+      `
+    )
+    .get() as { total_records: number; total_likes: number };
+  const totalUsers = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
+
+  return {
+    todayRecords: Number(todayRecords.today_records ?? 0),
+    todayActiveUsers: Number(todayRecords.today_active_users ?? 0),
+    todayLikes: Number(todayLikes.count ?? 0),
+    totalRecords: Number(totals.total_records ?? 0),
+    totalUsers: Number(totalUsers.count ?? 0),
+    totalLikes: Number(totals.total_likes ?? 0)
   };
 };
 
@@ -640,7 +766,7 @@ const getCommunityFeed = (filter: 'latest' | 'hot' | 'high' | 'legendary', userI
       `
     )
     .all(...params) as Record<string, unknown>[];
-  return rows.map((row) => publicFeedRecord(row, userId));
+  return rows.map((row) => publicCommunityFeedRecord(row, userId));
 };
 
 const getRecordAuthorId = (recordId: number): number | null => {
@@ -1629,6 +1755,16 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     };
   });
 
+  app.get('/api/community/overview', async (request) => {
+    const user = getUserFromRequest(request);
+    return {
+      myStats: user ? getCommunityMyStats(user) : null,
+      siteToday: getCommunitySiteToday(),
+      todayTop: getLeaderboardRows('today').slice(0, 5).map(publicCommunityTopRow),
+      featureFlags: communityFeatureFlags
+    };
+  });
+
   app.get('/api/community/feed', async (request, reply) => {
     const parsed = feedSchema.safeParse(request.query);
     if (!parsed.success) return reply.code(400).send({ message: '社区筛选参数无效。' });
@@ -1654,7 +1790,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     const record = db.prepare('SELECT id FROM slacking_records WHERE id = ?').get(params.data.id);
     if (!record) return reply.code(404).send({ message: '记录不存在。' });
     syncRecordReaction(params.data.id, user.id, 'like');
-    return { record: publicFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id) };
+    return { record: publicCommunityFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id) };
   });
 
   app.post('/api/records/:id/nominate-legend', async (request, reply) => {
@@ -1675,7 +1811,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       }
       throw error;
     }
-    return { record: publicFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id) };
+    return { record: publicCommunityFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id) };
   });
 
   app.post('/api/records/:id/report', async (request, reply) => {
@@ -1698,7 +1834,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     return {
       ok: true,
       alreadyReported,
-      record: publicFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id)
+      record: publicCommunityFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id)
     };
   });
 
@@ -2549,7 +2685,10 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     if (!record || !canViewRecord(record, user)) return reply.code(404).send({ message: '记录不存在或不可公开访问。' });
     const social = getSocialSummary(params.data.id, user?.id);
     if (!social) return reply.code(404).send({ message: '记录不存在。' });
-    return social;
+    return {
+      ...social,
+      record: publicCommunityFeedRecord(record, user?.id)
+    };
   });
 
   app.get('/api/records/:id/related', async (request, reply) => {
@@ -2689,7 +2828,12 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     }
 
     refreshRecordInteractionCounts(params.data.id);
-    return getSocialSummary(params.data.id, user.id);
+    const social = getSocialSummary(params.data.id, user.id);
+    if (!social) return reply.code(404).send({ message: '记录不存在。' });
+    return {
+      ...social,
+      record: publicCommunityFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id)
+    };
   });
 
   app.post('/api/records/:id/comments', async (request, reply) => {
@@ -2720,7 +2864,13 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
       awardRecordCommentFishScale(params.data.id, Number(result.lastInsertRowid), user.id);
     }
     refreshRecordInteractionCounts(params.data.id);
-    return reply.code(201).send({ ...getSocialSummary(params.data.id, user.id), safety });
+    const social = getSocialSummary(params.data.id, user.id);
+    if (!social) return reply.code(404).send({ message: '记录不存在。' });
+    return reply.code(201).send({
+      ...social,
+      record: publicCommunityFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id),
+      safety
+    });
   });
 
   app.post('/api/records/:id/comment', async (request, reply) => {
@@ -2752,7 +2902,7 @@ export const registerRoutes = async (app: FastifyInstance): Promise<void> => {
     }
     refreshRecordInteractionCounts(params.data.id);
     return reply.code(201).send({
-      record: publicFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id),
+      record: publicCommunityFeedRecord(db.prepare('SELECT * FROM slacking_records WHERE id = ?').get(params.data.id) as Record<string, unknown>, user.id),
       safety
     });
   });

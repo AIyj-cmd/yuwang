@@ -903,6 +903,7 @@ export const initDatabase = (): void => {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_record_interactions_record ON record_interactions(record_id);
     CREATE INDEX IF NOT EXISTS idx_record_interactions_user ON record_interactions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_record_interactions_action_created_at ON record_interactions(action, created_at);
     CREATE INDEX IF NOT EXISTS idx_user_avatar_events_user_created_at ON user_avatar_events(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_avatar_upload_attempts_user_created_at ON avatar_upload_attempts(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_user_wallets_user ON user_wallets(user_id);

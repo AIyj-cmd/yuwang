@@ -49,7 +49,18 @@
   /* ============ 颜色 · 边框与分隔 ============ */
 
   --color-border: #E8E2D5;
-  --color-border-strong: #2B2B2B;  /* 像素徽章、强 CTA */
+  /*
+   * --color-border-strong:v1.2(2026-05-27)软化。
+   * 旧值 #2B2B2B(纯黑)在 pond 主题下叠加 themes.css 的 --color-border(#18202a)
+   * 导致 V2 页面满屏粗黑硬边。已改为柔和暖米灰,作为"强调"而非"黑色重压"。
+   * 黑色硬描边在 Neo-pixel Flat 中已废弃,仅小面积像素装饰可用。
+   * 与 STYLE_GUIDE.md §1.1 对齐,数值 #D6CBBE。
+   */
+  --color-border-strong: #D6CBBE;
+  /* v1.2:新增强调边界,用于 active tab / focus / 头像描边等"稍强但不黑"场景 */
+  --color-border-emphasis: #C9BDAE;
+  /* v1.2:极少量像素点缀边界(小徽章、像素装饰),禁止大面积使用 */
+  --color-border-ink-soft: #B8AA99;
   --color-divider: #F0EBE0;
 
   /* ============ 颜色 · 功能色 ============ */
@@ -113,7 +124,33 @@
   /* ============ 边框 ============ */
 
   --border-default: 1.5px solid var(--color-border);
-  --border-strong: 2px solid var(--color-border-strong);
+  /* v1.2:strong 不再使用 2px 黑色,降为 1.5px 暖米灰,语义改为"强调而非压迫"。 */
+  --border-strong: 1.5px solid var(--color-border-strong);
+
+  /* ============================================================
+   * V2 专属 token(2026-05-27 软化)
+   * 命名带 --v2- 前缀,确保不被 themes.css 主题包覆盖。
+   * Community V2 组件统一使用这些 token,与全站主题色脱钩,
+   * 保证在任何主题下都呈现柔和米灰,不出现纯黑硬边。
+   *
+   * 映射关系(与 STYLE_GUIDE.md §1.1 文档化 token 一一对应):
+   *   --v2-border-card     ≡ #E8E2D5(等同 --color-border 数值,但不被主题覆盖)
+   *   --v2-border-emphasis ≡ --color-border-emphasis (#C9BDAE)
+   *   --v2-divider         ≡ --color-divider        (#F0EBE0)
+   * ============================================================ */
+  --v2-border-card: #E8E2D5;             /* 默认卡片柔和边 */
+  --v2-border-emphasis: #C9BDAE;         /* 强调边(active tab、focus、头像描边) */
+  --v2-divider: #F0EBE0;                 /* 卡片内部分隔 */
+  --v2-divider-soft: #F5F1E6;            /* 极柔分隔,虚线/dashed 用 */
+  --v2-shadow-color: #E8E2D5;            /* 扁平阴影底色(暖米灰) */
+  --v2-shadow-color-soft: #EFE9DC;       /* 更柔扁平阴影底色 */
+  --v2-shadow-flat-sm: 2px 2px 0 var(--v2-shadow-color);
+  --v2-shadow-flat-md: 3px 3px 0 var(--v2-shadow-color);
+  --v2-shadow-flat-lg: 4px 4px 0 var(--v2-shadow-color-soft);
+  /* CTA 按下/活跃时使用,深度感来自主色而非黑色 */
+  --v2-cta-bg: #FFD666;
+  --v2-cta-bg-hover: #FFCB3D;
+  --v2-cta-border: #C9BDAE;
 
   /* ============ 阴影 ============ */
 
