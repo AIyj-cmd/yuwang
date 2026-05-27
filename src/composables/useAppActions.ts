@@ -65,6 +65,7 @@ const {
   authMode,
   badges,
   canSubmit,
+  canQuickSubmit,
   checkin,
   checkinNote,
   circleFeed,
@@ -561,8 +562,9 @@ const openProfileRecord = async (recordId: number) => {
   jumpToSection('social');
 };
 
-const handleSubmit = async () => {
-  if (!canSubmit.value) return;
+const handleSubmit = async (opts?: { quick?: boolean }) => {
+  const isQuick = opts?.quick ?? false;
+  if (isQuick ? !canQuickSubmit.value : !canSubmit.value) return;
   loading.value = true;
   errorMessage.value = '';
 
@@ -572,13 +574,12 @@ const handleSubmit = async () => {
         nickname: form.nickname,
         activity_text: form.activityText,
         duration: form.duration,
-        story_text: form.description,
+        story_text: isQuick ? form.activityText : form.description,
         topics: form.topics,
         anonymized: form.anonymized,
         anonymous_confirm: form.anonymized,
         publish_scope: form.privateOnly ? 'private' : form.publishToCommunity ? 'community' : 'groups',
         publishToCommunity: form.publishToCommunity,
-        autoCircles: form.autoCircles,
         privateOnly: form.privateOnly,
         groupIds: form.privateOnly ? [] : form.groupIds
       },
@@ -630,7 +631,6 @@ const resetForm = () => {
   topicError.value = '';
   form.anonymized = false;
   form.publishToCommunity = true;
-  form.autoCircles = true;
   form.privateOnly = false;
   form.groupIds = [];
   errorMessage.value = '';
@@ -644,7 +644,6 @@ const startNewRecord = () => {
 const handlePrivateOnlyChange = () => {
   if (form.privateOnly) {
     form.publishToCommunity = false;
-    form.autoCircles = false;
     form.groupIds = [];
   }
 };

@@ -1,23 +1,143 @@
 # PERMISSION_MATRIX.md
 
-## 工会经营系统 v1 / 第一阶段
+> Status: Current permission baseline for yuwang backend/frontend collaboration.
+> Scope: Community Home V2, scoring, reports, interactions, admin auth, and anonymous identity protection.
 
-| 行为 | 游客/未登录 | 普通登录用户 | 工会 owner | 管理员 |
-| --- | --- | --- | --- | --- |
-| 查看公开工会列表 | 允许，只展示 active | 允许，只展示 active | 允许，只展示 active | 后台可看全部 |
-| 查看公开工会详情 | 允许，仅 active | 允许，仅 active | 允许，仅 active | 后台可看全部 |
-| 创建用户工会 | 401 | 允许，需余额 >= 50 且最多拥有 1 个未 banned 用户工会 | 同普通用户；已有未 banned 用户工会返回 409 | 不走普通接口 |
-| 修改用户工会资料 | 401 | 非 owner 返回 403 | 允许修改自己担任 owner 的 `source='user'` 工会 | 后台接口可管理全部 |
-| 修改官方工会资料 | 401 | 403 | 403 | 允许 |
-| 加入 active 工会 | 401 | 允许；已有其他普通成员关系可切换 | 已是 owner 时不能通过加入其他工会绕过退出限制 | 不走普通接口 |
-| 退出工会 | 401 | 成员允许退出 | 400，不能直接退出 | 后台可通过管理能力处理 |
-| 移出成员 | 401 | 非 owner 返回 403 | 可移出普通成员，不能移出自己或 owner | 后台可管理工会状态 |
+---
 
-被封禁用户:
+## 0. Role Definitions
 
-- `requireAuth` 统一返回 403，不能创建、编辑、加入、退出或移出成员。
+| Role | Meaning |
+|---|---|
+| Visitor / unauthenticated | No user bearer token and no admin cookie. |
+| Normal logged-in user | Valid normal user bearer token. |
+| Resource owner | Logged-in user who owns the submitted record/comment/etc. |
+| Banned / restricted user | User account exists but is blocked from protected actions where backend enforces status. |
+| Admin | Valid httpOnly admin cookie + valid server-side admin session. |
 
-管理员接口:
+Important:
 
-- `/api/admin/guilds` 系列接口必须通过管理员 httpOnly cookie 校验。
-- 普通用户 Bearer token 不能访问 `/api/admin/guilds`。
+- Normal bearer token is never admin auth.
+- Admin capability must not be inferred from normal user token.
+- Frontend hidden buttons are not permission checks; backend must enforce permissions.
+
+---
+
+## 1. Community and Records
+
+| Behavior | Visitor | Normal user | Resource owner | Banned/restricted user | Admin |
+|---|---|---|---|---|---|
+| View public community records | Allowed | Allowed | Allowed | Usually allowed unless globally blocked | Allowed |
+| Read `GET /api/community/overview` public aggregates | Allowed; `myStats` is `null` | Allowed with private `myStats` for self only | Same as normal user | Public aggregates allowed; protected actions still blocked where enforced | Not admin-specific |
+| View unapproved/private records | Not allowed | Only if explicitly owned and exposed by existing API | Owner only where supported | Not allowed | Admin review/admin routes only |
+| Submit `POST /api/records` | Allowed if public endpoint and validation passes | Allowed and associated with user | Same as normal user | Must not bypass existing status protections | Not an admin-only capability |
+| Provide final score/title in request body | Ignored/not authoritative | Ignored/not authoritative | Ignored/not authoritative | Ignored/not authoritative | Not applicable |
+| Final single-record scoring | Backend only | Backend only | Backend only | Backend only | Backend only |
+| Read leaderboards | Allowed | Allowed | Allowed | Allowed unless globally blocked | Allowed |
+
+---
+
+## 2. Anonymous Identity Protection
+
+| Behavior | Visitor | Normal user | Resource owner | Admin |
+|---|---|---|---|---|
+| See anonymous record display name | Public-safe anonymous name only | Public-safe anonymous name only | Public-safe anonymous name; owner-specific behavior must be explicit | Admin routes may see moderation-needed identity if implemented |
+| See real `user_id`, email, username behind anonymous public record | Not allowed | Not allowed | Not allowed in public feed | Admin-only, if required for moderation |
+| Click avatar/name on anonymous record to reveal identity | Not allowed | Not allowed | Not allowed | Not via public frontend |
+
+Rules:
+
+- Community Home V2 must never expose real identity for anonymous records.
+- Avatar seeds must be public-safe and not reversible to sensitive identity.
+- `GET /api/community/feed` may keep compatibility placeholders such as `userId: null` and `username: ""`, but must not expose real user IDs, real usernames, email, or non-empty `reviewNote`.
+- `GET /api/community/overview.todayTop` must not expose real usernames.
+- Frontend must not infer identity from hidden fields.
+
+---
+
+## 3. Interactions
+
+| Behavior | Visitor | Normal user | Resource owner | Banned/restricted user | Admin |
+|---|---|---|---|---|---|
+| Like record | Not allowed; prompt login or disabled | Allowed | Allowed unless self-like is blocked by product rule | Not allowed where status enforced | Not admin-specific |
+| Comment on record | Not allowed to post; read depends on public API | Allowed | Allowed | Not allowed where status enforced | Admin may moderate via admin routes |
+| Report record | Not allowed | Allowed | Allowed unless self-report is blocked by product rule | Not allowed where status enforced | Admin handles reports via admin routes |
+| Legend nomination | Not allowed | Allowed | Allowed unless self-nomination is blocked | Not allowed where status enforced | Admin/review behavior via admin routes if any |
+| Duplicate active report | Not allowed without login | Returns `alreadyReported: true`; no duplicate row/count | Same | Same | Admin not used for duplicate user report |
+
+---
+
+## 4. Reports
+
+Rules:
+
+- Same user + same target can only have one active report.
+- Active statuses: `pending`, `reviewing`.
+- Processed reports do not block future reports.
+- Duplicate active report must not increase counts or create duplicate review tasks.
+- Frontend may display a friendly "already reported, pending review" state.
+
+---
+
+## 5. Scoring Boundaries
+
+| Behavior | Visitor | Normal user | Banned user | Admin |
+|---|---|---|---|---|
+| Submit score fields | Ignored/not authoritative | Ignored/not authoritative | Ignored/not authoritative | Not applicable |
+| Final `fishPowerScore` | Backend only | Backend only | Backend only | Backend only |
+| Access admin scoring views/prompt tests | 401 without admin cookie | Not allowed with bearer token | Not allowed with bearer token | Allowed with valid admin session |
+
+Rules:
+
+- `fishPowerScore` is backend-generated single-record `[0, 10]`.
+- AI output and fallback both clamp to `[0, 10]`.
+- User cumulative score is not capped at 10.
+- Wallet/fish-scale balances are not `fishPowerScore`.
+
+---
+
+## 6. Admin
+
+| Behavior | Visitor | Normal user | Banned/restricted user | Admin |
+|---|---|---|---|---|
+| `POST /api/admin/auth/login` | Allowed with admin credentials, rate limited | Same | Same | Same |
+| `GET /api/admin/auth/me` | 401 | 401 | 401 | 200 if valid cookie/session |
+| Access `/api/admin/*` | 401 | 401/403 | 401/403 | Allowed if route permits |
+| Logout admin | No-op/401 | No-op/401 | No-op/401 | Revokes server-side admin session |
+
+Admin rules:
+
+- Admin auth uses httpOnly cookie + `admin_sessions`.
+- Admin logout must revoke server-side session.
+- Admin session DB error should not be disguised as `401`.
+- Do not log sensitive token content.
+
+---
+
+## 7. Community Home V2 Frontend Permission Rules
+
+| UI module | Visitor behavior | Logged-in behavior | Notes |
+|---|---|---|---|
+| Record feed | Can read public records | Can read public records plus viewer flags if returned | No private/admin fields. |
+| PostBox | Can submit if public endpoint allows; otherwise prompt login | Can submit associated with user | Backend validates anonymization. |
+| Like/comment/report/legend buttons | Disabled or prompt login | Enabled according to backend | Do not fake success locally. |
+| My fish data | Hidden/null/login prompt | Show real private stats | Do not show fake stats. |
+| Mutual following tab | Disabled / 待开放 | Disabled / 待开放 until backend feature exists | No API request. |
+| Profile/avatar clicks | No identity reveal | No identity reveal for anonymous records | Do not implement new profile route in this task. |
+
+Community Home V2 additions:
+
+- `GET /api/community/overview` returns public `siteToday`, `todayTop`, and feature flags to visitors, but visitor `myStats` is always `null`.
+- Logged-in `GET /api/community/overview` returns only the current user's `myStats`.
+- `GET /api/community/feed` viewer flags are optional public-context state; `viewer.reported` is true only for current viewer reports with active status `pending` or `reviewing`.
+- `featureFlags.mutualFollowing`, `featureFlags.topics`, and `featureFlags.profilePages` are all `false`; Claude must not call or invent friend/following/topic/profile APIs for Community Home V2.
+
+---
+
+## 8. Forbidden Permission Shortcuts
+
+- Do not rely on frontend visibility to enforce permission.
+- Do not let client choose score/title/review state.
+- Do not use ordinary bearer token for admin routes.
+- Do not expose anonymous real identity in community feed.
+- Do not create mock admin/user states to make UI look complete.

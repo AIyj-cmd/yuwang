@@ -6,6 +6,7 @@ import type {
   CircleDetailResponse,
   CirclesResponse,
   CommunityFeedResponse,
+  CommunityOverviewResponse,
   FeedResponse,
   FeedRecord,
   GroupChallengeResponse,
@@ -223,6 +224,14 @@ export const fetchCommunityFeed = async (filter: string, token?: string | null):
   );
 };
 
+// Community Home V2: overview (right rail data + feature flags + my stats).
+// Visitor token-less call returns myStats: null; logged-in returns current user only.
+export const fetchCommunityOverview = async (token?: string | null): Promise<CommunityOverviewResponse> => {
+  return parseResponse<CommunityOverviewResponse>(
+    await fetch('/api/community/overview', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  );
+};
+
 export const fetchPopularTopics = async (): Promise<PopularTopicsResponse> => {
   return parseResponse<PopularTopicsResponse>(await fetch('/api/topics/popular'));
 };
@@ -434,6 +443,36 @@ export const startGroupChallenge = async (groupId: number, challengeName: string
       method: 'POST',
       headers: headers(token),
       body: JSON.stringify({ challengeName })
+    })
+  );
+};
+
+export const fetchAvatarPolicy = async (token: string): Promise<{ maxSizeBytes: number; allowedMimeTypes: string[]; allowedExtensions: string[]; maxUploadsPerDay: number }> => {
+  return parseResponse<{ maxSizeBytes: number; allowedMimeTypes: string[]; allowedExtensions: string[]; maxUploadsPerDay: number }>(
+    await fetch('/api/auth/me/avatar-policy', { headers: { Authorization: `Bearer ${token}` } })
+  );
+};
+
+export const uploadAvatar = async (file: File, token: string): Promise<{ avatarUrl: string }> => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const response = await fetch('/api/auth/me/avatar', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof data.message === 'string' ? data.message : '上传失败');
+  }
+  return data as { avatarUrl: string };
+};
+
+export const deleteAvatar = async (token: string): Promise<{ ok: boolean }> => {
+  return parseResponse<{ ok: boolean }>(
+    await fetch('/api/auth/me/avatar', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
     })
   );
 };

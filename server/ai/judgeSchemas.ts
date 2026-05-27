@@ -27,6 +27,12 @@ export const AiJudgeResultSchema = z.object({
 
 export const ScoreBreakdownSchema = z.object({
   baseScore: z.number(),
+  durationScore: z.number().optional(),
+  durationBaseScore: z.number().optional(),
+  durationMultiplier: z.number().optional(),
+  riskMultiplier: z.number().optional(),
+  disguiseBonus: z.number().optional(),
+  creativityBonus: z.number().optional(),
   duration: z.string(),
   durationLabel: z.string(),
   intensity: AiIntensitySchema,
@@ -37,16 +43,22 @@ export const ScoreBreakdownSchema = z.object({
   outcomeBonus: z.number(),
   specialBonuses: z.array(AiSpecialBonusSchema),
   specialBonusTotal: z.number(),
+  specialBonusScore: z.number().optional(),
+  descriptionQualityScore: z.number().optional(),
   rawScore: z.number(),
   displayScore: z.number(),
   fishPowerScore: z.number(),
+  singleRecordScoreMax: z.number().optional(),
   scoreVersion: z.string(),
   aiProvider: z.string(),
   aiModel: z.string(),
   promptKey: z.string(),
   promptVersion: z.union([z.string(), z.number()]),
   fallback: z.boolean(),
-  fallbackReason: z.string().optional()
+  fallbackReason: z.string().optional(),
+  valid: z.boolean().optional(),
+  reason: z.string().optional(),
+  comment: z.string().optional()
 });
 
 export const FALLBACK_REASON_VALUES = [
@@ -68,4 +80,3 @@ export const DEFAULT_SCORE_META = {
 } as const;
 
 export type ParsedAiJudgeResult = z.infer<typeof AiJudgeResultSchema>;
-

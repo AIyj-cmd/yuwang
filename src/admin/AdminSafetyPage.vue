@@ -41,13 +41,23 @@ const removeWord = (index: number) => {
 };
 
 const saveWords = async () => {
-  await saveAdminSensitiveWords(words.value);
-  await load();
+  error.value = '';
+  try {
+    await saveAdminSensitiveWords(words.value);
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存失败';
+  }
 };
 
 const saveRules = async () => {
-  await saveAdminSafetyRules(rules);
-  await load();
+  error.value = '';
+  try {
+    await saveAdminSafetyRules(rules);
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存失败';
+  }
 };
 
 onMounted(load);

@@ -38,23 +38,38 @@ const load = async () => {
 
 const act = async (action: 'approve' | 'hide' | 'reject' | 'restore') => {
   if ((action === 'hide' || action === 'reject') && !window.confirm('确认执行该审核动作？')) return;
-  await updateAdminRecordStatus(id, {
-    action,
-    reviewNote: reviewNote.value,
-    hiddenReason: hiddenReason.value
-  });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminRecordStatus(id, {
+      action,
+      reviewNote: reviewNote.value,
+      hiddenReason: hiddenReason.value
+    });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 const saveNote = async () => {
-  await updateAdminRecord(id, { reviewNote: reviewNote.value, hiddenReason: hiddenReason.value });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminRecord(id, { reviewNote: reviewNote.value, hiddenReason: hiddenReason.value });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '保存失败';
+  }
 };
 
 const toggleLegendSelected = async (selected: boolean) => {
   if (selected && !window.confirm('确认选入传奇记录？记录作者将获得 100 鱼鳞。')) return;
-  await updateAdminRecordLegend(id, selected);
-  await load();
+  error.value = '';
+  try {
+    await updateAdminRecordLegend(id, selected);
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 onMounted(load);

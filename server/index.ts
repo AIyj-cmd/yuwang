@@ -1,19 +1,77 @@
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { AVATAR_MAX_SIZE_BYTES, AVATAR_UPLOAD_DIR, AVATAR_URL_PREFIX, ensureAvatarUploadDir } from './avatar.js';
 import { initDatabase } from './database.js';
 import { registerRoutes } from './routes.js';
+
+const parseTrustProxy = (): boolean | string[] => {
+  const value = (process.env.TRUST_PROXY ?? '').trim();
+  if (!value || ['false', '0', 'no'].includes(value.toLowerCase())) return false;
+  if (['true', '1', 'yes'].includes(value.toLowerCase())) return true;
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
 
 const app = Fastify({
   logger: {
     level: process.env.LOG_LEVEL ?? 'info'
-  }
+  },
+  trustProxy: parseTrustProxy()
 });
 
+const parseAllowedOrigins = (): Set<string> => {
+  const configured = (process.env.CORS_ORIGINS ?? process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const localDevelopmentOrigins =
+    process.env.NODE_ENV === 'production'
+      ? []
+      : [
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+          'http://localhost:3001',
+          'http://127.0.0.1:3001',
+          'http://localhost:3101',
+          'http://127.0.0.1:3101',
+          'http://localhost:5173',
+          'http://127.0.0.1:5173'
+        ];
+  return new Set([...configured, ...localDevelopmentOrigins]);
+};
+
+const allowedOrigins = parseAllowedOrigins();
 await app.register(cors, {
-  origin: true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Origin is not allowed by CORS'), false);
+  },
+  credentials: true
+});
+
+ensureAvatarUploadDir();
+await app.register(multipart, {
+  limits: {
+    fileSize: AVATAR_MAX_SIZE_BYTES,
+    files: 1,
+    fields: 0,
+    parts: 1
+  },
+  throwFileSizeLimit: true
+});
+await app.register(fastifyStatic, {
+  root: AVATAR_UPLOAD_DIR,
+  prefix: AVATAR_URL_PREFIX,
+  decorateReply: false
 });
 
 initDatabase();
@@ -39,8 +97,8 @@ if (existsSync(distRoot)) {
   });
 }
 
-const port = Number(process.env.PORT ?? 3001);
-const host = process.env.HOST ?? '0.0.0.0';
+const port = Number(process.env.PORT ?? 3101);
+const host = process.env.HOST ?? '127.0.0.1';
 
 try {
   await app.listen({ port, host });

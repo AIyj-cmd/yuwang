@@ -21,12 +21,17 @@ const load = async () => {
 
 const updateStatus = async (report: AdminReport, status: 'reviewing' | 'resolved' | 'rejected', hideTarget = false) => {
   if (hideTarget && !window.confirm(`确认联动隐藏 ${report.targetType} #${report.targetId}？`)) return;
-  await updateAdminReportStatus(report.id, {
-    status,
-    adminNote: status === 'rejected' ? '无效举报' : '已处理',
-    hideTarget
-  });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminReportStatus(report.id, {
+      status,
+      adminNote: status === 'rejected' ? '无效举报' : '已处理',
+      hideTarget
+    });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 onMounted(load);

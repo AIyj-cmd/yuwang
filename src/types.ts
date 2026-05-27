@@ -105,6 +105,8 @@ export type RecordSummary = {
   scoreVersion: string;
   createdAt: string;
   breakdown: ScoreBreakdown;
+  avatarUrl?: string;
+  avatarSeed?: string;
 };
 
 export type FishScaleWallet = {
@@ -268,7 +270,66 @@ export type FeedRecord = RecordSummary & {
     liked: boolean;
     legendNominated: boolean;
     reported: boolean;
+    favorited?: boolean;
   };
+  /** Community V2: top-level single-record Fish Power Score in [0, 10]. */
+  fishPowerScore?: number;
+  /** Community V2: primary tag for list view (first existing tag or null). */
+  primaryTag?: FeedTag | null;
+};
+
+/* ----------------------------------------------------------------
+ * Community Home V2 — GET /api/community/overview
+ * Backend-confirmed shape (see docs/COMMUNITY_V2_DATA_MAP.md).
+ * ---------------------------------------------------------------- */
+
+export type CommunityMyStats = {
+  weeklyRecordCount: number;
+  weeklyAverageScore: number;
+  cumulativeScore: number;
+  fishScales: number;
+  globalRank: number | null;
+};
+
+export type CommunitySiteToday = {
+  todayRecords: number;
+  todayActiveUsers: number;
+  todayLikes: number;
+  totalRecords: number;
+  totalUsers: number;
+  totalLikes: number;
+};
+
+export type CommunityTodayTopRow = {
+  id: number;
+  rank: number;
+  nickname: string;
+  score: number;
+  metricLabel: string;
+  title: string;
+  description: string;
+  slackingType: string;
+  activityText: string;
+  risk: string;
+  createdAt: string;
+  likeCount: number;
+  favoriteCount: number;
+  voteCount: number;
+  commentCount: number;
+  count?: number;
+};
+
+export type CommunityFeatureFlags = {
+  mutualFollowing: boolean;
+  topics: boolean;
+  profilePages: boolean;
+};
+
+export type CommunityOverviewResponse = {
+  myStats: CommunityMyStats | null;
+  siteToday: CommunitySiteToday;
+  todayTop: CommunityTodayTopRow[];
+  featureFlags: CommunityFeatureFlags;
 };
 
 export type LeaderboardRow = {
@@ -429,6 +490,8 @@ export type Guild = {
   joined: boolean;
   role: string;
 };
+
+export type CachedGuild = Pick<Guild, 'id' | 'name' | 'description' | 'icon' | 'role'>;
 
 export type GuildRankingRow = {
   rank: number;

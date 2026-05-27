@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>社区广场 · Neo-pixel Flat v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+<!-- MiSans via npm CDN（若 CDN 不可达，自动回退 PingFang / 微软雅黑） -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/misans@4.001/lib/MiSans-Regular.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/misans@4.001/lib/MiSans-Semibold.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/misans@4.001/lib/MiSans-Bold.min.css" />
+<style>
+/* ============================================================
+ * Neo-pixel Flat · v3 · 社区广场
+ *
+ *   修订要点
+ *   1. 投放区取代搜索成为主 CTA · 占筛选 tab 上方整行
+ *   2. 页头与搜索合并 · 搜索降级为右上角图标 · 全站数据移右栏
+ *   3. 全站数据冷启动降级:数值 < 5 时显示累计
+ *   4. 筛选 tab count 仅 active 显示 · tab 高度 28px
+ *   5. 徽章宽度 80px · 互动 active 颜色补 token
+ *   6. 响应式 1280→侧栏压 240 / 960→隐藏
+ * ============================================================ */
+:root {
+  --bg: #FAF7F2;
+  --card: #FFFFFF;
+  --primary: #FFD666;
+  --primary-soft: #FFF2C7;
+  --mint: #A8D8C9;
+  --mint-soft: #ECF6F1;
+  --coral: #FFB4A2;
+  --coral-soft: #FFF0E8;
+  --text: #2B2B2B;
+  --text-muted: #8B8680;
+  --border: #E8E2D5;
+  --border-w: 1.5px;
+  --radius: 8px;
+  --shadow: 4px 4px 0 #E8E2D5;
+  --shadow-sm: 2px 2px 0 #E8E2D5;
+
+  /* 互动 active 状态色 token（v2 遗漏，v3 补齐） */
+  --color-bg-active-warm:   #FFF8DD;
+  --color-bg-active-coral:  #FFF0E8;
+  --color-bg-active-danger: #FFE8E0;
+
+  --font-cn: 'MiSans', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-en: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+
+  /* 6 档字号 */
+  --fs-hero: 40px;
+  --fs-h1:   24px;
+  --fs-h2:   18px;
+  --fs-body: 15px;
+  --fs-meta: 13px;
+  --fs-tag:  12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-cn), var(--font-en);
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.num { font-family: var(--font-mono); font-weight: 700; }
+button { font-family: inherit; }
+
+/* ============================================================
+ * 三栏布局
+ * ============================================================ */
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: start;
+}
+
+/* ============================================================
+ * 左栏 · 导航
+ * ============================================================ */
+.nav {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 8px;
+}
+.nav-logo {
+  width: 40px; height: 40px;
+  margin: 0 auto 4px;
+  background: var(--primary);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  display: grid; place-items: center;
+}
+.nav-logo svg { width: 22px; height: 22px; image-rendering: pixelated; }
+.nav-divider { height: 1.5px; margin: 6px 4px; background: var(--border); }
+.nav-item {
+  width: 40px; height: 40px;
+  margin: 0 auto;
+  display: grid; place-items: center;
+  background: transparent;
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+}
+.nav-item:hover { color: var(--text); background: var(--bg); }
+.nav-item.active {
+  background: var(--mint);
+  border-color: var(--text);
+  color: var(--text);
+}
+.nav-item.active::after {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 8px;
+  width: 3px;
+  height: 24px;
+  background: var(--text);
+}
+.nav-item svg { width: 20px; height: 20px; image-rendering: pixelated; }
+
+/* ============================================================
+ * 主内容栏
+ * ============================================================ */
+.main {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+/* ----------- 页头 ＋ 搜索（合并）----------- */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 20px;
+}
+.page-head h1 {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.page-head .head-sub {
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.icon-btn {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text);
+}
+.icon-btn:hover { background: var(--bg); border-color: var(--text); }
+.icon-btn svg { width: 16px; height: 16px; image-rendering: pixelated; }
+
+/* ----------- 投放入口（主 CTA） ----------- */
+.post-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--primary);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+}
+.post-emoji {
+  width: 44px; height: 44px;
+  flex-shrink: 0;
+  background: var(--card);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  display: grid; place-items: center;
+}
+.post-emoji svg { width: 22px; height: 22px; image-rendering: pixelated; color: var(--text); }
+.post-input {
+  flex: 1;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--card);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+  cursor: text;
+}
+.post-input b {
+  color: var(--text);
+  font-weight: 700;
+  margin-right: 8px;
+}
+.post-btn {
+  height: 44px;
+  padding: 0 22px;
+  background: var(--text);
+  color: var(--primary);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.post-btn:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--border); }
+.post-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--border); }
+.post-btn svg { width: 14px; height: 14px; image-rendering: pixelated; }
+
+/* ----------- 筛选 Tab（紧凑 28px · count 仅 active 显示）----------- */
+.filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+}
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.filter-tab:hover { color: var(--text); }
+.filter-tab.active {
+  background: var(--primary);
+  border-color: var(--text);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.filter-tab .count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  display: none;
+}
+.filter-tab.active .count { display: inline; }
+.filter-tab svg { width: 12px; height: 12px; image-rendering: pixelated; }
+
+/* ============================================================
+ * 记录卡 · 新结构
+ * ============================================================ */
+.record {
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 14px;
+  row-gap: 4px;
+  align-items: start;
+}
+
+.record .avatar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 44px; height: 44px;
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  background: var(--mint);
+  display: grid; place-items: center;
+  color: var(--text);
+  margin-top: 2px;
+}
+.record .avatar.coral   { background: var(--coral); }
+.record .avatar.primary { background: var(--primary); }
+.record .avatar svg { width: 22px; height: 22px; image-rendering: pixelated; }
+
+.record .name-line {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.record .meta-line {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.record .meta-line .dot {
+  width: 3px; height: 3px;
+  background: var(--text-muted);
+  border-radius: 50%;
+}
+.record .meta-time { font-family: var(--font-mono); font-weight: 600; }
+.record .meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-tag);
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+}
+.record .meta-tag.mint  { background: var(--mint-soft); border-color: var(--mint); color: #4a6a5e; }
+.record .meta-tag.coral { background: var(--coral-soft); border-color: var(--coral); color: #7a4a3a; }
+
+/* 称号徽章 · v3: 80px 更平衡 */
+.record .title-badge {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  background: var(--primary);
+  padding: 7px 8px;
+  min-width: 80px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.record .title-badge .title-text {
+  font-size: var(--fs-tag);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+.record .title-badge .title-score {
+  font-family: var(--font-mono);
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.record .title-badge.legend { background: var(--coral); }
+.record .title-badge.mint   { background: var(--mint); }
+
+.record .title {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin-top: 10px;
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.record .body {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  margin-top: 6px;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: #4a4a45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.record .body-expand {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  margin-top: 4px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  justify-self: start;
+  padding: 0;
+}
+.record .body-expand:hover { color: var(--text); }
+
+.record .actions {
+  grid-column: 1 / -1;
+  grid-row: 6;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: var(--border-w) solid var(--border);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.record .action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  background: transparent;
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.record .action:hover { background: var(--bg); color: var(--text); }
+.record .action.active        { color: var(--text); border-color: var(--border); background: var(--color-bg-active-warm); }
+.record .action.legend.active { background: var(--color-bg-active-coral); }
+.record .action.danger.active { background: var(--color-bg-active-danger); color: #7a4a3a; }
+.record .action svg { width: 15px; height: 15px; image-rendering: pixelated; }
+.record .action-more { margin-left: auto; }
+
+.record .compose {
+  grid-column: 1 / -1;
+  grid-row: 7;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: var(--border-w) solid var(--border);
+  display: none;
+  gap: 8px;
+}
+.record .compose.show { display: flex; }
+.compose .input { flex: 1; }
+.input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--bg);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+.input svg { width: 14px; height: 14px; color: var(--text-muted); image-rendering: pixelated; }
+.input input {
+  flex: 1;
+  background: transparent; border: none; outline: none;
+  font-family: inherit;
+  font-size: var(--fs-meta);
+  color: var(--text);
+}
+.input input::placeholder { color: var(--text-muted); }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  background: var(--card);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.btn.primary { background: var(--primary); }
+.btn:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--border); }
+.btn svg { width: 14px; height: 14px; image-rendering: pixelated; }
+
+/* ============================================================
+ * 右栏
+ * ============================================================ */
+.side {
+  display: grid;
+  gap: 16px;
+  position: sticky;
+  top: 24px;
+}
+.side-card {
+  background: var(--card);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 16px 14px;
+}
+.side-title {
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.side-title svg { width: 16px; height: 16px; image-rendering: pixelated; }
+.side-sub {
+  font-size: var(--fs-tag);
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.fish-index {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+.fish-index .hero-num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+}
+.fish-index .unit {
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+.fish-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1.5px dashed var(--border);
+  font-size: var(--fs-meta);
+}
+.fish-row:first-of-type { border-top: none; }
+.fish-row .k { color: var(--text-muted); }
+.fish-row .v { font-family: var(--font-mono); font-weight: 700; color: var(--text); }
+
+/* 冷启动期数据降级行 */
+.fish-row.fallback {
+  background: var(--bg);
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border-top: none;
+  font-size: var(--fs-tag);
+  color: var(--text-muted);
+}
+.fish-row.fallback .v { font-size: var(--fs-tag); color: var(--text-muted); }
+.cold-tip {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.cold-tip b { color: var(--text); }
+
+/* 小排行榜 */
+.mini-rank {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.mini-rank li {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: var(--bg);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+}
+.mini-rank .rank-no {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+}
+.mini-rank li:nth-child(1) .rank-no { color: var(--text); background: var(--primary); border-radius: 4px; }
+.mini-rank li:nth-child(2) .rank-no { color: var(--text); background: var(--mint); border-radius: 4px; }
+.mini-rank li:nth-child(3) .rank-no { color: var(--text); background: var(--coral); border-radius: 4px; }
+.mini-rank .nm {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-rank .sc { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-meta); }
+
+/* AI 裁判 · v3 降级:从 CTA 卡降为一行入口 */
+.bot-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.bot-line:hover { background: var(--mint-soft); border-color: var(--mint); }
+.bot-line svg { width: 18px; height: 18px; image-rendering: pixelated; flex-shrink: 0; }
+.bot-line strong { font-size: var(--fs-meta); font-weight: 700; flex: 1; }
+.bot-line span { font-size: var(--fs-tag); color: var(--text-muted); }
+
+/* 推荐 */
+.reco-item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  background: var(--bg);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+}
+.reco-item + .reco-item { margin-top: 8px; }
+.reco-avatar {
+  width: 32px; height: 32px;
+  background: var(--coral);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  display: grid; place-items: center;
+}
+.reco-avatar svg { width: 18px; height: 18px; image-rendering: pixelated; }
+.reco-name { font-size: var(--fs-meta); font-weight: 700; line-height: 1.3; }
+.reco-sub { font-size: var(--fs-tag); color: var(--text-muted); margin-top: 1px; }
+.reco-cta {
+  font-size: var(--fs-tag);
+  font-weight: 700;
+  padding: 4px 10px;
+  background: var(--card);
+  border: var(--border-w) solid var(--text);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* ============================================================
+ * 响应式 · v3
+ *   1280 以下:侧栏压到 240px
+ *   960  以下:侧栏隐藏
+ *   720  以下:左栏折叠为横向条
+ * ============================================================ */
+@media (max-width: 1280px) {
+  .app { grid-template-columns: 56px minmax(0, 1fr) 240px; }
+}
+@media (max-width: 960px) {
+  .app { grid-template-columns: 56px minmax(0, 1fr); }
+  .side { display: none; }
+}
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; padding: 16px; gap: 16px; }
+  .nav { position: static; flex-direction: row; overflow-x: auto; }
+  .nav-divider { display: none; }
+  .nav-logo { margin: 0; }
+  .post-box { flex-wrap: wrap; }
+  .post-input { width: 100%; order: 2; }
+  .post-btn { width: 100%; order: 3; }
+  .post-emoji { order: 1; }
+  .record { padding: 16px; }
+  .record .title-badge { min-width: 72px; padding: 6px; }
+}
+</style>
+
+<!-- 像素 SVG 图标 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-fish" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="2" y="6" width="1" height="4"/><rect x="3" y="5" width="1" height="6"/>
+      <rect x="4" y="4" width="1" height="8"/><rect x="5" y="4" width="6" height="8"/>
+      <rect x="11" y="5" width="1" height="6"/><rect x="12" y="3" width="1" height="2"/>
+      <rect x="12" y="6" width="1" height="4"/><rect x="12" y="11" width="1" height="2"/>
+      <rect x="13" y="2" width="1" height="3"/><rect x="13" y="11" width="1" height="3"/>
+      <rect x="9" y="6" width="1" height="1" fill="#FFFFFF"/>
+    </g></symbol>
+    <symbol id="i-home" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="7" y="2" width="2" height="1"/><rect x="6" y="3" width="4" height="1"/>
+      <rect x="5" y="4" width="6" height="1"/><rect x="4" y="5" width="8" height="1"/>
+      <rect x="3" y="6" width="10" height="1"/><rect x="3" y="7" width="2" height="6"/>
+      <rect x="11" y="7" width="2" height="6"/><rect x="5" y="8" width="6" height="5"/>
+      <rect x="7" y="10" width="2" height="3" fill="#FAF7F2"/>
+    </g></symbol>
+    <symbol id="i-community" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="3" y="3" width="4" height="4"/><rect x="9" y="3" width="4" height="4"/>
+      <rect x="3" y="9" width="4" height="4"/><rect x="9" y="9" width="4" height="4"/>
+      <rect x="4" y="4" width="2" height="2" fill="#FAF7F2"/>
+      <rect x="10" y="4" width="2" height="2" fill="#FAF7F2"/>
+      <rect x="4" y="10" width="2" height="2" fill="#FAF7F2"/>
+      <rect x="10" y="10" width="2" height="2" fill="#FAF7F2"/>
+    </g></symbol>
+    <symbol id="i-trophy" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="4" y="2" width="8" height="1"/><rect x="3" y="3" width="10" height="1"/>
+      <rect x="3" y="4" width="2" height="4"/><rect x="11" y="4" width="2" height="4"/>
+      <rect x="1" y="5" width="2" height="2"/><rect x="13" y="5" width="2" height="2"/>
+      <rect x="5" y="4" width="6" height="5"/><rect x="6" y="9" width="4" height="1"/>
+      <rect x="5" y="10" width="6" height="1"/><rect x="4" y="11" width="8" height="1"/>
+      <rect x="3" y="12" width="10" height="2"/>
+    </g></symbol>
+    <symbol id="i-crown" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="2" y="4" width="1" height="6"/><rect x="13" y="4" width="1" height="6"/>
+      <rect x="3" y="5" width="1" height="5"/><rect x="12" y="5" width="1" height="5"/>
+      <rect x="7" y="3" width="2" height="2"/>
+      <rect x="4" y="6" width="8" height="4"/>
+      <rect x="3" y="11" width="10" height="1"/>
+    </g></symbol>
+    <symbol id="i-users" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="5" y="3" width="3" height="3"/><rect x="10" y="4" width="2" height="2"/>
+      <rect x="3" y="7" width="7" height="1"/><rect x="2" y="8" width="9" height="3"/>
+      <rect x="11" y="8" width="3" height="2"/>
+    </g></symbol>
+    <symbol id="i-wallet" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="2" y="4" width="12" height="1"/><rect x="2" y="11" width="12" height="1"/>
+      <rect x="1" y="5" width="1" height="6"/><rect x="14" y="5" width="1" height="6"/>
+      <rect x="11" y="7" width="3" height="2" fill="#FAF7F2"/>
+      <rect x="12" y="7" width="1" height="2"/>
+    </g></symbol>
+    <symbol id="i-user" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="6" y="3" width="4" height="4"/>
+      <rect x="4" y="9" width="8" height="4"/>
+      <rect x="3" y="10" width="1" height="3"/><rect x="12" y="10" width="1" height="3"/>
+    </g></symbol>
+    <symbol id="i-settings" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="7" y="2" width="2" height="2"/><rect x="7" y="12" width="2" height="2"/>
+      <rect x="2" y="7" width="2" height="2"/><rect x="12" y="7" width="2" height="2"/>
+      <rect x="3" y="3" width="2" height="2"/><rect x="11" y="3" width="2" height="2"/>
+      <rect x="3" y="11" width="2" height="2"/><rect x="11" y="11" width="2" height="2"/>
+      <rect x="6" y="6" width="4" height="4"/>
+      <rect x="7" y="7" width="2" height="2" fill="#FAF7F2"/>
+    </g></symbol>
+    <symbol id="i-search" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="3" y="2" width="6" height="1"/><rect x="2" y="3" width="1" height="6"/>
+      <rect x="9" y="3" width="1" height="6"/><rect x="3" y="9" width="6" height="1"/>
+      <rect x="9" y="9" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/>
+      <rect x="11" y="11" width="1" height="1"/><rect x="12" y="12" width="2" height="2"/>
+    </g></symbol>
+    <symbol id="i-heart" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="3" y="3" width="3" height="1"/><rect x="10" y="3" width="3" height="1"/>
+      <rect x="2" y="4" width="5" height="1"/><rect x="9" y="4" width="5" height="1"/>
+      <rect x="2" y="5" width="12" height="2"/><rect x="3" y="7" width="10" height="1"/>
+      <rect x="4" y="8" width="8" height="1"/><rect x="5" y="9" width="6" height="1"/>
+      <rect x="6" y="10" width="4" height="1"/><rect x="7" y="11" width="2" height="1"/>
+    </g></symbol>
+    <symbol id="i-comment" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="2" y="3" width="12" height="1"/><rect x="2" y="9" width="12" height="1"/>
+      <rect x="1" y="4" width="1" height="5"/><rect x="14" y="4" width="1" height="5"/>
+      <rect x="4" y="10" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/>
+      <rect x="6" y="12" width="1" height="1"/>
+      <rect x="4" y="5" width="2" height="1"/><rect x="7" y="5" width="2" height="1"/><rect x="10" y="5" width="2" height="1"/>
+      <rect x="4" y="7" width="6" height="1"/>
+    </g></symbol>
+    <symbol id="i-star" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="7" y="2" width="2" height="2"/>
+      <rect x="6" y="4" width="4" height="2"/>
+      <rect x="2" y="6" width="12" height="2"/>
+      <rect x="3" y="8" width="10" height="1"/>
+      <rect x="4" y="9" width="8" height="2"/>
+      <rect x="3" y="11" width="3" height="2"/><rect x="10" y="11" width="3" height="2"/>
+      <rect x="3" y="13" width="2" height="1"/><rect x="11" y="13" width="2" height="1"/>
+    </g></symbol>
+    <symbol id="i-more" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="2" y="7" width="2" height="2"/>
+      <rect x="7" y="7" width="2" height="2"/>
+      <rect x="12" y="7" width="2" height="2"/>
+    </g></symbol>
+    <symbol id="i-bolt" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="8" y="2" width="3" height="1"/><rect x="7" y="3" width="3" height="1"/>
+      <rect x="6" y="4" width="3" height="1"/><rect x="5" y="5" width="3" height="1"/>
+      <rect x="4" y="6" width="6" height="1"/><rect x="6" y="7" width="4" height="1"/>
+      <rect x="5" y="8" width="4" height="1"/><rect x="4" y="9" width="4" height="1"/>
+      <rect x="3" y="10" width="4" height="1"/><rect x="5" y="11" width="3" height="1"/>
+      <rect x="6" y="12" width="3" height="1"/><rect x="7" y="13" width="2" height="1"/>
+    </g></symbol>
+    <symbol id="i-spark" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="7" y="1" width="2" height="3"/><rect x="7" y="12" width="2" height="3"/>
+      <rect x="1" y="7" width="3" height="2"/><rect x="12" y="7" width="3" height="2"/>
+      <rect x="5" y="5" width="6" height="6"/>
+      <rect x="7" y="7" width="2" height="2" fill="#FAF7F2"/>
+    </g></symbol>
+    <symbol id="i-bot" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="7" y="1" width="2" height="2"/>
+      <rect x="3" y="4" width="10" height="8"/>
+      <rect x="2" y="5" width="1" height="6"/><rect x="13" y="5" width="1" height="6"/>
+      <rect x="5" y="6" width="2" height="2" fill="#FAF7F2"/>
+      <rect x="9" y="6" width="2" height="2" fill="#FAF7F2"/>
+      <rect x="6" y="9" width="4" height="1" fill="#FAF7F2"/>
+    </g></symbol>
+    <symbol id="i-edit" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="10" y="2" width="3" height="1"/><rect x="9" y="3" width="2" height="1"/>
+      <rect x="11" y="3" width="3" height="1"/><rect x="10" y="4" width="1" height="1"/>
+      <rect x="11" y="4" width="3" height="1"/>
+      <rect x="9" y="5" width="2" height="1"/><rect x="10" y="5" width="3" height="2"/>
+      <rect x="7" y="6" width="2" height="2"/><rect x="6" y="7" width="2" height="2"/>
+      <rect x="5" y="8" width="2" height="2"/><rect x="4" y="9" width="2" height="2"/>
+      <rect x="3" y="10" width="2" height="2"/><rect x="2" y="11" width="3" height="2"/>
+      <rect x="2" y="13" width="4" height="1"/>
+    </g></symbol>
+    <symbol id="i-send" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="2" y="3" width="12" height="1"/>
+      <rect x="2" y="4" width="2" height="1"/><rect x="3" y="5" width="3" height="1"/>
+      <rect x="4" y="6" width="4" height="1"/><rect x="5" y="7" width="5" height="2"/>
+      <rect x="4" y="9" width="4" height="1"/><rect x="3" y="10" width="3" height="1"/>
+      <rect x="2" y="11" width="2" height="1"/>
+    </g></symbol>
+    <symbol id="i-globe" viewBox="0 0 16 16"><g shape-rendering="crispEdges" fill="currentColor">
+      <rect x="5" y="2" width="6" height="1"/><rect x="3" y="3" width="2" height="1"/>
+      <rect x="11" y="3" width="2" height="1"/><rect x="2" y="4" width="1" height="8"/>
+      <rect x="13" y="4" width="1" height="8"/><rect x="3" y="12" width="2" height="1"/>
+      <rect x="11" y="12" width="2" height="1"/><rect x="5" y="13" width="6" height="1"/>
+      <rect x="7" y="3" width="2" height="10"/>
+      <rect x="3" y="7" width="10" height="2"/>
+    </g></symbol>
+  </defs>
+</svg>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ 左栏 ============ -->
+  <nav class="nav">
+    <div class="nav-logo" style="color:var(--text);"><svg><use href="#i-fish"/></svg></div>
+    <button class="nav-item" title="首页"><svg><use href="#i-home"/></svg></button>
+    <button class="nav-item active" title="社区"><svg><use href="#i-community"/></svg></button>
+    <button class="nav-item" title="排行榜"><svg><use href="#i-trophy"/></svg></button>
+    <button class="nav-item" title="工会"><svg><use href="#i-crown"/></svg></button>
+    <button class="nav-item" title="圈子"><svg><use href="#i-users"/></svg></button>
+    <button class="nav-item" title="钱包"><svg><use href="#i-wallet"/></svg></button>
+    <div class="nav-divider"></div>
+    <button class="nav-item" title="个人"><svg><use href="#i-user"/></svg></button>
+    <button class="nav-item" title="设置"><svg><use href="#i-settings"/></svg></button>
+  </nav>
+
+  <!-- ============ 主栏 ============ -->
+  <main class="main">
+
+    <!-- 页头 ＋ 搜索（合并）-->
+    <section class="page-head">
+      <div>
+        <h1>社区广场</h1>
+        <p class="head-sub">公共水域 · 只展示已公开且通过审核的记录</p>
+      </div>
+      <div class="head-actions">
+        <button class="icon-btn" title="搜索">
+          <svg><use href="#i-search"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- 投放入口 · 主 CTA -->
+    <section class="post-box">
+      <div class="post-emoji"><svg><use href="#i-edit"/></svg></div>
+      <div class="post-input"><b>今天这条鱼怎么摸的？</b><span>讲讲伪装方式、烈度、结局…</span></div>
+      <button class="post-btn"><svg><use href="#i-send"/></svg>投放</button>
+    </section>
+
+    <!-- 筛选 Tab · 紧凑 28px · count 只在 active 显示 -->
+    <section class="filters">
+      <button class="filter-tab active">最新摸鱼 <span class="count">42</span></button>
+      <button class="filter-tab">
+        <svg style="color: var(--coral);"><use href="#i-bolt"/></svg>
+        今日热门
+      </button>
+      <button class="filter-tab">高分记录</button>
+      <button class="filter-tab">
+        <svg style="color: var(--primary);"><use href="#i-crown"/></svg>
+        传奇候选
+      </button>
+    </section>
+
+    <!-- ============ 记录卡 1 ============ -->
+    <article class="record">
+      <div class="avatar coral"><svg><use href="#i-fish"/></svg></div>
+      <div class="name-line">匿名鲨鱼</div>
+      <div class="meta-line">
+        <span class="meta-time">5 小时前</span>
+        <span class="dot"></span>
+        <span class="meta-tag mint">#假装看文档</span>
+      </div>
+      <div class="title-badge legend">
+        <span class="title-text">传奇</span>
+        <span class="title-score">4.0</span>
+      </div>
+
+      <h3 class="title">我在摸鱼我在摸鱼我在摸鱼</h3>
+      <p class="body">同事来问进度，我打开了空白的文档假装在思考。实际上脑子里全是楼下那家麻辣烫到底要不要加宽粉。最后顶住压力，没点宽粉，点了油条，圆满下班。但回到工位以后又开始纠结，明天到底要不要换一家试试新出的牛肉酸汤。</p>
+      <button class="body-expand">展开全文 ↓</button>
+
+      <div class="actions">
+        <button class="action active"><svg><use href="#i-heart"/></svg><span class="num">88</span></button>
+        <button class="action"><svg><use href="#i-comment"/></svg><span class="num">12</span></button>
+        <button class="action"><svg><use href="#i-star"/></svg><span class="num">5</span></button>
+        <button class="action legend"><svg><use href="#i-crown"/></svg><span class="num">3</span></button>
+        <button class="action action-more" title="更多"><svg><use href="#i-more"/></svg></button>
+      </div>
+    </article>
+
+    <!-- ============ 记录卡 2 · 评论框展开示例 ============ -->
+    <article class="record">
+      <div class="avatar mint"><svg><use href="#i-fish"/></svg></div>
+      <div class="name-line">茶水间外交官</div>
+      <div class="meta-line">
+        <span class="meta-time">11:08</span>
+        <span class="dot"></span>
+        <span class="meta-tag coral">伪装系</span>
+      </div>
+      <div class="title-badge">
+        <span class="title-text">划水艺术家</span>
+        <span class="title-score">3.5</span>
+      </div>
+
+      <h3 class="title">茶水间偶遇老板，假装在思考工作</h3>
+      <p class="body">老板进茶水间的瞬间，我立刻皱眉看着杯子里的咖啡，仿佛它倒映着这个季度最棘手的技术难题。老板路过时还点了点头，仿佛我们已经在脑内完成了一次高效对谈。</p>
+
+      <div class="actions">
+        <button class="action"><svg><use href="#i-heart"/></svg><span class="num">64</span></button>
+        <button class="action active"><svg><use href="#i-comment"/></svg><span class="num">9</span></button>
+        <!-- 收藏 0 → 完全不渲染 -->
+        <button class="action legend active"><svg><use href="#i-crown"/></svg><span class="num">7</span></button>
+        <button class="action action-more" title="更多"><svg><use href="#i-more"/></svg></button>
+      </div>
+
+      <div class="compose show">
+        <label class="input">
+          <svg><use href="#i-comment"/></svg>
+          <input type="text" placeholder="120 字以内，别写真实公司、客户或聊天记录" />
+        </label>
+        <button class="btn primary"><svg><use href="#i-send"/></svg>发送</button>
+      </div>
+    </article>
+
+    <!-- ============ 记录卡 3 · 互动极简 ============ -->
+    <article class="record">
+      <div class="avatar primary"><svg><use href="#i-fish"/></svg></div>
+      <div class="name-line">键盘交响乐手</div>
+      <div class="meta-line">
+        <span class="meta-time">09:47</span>
+        <span class="dot"></span>
+        <span class="meta-tag">技术人</span>
+      </div>
+      <div class="title-badge mint">
+        <span class="title-text">茶水间常驻</span>
+        <span class="title-score">2.8</span>
+      </div>
+
+      <h3 class="title">疯狂敲击空格键，假装在写文档</h3>
+      <p class="body">屏幕上其实是知乎首页。每隔两分钟敲一次空格让屏幕保持不息屏，再小幅度滚动一下，从背后看像极了正在专注码字的样子。</p>
+
+      <div class="actions">
+        <button class="action"><svg><use href="#i-heart"/></svg><span class="num">3</span></button>
+        <button class="action"><svg><use href="#i-comment"/></svg></button>
+        <button class="action action-more" title="更多"><svg><use href="#i-more"/></svg></button>
+      </div>
+    </article>
+
+    <!-- ============ 记录卡 4 · 互动全 0 最干净状态 ============ -->
+    <article class="record">
+      <div class="avatar coral"><svg><use href="#i-fish"/></svg></div>
+      <div class="name-line">会议神游者</div>
+      <div class="meta-line">
+        <span class="meta-time">2 天前</span>
+        <span class="dot"></span>
+        <span class="meta-tag mint">#会议神游</span>
+      </div>
+      <div class="title-badge mint">
+        <span class="title-text">摸鱼老学徒</span>
+        <span class="title-score">2.1</span>
+      </div>
+
+      <h3 class="title">全员大会神游 90 分钟，零损耗</h3>
+      <p class="body">耳机里循环播放白噪音，屏幕背景调成"会议笔记 v3"的截图。每隔 8 分钟点一下鼠标防止状态变离线，剩下时间脑内完成了对今晚晚饭、本周末安排、以及人生意义的三重思辨。</p>
+
+      <div class="actions">
+        <button class="action"><svg><use href="#i-heart"/></svg></button>
+        <button class="action"><svg><use href="#i-comment"/></svg></button>
+        <button class="action"><svg><use href="#i-star"/></svg></button>
+        <button class="action action-more" title="更多"><svg><use href="#i-more"/></svg></button>
+      </div>
+    </article>
+
+  </main>
+
+  <!-- ============ 右栏 ============ -->
+  <aside class="side">
+
+    <!-- 我的摸鱼数据 -->
+    <section class="side-card">
+      <h3 class="side-title"><svg><use href="#i-fish"/></svg>我的摸鱼数据</h3>
+      <p class="side-sub">本周累计 · 来自审核通过记录</p>
+
+      <div class="fish-index">
+        <span class="hero-num">4.0</span>
+        <span class="unit">/ 10 · 平均摸鱼指数</span>
+      </div>
+
+      <div class="fish-row"><span class="k">本周记录</span><span class="v">14</span></div>
+      <div class="fish-row"><span class="k">累计鱼力</span><span class="v">118.6</span></div>
+      <div class="fish-row"><span class="k">鱼鳞钱包</span><span class="v">92</span></div>
+      <div class="fish-row"><span class="k">全榜名次</span><span class="v">#6</span></div>
+    </section>
+
+    <!-- 今日全站数据 · 含冷启动期降级 -->
+    <section class="side-card">
+      <h3 class="side-title"><svg><use href="#i-globe"/></svg>今日全站</h3>
+      <p class="side-sub">实时统计 · &lt; 5 时显示累计</p>
+
+      <!-- 正常状态：今日数 ≥ 5 -->
+      <div class="fish-row"><span class="k">今日新增</span><span class="v">128</span></div>
+      <div class="fish-row"><span class="k">今日活跃</span><span class="v">42</span></div>
+
+      <!-- 冷启动降级行：今日数 &lt; 5 时启用此样式 -->
+      <div class="fish-row fallback">
+        <span class="k">今日点赞 <b style="color:var(--coral);font-family:inherit;">●</b> 3 偏少</span>
+        <span class="v">累计 568</span>
+      </div>
+
+      <div class="cold-tip">
+        <b>降级规则:</b> 单项 &lt; 5 时,该行改为"累计 N",并以柔和底色提示数据冷启动状态,避免给用户"今天没人在用"的负面信号。
+      </div>
+    </section>
+
+    <!-- 今日排行榜 -->
+    <section class="side-card">
+      <h3 class="side-title"><svg><use href="#i-trophy"/></svg>今日排行榜</h3>
+      <p class="side-sub">前 5 名 · 点击查看全榜</p>
+      <ol class="mini-rank">
+        <li><span class="rank-no">1</span><span class="nm">带薪如厕冠军</span><span class="sc">9.7</span></li>
+        <li><span class="rank-no">2</span><span class="nm">划水艺术家</span><span class="sc">8.5</span></li>
+        <li><span class="rank-no">3</span><span class="nm">摸鱼老学徒</span><span class="sc">7.2</span></li>
+        <li><span class="rank-no">4</span><span class="nm">会议神游者</span><span class="sc">6.8</span></li>
+        <li><span class="rank-no">5</span><span class="nm">茶水间常驻</span><span class="sc">6.0</span></li>
+      </ol>
+    </section>
+
+    <!-- AI 裁判 · 降级为一行入口 -->
+    <section class="side-card">
+      <h3 class="side-title"><svg><use href="#i-spark"/></svg>更多工具</h3>
+      <p class="side-sub">辅助功能 · 不抢主流程戏份</p>
+      <div class="bot-line">
+        <svg style="color: var(--text);"><use href="#i-bot"/></svg>
+        <strong>AI 裁判</strong>
+        <span>看看这条鱼</span>
+      </div>
+      <div class="bot-line" style="margin-top:8px;">
+        <svg style="color: var(--text);"><use href="#i-users"/></svg>
+        <strong>发现圈子</strong>
+        <span>找同好</span>
+      </div>
+    </section>
+
+    <!-- 推荐 -->
+    <section class="side-card">
+      <h3 class="side-title"><svg><use href="#i-spark"/></svg>你可能感兴趣</h3>
+      <p class="side-sub">基于你最近的话题</p>
+
+      <div class="reco-item">
+        <div class="reco-avatar" style="color:var(--text);"><svg><use href="#i-crown"/></svg></div>
+        <div>
+          <div class="reco-name">摸鱼地下研究所</div>
+          <div class="reco-sub">128 人 · 工会</div>
+        </div>
+        <button class="reco-cta">加入</button>
+      </div>
+      <div class="reco-item">
+        <div class="reco-avatar" style="background:var(--mint);color:var(--text);"><svg><use href="#i-users"/></svg></div>
+        <div>
+          <div class="reco-name">假装很忙</div>
+          <div class="reco-sub">圈子 · 64 条</div>
+        </div>
+        <button class="reco-cta">关注</button>
+      </div>
+      <div class="reco-item">
+        <div class="reco-avatar" style="background:var(--primary);color:var(--text);"><svg><use href="#i-bolt"/></svg></div>
+        <div>
+          <div class="reco-name">#周一综合症</div>
+          <div class="reco-sub">话题 · 38 使用</div>
+        </div>
+        <button class="reco-cta">查看</button>
+      </div>
+    </section>
+  </aside>
+</div>
+
+</body>
+</html>

@@ -22,12 +22,17 @@ const load = async () => {
 const setStatus = async (user: AdminUserRow, status: 'active' | 'muted' | 'banned') => {
   const banReason = status === 'banned' ? window.prompt('封禁原因（不要记录真实身份信息）', user.banReason || '违规内容处理') || '' : '';
   if (status === 'banned' && !window.confirm(`确认封禁 ${user.displayName}？`)) return;
-  await updateAdminUserStatus(user.id, {
-    status,
-    banReason,
-    muteUntil: status === 'muted' ? new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString() : ''
-  });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminUserStatus(user.id, {
+      status,
+      banReason,
+      muteUntil: status === 'muted' ? new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString() : ''
+    });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 onMounted(load);

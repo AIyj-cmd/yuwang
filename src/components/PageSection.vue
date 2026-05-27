@@ -25,9 +25,12 @@ import { PxButton, PxCard, PxInput, PxTag } from '@mmt817/pixel-ui';
 import { TITLE_LEVELS } from '../../shared/scoring';
 import { fetchGuild, fetchGuildMembers, fetchGuildRanking, fetchGuildTasks, shareRecord } from '../api';
 import { useAppContext } from '../appContext';
+import { copyToClipboard } from '../utils/clipboard';
 import { useProfileInsights } from '../composables/useProfileInsights';
 import { useSearch } from '../composables/useSearch';
+import UserAvatar from './UserAvatar.vue';
 import { fetchRelatedRecords } from '../services/discoveryApi';
+import GuildManagePanel from './guild/GuildManagePanel.vue';
 import type { FeedRecord, Guild, GuildMember, GuildRankingRow, GuildTask } from '../types';
 
 const props = defineProps<{ section: string }>();
@@ -98,7 +101,6 @@ const {
   loadAnnouncements,
   loadGuilds,
   loadLeaderboard,
-  loadWallet,
   loading,
   locale,
   localizedLeaderboardTypes,
@@ -143,9 +145,12 @@ const {
   translatedSystemComment,
   translatedTitle,
   unlockedBadges,
-  walletData,
-  walletTransactions
 } = useAppContext();
+
+watch(activeSection, () => {
+  errorMessage.value = '';
+  statusMessage.value = '';
+});
 
 const { searchQuery, searchResults, searchLoading, searchError, hasSearched, resultCount, runSearch, clearSearch } = useSearch(
   () => authToken.value
@@ -231,8 +236,13 @@ const loadGuildHome = async (id: number) => {
   }
 };
 watch(
-  () => (guildsData.value?.myGuild?.id as number | undefined) ?? null,
-  (id) => {
+  () => {
+    const guild = guildsData.value?.myGuild;
+    // 同时关注 memberCount，移除成员后能刷新成员贡献榜等工会详情
+    return guild ? `${guild.id}:${guild.memberCount}` : '';
+  },
+  () => {
+    const id = (guildsData.value?.myGuild?.id as number | undefined) ?? null;
     if (id) {
       void loadGuildHome(id);
     } else {
@@ -267,20 +277,7 @@ const openGroupRoute = async (id: number) => {
 
 const shareUrlForRecord = (recordId: number) => `${window.location.origin}/records/${recordId}`;
 
-const copyToClipboard = async (text: string) => {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textarea);
-};
+
 
 const handleShareAction = async (action: 'generate' | 'copy_text' | 'share_link') => {
   const record = selectedRecord.value;
@@ -370,7 +367,7 @@ watch(
           <label class="field">
             <span>{{ copy('这次摸了多久？', 'How long did this drift last?') }}</span>
             <select v-model="form.duration">
-              <option v-for="item in options.durations" :key="item.key" :value="item.key">{{ translatedOptionLabel(item.key, item.label) }} · {{ item.score ?? item.baseScore }} {{ copy('分', 'pts') }}</option>
+              <option v-for="item in options.durations" :key="item.key" :value="item.key">{{ translatedOptionLabel(item.key, item.label) }} · {{ (item as any).score ?? (item as any).baseScore }} {{ copy('分', 'pts') }}</option>
             </select>
             <small class="field-hint">
               {{ copy('AI 裁判只判断烈度、结局和评语，最终鱼力值由后端固定规则结算。', 'AI judges intensity, outcome, and comment only. Final Fish Power is calculated by fixed backend rules.') }}
@@ -445,10 +442,7 @@ watch(
               <input v-model="form.publishToCommunity" type="checkbox" :disabled="form.privateOnly" @change="handleCommunityScopeChange" />
               <span>{{ copy('发布到社区广场', 'Publish to Community Plaza') }}</span>
             </label>
-            <label class="checkbox-line">
-              <input v-model="form.autoCircles" type="checkbox" :disabled="form.privateOnly" />
-              <span>{{ copy('自动加入相关圈子', 'Auto-add to related circles') }}</span>
-            </label>
+
             <label class="checkbox-line">
               <input v-model="form.privateOnly" type="checkbox" @change="handlePrivateOnlyChange" />
               <span>{{ copy('仅自己可见，与社区广场互斥', 'Private only, mutually exclusive with Community Plaza') }}</span>
@@ -610,57 +604,6 @@ watch(
     </div>
 
     <aside v-if="activeSection !== 'profile'" class="right-rail">
-      <PxCard v-if="activeSection === 'wallet'" id="wallet" class="panel wallet-panel">
-        <template #header>
-          <div class="panel-title between">
-            <span><Coins :size="18" /> {{ t('wallet') }}</span>
-            <button class="profile-toggle-button" type="button" @click="loadWallet">{{ copy('刷新钱包', 'Refresh Wallet') }}</button>
-          </div>
-        </template>
-        <div v-if="!currentUser" class="empty-list">{{ t('needLogin') }}</div>
-        <div v-else-if="walletData" class="wallet-body">
-          <div class="module-intro">
-            <strong>{{ copy('鱼鳞 Fish Scale', 'Fish Scale') }}</strong>
-            <span>{{ walletData.notice }}</span>
-          </div>
-          <section class="profile-section profile-summary wallet-summary">
-            <div>
-              <span>{{ copy('当前余额', 'Balance') }}</span>
-              <strong>{{ walletData.wallet.fishScaleBalance }}</strong>
-            </div>
-            <div>
-              <span>{{ copy('累计获得', 'Total Earned') }}</span>
-              <strong>{{ walletData.wallet.fishScaleTotalEarned }}</strong>
-            </div>
-            <div>
-              <span>{{ copy('累计消费', 'Total Spent') }}</span>
-              <strong>{{ walletData.wallet.fishScaleTotalSpent }}</strong>
-            </div>
-            <div>
-              <span>{{ copy('鱼鳞等级', 'Scale Level') }}</span>
-              <strong>{{ walletData.wallet.level }}</strong>
-            </div>
-          </section>
-          <section class="profile-section">
-            <div class="profile-section-head">
-              <strong>{{ copy('最近流水', 'Recent Transactions') }}</strong>
-              <small>{{ walletTransactions?.total ?? walletData.recentTransactions.length }} {{ copy('条', 'items') }}</small>
-            </div>
-            <div class="wallet-transaction-list" v-if="(walletTransactions?.transactions ?? walletData.recentTransactions).length">
-              <article v-for="transaction in walletTransactions?.transactions ?? walletData.recentTransactions" :key="transaction.id" class="wallet-transaction">
-                <div>
-                  <strong :class="transaction.amount >= 0 ? 'scale-plus' : 'scale-minus'">{{ transaction.amount > 0 ? '+' : '' }}{{ transaction.amount }}</strong>
-                  <span>{{ transaction.reason }}</span>
-                </div>
-                <small>{{ transaction.type }} · {{ transaction.balanceAfter }} · {{ new Date(transaction.createdAt).toLocaleString() }}</small>
-              </article>
-            </div>
-            <div v-else class="empty-list">{{ copy('还没有鱼鳞流水，先提交一条匿名记录。', 'No Fish Scale transactions yet. Submit an anonymous record first.') }}</div>
-          </section>
-        </div>
-        <div v-else class="empty-list">{{ copy('钱包加载中...', 'Loading wallet...') }}</div>
-      </PxCard>
-
       <PxCard v-if="activeSection === 'submit' || activeSection === 'result'" id="result" class="panel result-panel">
         <template #header>
           <div class="panel-title"><Trophy :size="18" /><span>{{ t('result') }}</span></div>
@@ -1021,15 +964,14 @@ watch(
               </section>
             </template>
 
-            <div v-else class="gc-state">
-              <strong>{{ copy('你还没有加入工会', 'You have not joined a guild yet') }}</strong>
-              <span>{{ copy('去工会列表挑一支对味的组织加入，或自己开一支工会当会长。', 'Browse all guilds and join one, or start your own guild as the owner.') }}</span>
-              <div class="gh-manage-row">
-                <button type="button" class="gc-retry" @click="guildTab = 'list'">{{ copy('查看工会列表', 'Browse all guilds') }}</button>
-                <button type="button" class="gc-retry" @click="router.push('/my-guild')">
-                  <Crown :size="14" /> {{ copy('创建 / 管理工会', 'Create / manage a guild') }}
-                </button>
-              </div>
+            <!-- 工会管理：未加入时创建工会，已加入时退出 / 会长管理 -->
+            <GuildManagePanel />
+
+            <div v-if="!guildsData.myGuild" class="gh-manage-row">
+              <button type="button" class="gc-retry" @click="guildTab = 'list'">{{ copy('查看工会列表', 'Browse all guilds') }}</button>
+              <button type="button" class="gc-retry" @click="router.push('/my-guild')">
+                <Crown :size="14" /> {{ copy('前往工会管理页', 'Open guild manager') }}
+              </button>
             </div>
           </div>
 
@@ -1114,179 +1056,418 @@ watch(
         </div>
       </PxCard>
 
-      <PxCard v-if="activeSection === 'circles'" id="circles" class="panel circle-panel">
-        <template #header>
-          <div class="panel-title between">
-            <span><Star :size="18" /> {{ t('circles') }}</span>
-            <small>{{ copy('主题兴趣聚合', 'Topic interest spaces') }}</small>
-          </div>
-        </template>
-        <div class="module-intro">
-          <strong>{{ selectedCircle ? translatedCircleName(selectedCircle.circle) : t('circles') }}</strong>
-          <span>{{ copy('圈子解决“我关心什么”。新记录会按摸鱼事项、摸鱼故事和话题关键词自动归类。', 'Circles answer “what do I care about?” New records are auto-classified by activity, story, and topic keywords.') }}</span>
-        </div>
-        <div class="circle-layout">
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('推荐圈子', 'Recommended Circles') }}</strong><small>{{ copy('可加入多个', 'Join multiple') }}</small></div>
-            <div class="entity-grid">
-              <article v-for="circle in circlesData?.circles ?? []" :key="circle.id" class="entity-card" :class="{ active: selectedCircle?.circle.id === circle.id }">
-                <b>{{ circle.icon }}</b>
-                <strong>{{ translatedCircleName(circle) }}</strong>
-                <span>{{ translatedCircleDescription(circle) }}</span>
-                <small>{{ circle.memberCount }} {{ copy('人', 'members') }} · {{ circle.recordCount }} {{ copy('条记录', 'records') }}</small>
-                <div class="entity-actions">
-                  <button type="button" @click="selectCircle(circle.id)">{{ copy('详情', 'Details') }}</button>
-                  <button type="button" @click="handleJoinCircle(circle.id)">{{ circle.joined ? copy('已加入', 'Joined') : copy('加入', 'Join') }}</button>
+      <section v-if="activeSection === 'circles'" class="workspace circle-workspace">
+        <!-- 左侧：圈子导航 -->
+        <aside class="left-rail">
+          <PxCard class="panel circle-nav-panel">
+            <template #header>
+              <div class="circle-nav-header">
+                <div class="circle-nav-brand-icon">
+                  <Star :size="26" stroke-width="2.5" />
                 </div>
-              </article>
-            </div>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('圈子详情', 'Circle Details') }}</strong><small>{{ selectedCircle?.circle.recordCount ?? 0 }} {{ copy('条记录', 'records') }}</small></div>
-            <p class="module-copy">{{ selectedCircle ? translatedCircleDescription(selectedCircle.circle) : copy('这个圈子暂时风平浪静。', 'This circle is quiet for now.') }}</p>
-            <div class="record-tags board-tags">
-              <span v-for="board in translatedCircleBoards(selectedCircle?.circle)" :key="board">{{ board }}</span>
-            </div>
-            <div v-if="selectedCircleRecords.length" class="record-card-list compact">
-              <article v-for="record in selectedCircleRecords" :key="record.id" class="record-card compact-card">
-                <strong>{{ record.nickname }} · {{ record.score.toFixed(1) }}</strong>
-                <span>{{ record.durationLabel }} · {{ record.activityText }} · {{ record.storyText || record.description }}</span>
-                <div class="record-actions">
-                  <button type="button" @click="handleFeedLike(record.id)">{{ t('like') }} {{ record.likeCount }}</button>
-                  <button type="button" :title="copy('发起传奇提名将消耗 10 鱼鳞。', 'Starting a legend nomination costs 10 Fish Scale.')" @click="handleFeedNominate(record.id)">{{ copy('传奇 · 10 鱼鳞', 'Legend · 10 Scale') }} {{ record.legendNominationCount }}</button>
-                  <button type="button" @click="openProfileRecord(record.id)">{{ t('comments') }} {{ record.commentCount }}</button>
+                <div class="circle-nav-brand-text">
+                  <strong>{{ t('circles') }}</strong>
+                  <small>{{ copy('主题兴趣聚合', 'Topic interest spaces') }}</small>
                 </div>
-              </article>
-            </div>
-            <div v-else class="empty-list">{{ copy('这个圈子暂时风平浪静。', 'This circle is quiet for now.') }}</div>
-          </section>
-        </div>
-      </PxCard>
+              </div>
+            </template>
 
-      <PxCard v-if="activeSection === 'groups'" id="groups" class="panel group-panel">
-        <template #header>
-          <div class="panel-title between">
-            <span><User :size="18" /> {{ t('groups') }}</span>
-            <small>{{ copy('小范围熟人 / 邀请空间', 'Small invite spaces') }}</small>
-          </div>
-        </template>
-        <div v-if="!currentUser" class="empty-list">{{ t('needLogin') }}</div>
-        <div v-else class="group-layout">
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('创建小组', 'Create Group') }}</strong><small>{{ copy('不要使用真实公司名、部门名、客户名', 'Do not use real company, department, or client names') }}</small></div>
-            <label class="field"><span>{{ copy('小组名称', 'Group Name') }}</span><PxInput v-model="groupForm.name" :placeholder="copy('地下茶水间', 'Underground break room')" clearable /></label>
-            <label class="field"><span>{{ copy('小组公告', 'Group Notice') }}</span><textarea v-model="groupForm.description" maxlength="120" :placeholder="copy('小组公告，仍然不要写真实身份信息。', 'Group notice. Still do not include real identity information.')" /></label>
-            <label class="field"><span>{{ copy('小组类型', 'Group Type') }}</span>
-              <select v-model="groupForm.visibility">
-                <option value="public">{{ copy('公开小组', 'Public Group') }}</option>
-                <option value="invite">{{ copy('邀请码小组', 'Invite-code Group') }}</option>
-              </select>
-            </label>
-            <p class="scope-note">{{ copy('创建小组将消耗 50 鱼鳞。', 'Creating a group costs 50 Fish Scale.') }}</p>
-            <button class="profile-toggle-button" type="button" @click="handleCreateGroup">{{ copy('创建小组 · 50 鱼鳞', 'Create Group · 50 Scale') }}</button>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('输入邀请码加入', 'Join by Invite Code') }}</strong><small>{{ copy('仅保存邀请码，不收集真实身份', 'Only invite code is stored; no real identity is collected') }}</small></div>
-            <div class="feed-comment-row">
-              <PxInput v-model="inviteCode" placeholder="ABC123" clearable />
-              <button type="button" @click="handleJoinGroup">{{ copy('加入', 'Join') }}</button>
-            </div>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('我加入的小组', 'My Joined Groups') }}</strong><small>{{ joinedGroups.length }} {{ copy('个', 'groups') }}</small></div>
-            <div v-if="joinedGroups.length" class="entity-grid">
-              <article v-for="group in joinedGroups" :key="group.id" class="entity-card" :class="{ active: selectedGroup?.group.id === group.id }">
-                <b>{{ copy('组', 'G') }}</b>
-                <strong>{{ group.name }}</strong>
-                <span>{{ group.description || copy('还没有公告。', 'No notice yet.') }}</span>
-                <small>{{ group.visibility }} · {{ group.memberCount }} {{ copy('人', 'members') }} · {{ copy('邀请码', 'Code') }} {{ group.inviteCode }}</small>
-                <button type="button" @click="selectGroup(group.id)">{{ copy('查看小组', 'View Group') }}</button>
-              </article>
-            </div>
-            <div v-else class="empty-list">{{ copy('还没有小组，创建一个地下茶水间。', 'No groups yet. Create an underground break room.') }}</div>
-          </section>
-          <section class="module-section">
-            <div class="profile-section-head"><strong>{{ copy('小组详情', 'Group Details') }}</strong><small>{{ selectedGroup?.group.name ?? copy('选择一个小组', 'Select a group') }}</small></div>
-            <div v-if="selectedGroup?.currentGoal" class="group-goal-card">
-              <div class="profile-section-head">
-                <strong>{{ copy('本周协作目标', 'Weekly Goal') }}</strong>
-                <small>{{ selectedGroup.currentGoal.goal.periodKey }}</small>
-              </div>
-              <div class="module-intro">
-                <strong>{{ selectedGroup.currentGoal.completed ? copy('目标已完成', 'Goal Complete') : copy('累计 Fish Power Score', 'Total Fish Power Score') }}</strong>
-                <span>{{ selectedGroup.currentGoal.currentValue.toFixed(1) }} / {{ selectedGroup.currentGoal.targetValue }} · {{ selectedGroup.currentGoal.percent }}% · {{ selectedGroup.currentGoal.goal.rewardTitle }}</span>
-              </div>
-              <div class="goal-progress-bar" :aria-label="copy('小组目标进度', 'Group goal progress')">
-                <span :style="{ width: `${selectedGroup.currentGoal.percent}%` }"></span>
-              </div>
-              <ol v-if="selectedGroup.currentGoal.contributions.length" class="compact-ranking">
-                <li v-for="member in selectedGroup.currentGoal.contributions" :key="member.userId">
-                  <span>{{ member.displayName }} · {{ member.recordCount }} {{ copy('条', 'records') }}</span>
-                  <strong>{{ member.score.toFixed(1) }}</strong>
-                </li>
-              </ol>
-            </div>
-            <div v-if="selectedGroup" class="task-list">
-              <article v-for="challenge in selectedGroup.challenges" :key="challenge.name">
-                <strong>{{ translatedChallenge(challenge).name }}</strong>
-                <span>{{ translatedChallenge(challenge).condition }} · {{ copy('奖励「', 'Reward: ') }}{{ translatedChallenge(challenge).reward }}{{ copy('」', '') }}</span>
-                <button class="profile-toggle-button" type="button" @click="handleGroupChallenge(challenge.name)">
-                  {{ copy('发起挑战 · 30 鱼鳞', 'Start Challenge · 30 Scale') }}
+            <div v-if="circlesData?.joined?.length" class="circle-nav-section">
+              <div class="circle-nav-section-title">{{ copy('我的圈子', 'My Circles') }}</div>
+              <div class="circle-nav-list">
+                <button
+                  v-for="circle in circlesData.joined"
+                  :key="`joined-${circle.id}`"
+                  type="button"
+                  class="circle-nav-item"
+                  :class="{ active: selectedCircle?.circle.id === circle.id }"
+                  @click="selectCircle(circle.id)"
+                >
+                  <span class="circle-nav-icon">{{ circle.icon }}</span>
+                  <div class="circle-nav-info">
+                    <strong>{{ translatedCircleName(circle) }}</strong>
+                    <small>{{ circle.recordCount }} {{ copy('条', 'records') }}</small>
+                  </div>
                 </button>
-              </article>
+              </div>
             </div>
-            <div v-if="selectedGroupRecords.length" class="record-card-list compact">
-              <article v-for="record in selectedGroupRecords" :key="record.id" class="record-card compact-card">
-                <strong>{{ record.nickname }} · {{ record.score.toFixed(1) }}</strong>
-                <span>{{ record.durationLabel }} · {{ record.activityText }} · {{ record.storyText || record.description }}</span>
-              </article>
+
+            <div v-if="circlesData?.hot?.length" class="circle-nav-section">
+              <div class="circle-nav-section-title">{{ copy('热门圈子', 'Hot Circles') }}</div>
+              <div class="circle-nav-list">
+                <button
+                  v-for="circle in circlesData.hot"
+                  :key="`hot-${circle.id}`"
+                  type="button"
+                  class="circle-nav-item"
+                  :class="{ active: selectedCircle?.circle.id === circle.id }"
+                  @click="selectCircle(circle.id)"
+                >
+                  <span class="circle-nav-icon">{{ circle.icon }}</span>
+                  <div class="circle-nav-info">
+                    <strong>{{ translatedCircleName(circle) }}</strong>
+                    <small>{{ circle.recordCount }} {{ copy('条', 'records') }}</small>
+                  </div>
+                </button>
+              </div>
             </div>
-            <div v-else class="empty-list">{{ copy('小组记录流还没有内容。', 'The group feed has no content yet.') }}</div>
+
+            <div v-if="circlesData?.recommended?.length" class="circle-nav-section">
+              <div class="circle-nav-section-title">{{ copy('推荐圈子', 'Recommended') }}</div>
+              <div class="circle-nav-list">
+                <button
+                  v-for="circle in circlesData.recommended"
+                  :key="`rec-${circle.id}`"
+                  type="button"
+                  class="circle-nav-item"
+                  :class="{ active: selectedCircle?.circle.id === circle.id }"
+                  @click="selectCircle(circle.id)"
+                >
+                  <span class="circle-nav-icon">{{ circle.icon }}</span>
+                  <div class="circle-nav-info">
+                    <strong>{{ translatedCircleName(circle) }}</strong>
+                    <small>{{ circle.recordCount }} {{ copy('条', 'records') }}</small>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="!circlesData" class="loading-line">{{ copy('加载中...', 'Loading...') }}</div>
+          </PxCard>
+        </aside>
+
+        <!-- 右侧：圈子内容 -->
+        <aside class="right-rail">
+          <div v-if="selectedCircle" class="circle-hero">
+            <div class="circle-hero-badge">
+              <div class="circle-hero-badge-frame"></div>
+              <div class="circle-hero-badge-icon">{{ selectedCircle.circle.icon }}</div>
+            </div>
+            <div class="circle-hero-info">
+              <h2 class="circle-hero-name">{{ translatedCircleName(selectedCircle.circle) }}</h2>
+              <p class="circle-hero-desc">{{ translatedCircleDescription(selectedCircle.circle) }}</p>
+              <div class="circle-hero-meta">
+                <span>{{ selectedCircle.circle.memberCount }} {{ copy('人', 'members') }}</span>
+                <span>·</span>
+                <span>{{ selectedCircle.circle.recordCount }} {{ copy('条记录', 'records') }}</span>
+              </div>
+            </div>
+            <div class="circle-hero-action">
+              <PxButton
+                v-if="!selectedCircle.circle.joined"
+                type="primary"
+                size="small"
+                @click="handleJoinCircle(selectedCircle.circle.id)"
+              >
+                {{ copy('加入', 'Join') }}
+              </PxButton>
+              <PxButton
+                v-else
+                type="base"
+                size="small"
+                plain
+                disabled
+              >
+                {{ copy('已加入', 'Joined') }}
+              </PxButton>
+            </div>
+          </div>
+
+          <div v-if="selectedCircle && translatedCircleBoards(selectedCircle.circle).length" class="circle-boards">
+            <span
+              v-for="board in translatedCircleBoards(selectedCircle.circle)"
+              :key="board"
+              class="circle-board-tag"
+            >
+              {{ board }}
+            </span>
+          </div>
+
+          <div v-if="selectedCircleRecords.length" class="circle-feed">
+            <article
+              v-for="record in selectedCircleRecords"
+              :key="record.id"
+              class="circle-record"
+            >
+              <div class="circle-record-header">
+                <strong>{{ record.nickname }}</strong>
+                <span>{{ record.score.toFixed(1) }} · {{ translatedTitle(record.title) }}</span>
+              </div>
+              <p class="circle-record-body">{{ record.activityText }}</p>
+              <div class="circle-record-footer">
+                <span>{{ record.durationLabel }}</span>
+                <span>{{ new Date(record.createdAt).toLocaleDateString() }}</span>
+              </div>
+              <div class="circle-record-actions">
+                <button type="button" :class="{ active: record.viewer?.liked }" @click="handleFeedLike(record.id)">
+                  <Heart :size="14" /> {{ t('like') }} {{ record.likeCount }}
+                </button>
+                <button type="button" @click="openProfileRecord(record.id)">
+                  <MessageCircle :size="14" /> {{ t('comments') }} {{ record.commentCount }}
+                </button>
+                <button type="button" :class="{ active: record.viewer?.legendNominated }" @click="handleFeedNominate(record.id)">
+                  <Star :size="14" /> {{ record.legendNominationCount }}
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <div v-else-if="selectedCircle" class="empty-list">
+            {{ copy('这个圈子暂时风平浪静。', 'This circle is quiet for now.') }}
+          </div>
+
+          <div v-else class="loading-line">
+            {{ copy('圈子加载中...', 'Loading circles...') }}
+          </div>
+        </aside>
+      </section>
+
+      <div v-if="activeSection === 'groups'" id="groups" class="group-page">
+        <header class="gp-masthead">
+          <span class="gp-mark" aria-hidden="true">👥</span>
+          <div class="gp-mast-text">
+            <h1 class="gp-mast-title">{{ t('groups') }}</h1>
+            <span class="gp-mast-sub">{{ copy('小范围熟人 / 邀请空间', 'Small invite spaces') }}</span>
+          </div>
+          <span v-if="currentUser" class="gp-mast-chip">{{ copy('已加入', 'Joined') }} {{ joinedGroups.length }}</span>
+        </header>
+
+        <div v-if="!currentUser" class="empty-list">{{ t('needLogin') }}</div>
+        <template v-else>
+          <div class="gp-joinbar">
+            <span class="gp-jb-badge"><Hash :size="14" /> {{ copy('邀请码', 'Invite Code') }}</span>
+            <input v-model="inviteCode" type="text" placeholder="ABC123" />
+            <button type="button" class="gp-jb-cta" @click="handleJoinGroup"><Send :size="14" /> {{ copy('加入小组', 'Join Group') }}</button>
+          </div>
+          <p class="gp-jb-hint">{{ copy('仅保存邀请码，不收集真实身份。', 'Only the invite code is stored — no real identity collected.') }}</p>
+
+          <section class="gp-card">
+            <div class="gp-card-head gp-head-create">
+              <span class="gp-card-title">{{ copy('创建小组', 'Create Group') }}</span>
+              <span class="gp-card-meta">{{ copy('不要使用真实公司 / 部门 / 客户名', 'No real company / department / client names') }}</span>
+            </div>
+            <div class="gp-card-body">
+              <label class="field"><span>{{ copy('小组名称', 'Group Name') }}</span><input v-model="groupForm.name" type="text" :placeholder="copy('地下茶水间', 'Underground break room')" /></label>
+              <label class="field"><span>{{ copy('小组公告', 'Group Notice') }}</span><textarea v-model="groupForm.description" maxlength="120" :placeholder="copy('小组公告，仍然不要写真实身份信息。', 'Group notice. Still do not include real identity information.')" /></label>
+              <label class="field"><span>{{ copy('小组类型', 'Group Type') }}</span>
+                <select v-model="groupForm.visibility">
+                  <option value="public">{{ copy('公开小组', 'Public Group') }}</option>
+                  <option value="invite">{{ copy('邀请码小组', 'Invite-code Group') }}</option>
+                </select>
+              </label>
+              <p class="scope-note">{{ copy('创建小组将消耗 50 鱼鳞。', 'Creating a group costs 50 Fish Scale.') }}</p>
+              <button class="gp-btn-primary" type="button" @click="handleCreateGroup">{{ copy('创建小组 · 50 鱼鳞', 'Create Group · 50 Scale') }}</button>
+            </div>
           </section>
-        </div>
-      </PxCard>
+
+          <section class="gp-card">
+            <div class="gp-card-head gp-head-joined">
+              <span class="gp-card-title">{{ copy('我加入的小组', 'My Joined Groups') }}</span>
+              <span class="gp-card-meta">{{ joinedGroups.length }} {{ copy('个', 'groups') }}</span>
+            </div>
+            <div class="gp-card-body">
+              <div v-if="joinedGroups.length" class="gp-group-grid">
+                <article v-for="group in joinedGroups" :key="group.id" class="gp-group-card" :class="{ active: selectedGroup?.group.id === group.id }">
+                  <div class="gp-gc-top">
+                    <b class="gp-gc-badge">{{ copy('组', 'G') }}</b>
+                    <strong class="gp-gc-name">{{ group.name }}</strong>
+                  </div>
+                  <span class="gp-gc-desc">{{ group.description || copy('还没有公告。', 'No notice yet.') }}</span>
+                  <small class="gp-gc-meta">{{ group.visibility }} · {{ group.memberCount }} {{ copy('人', 'members') }} · {{ group.inviteCode }}</small>
+                  <div class="gp-gc-foot"><button type="button" class="gp-btn-soft" @click="selectGroup(group.id)">{{ copy('查看小组', 'View Group') }}</button></div>
+                </article>
+              </div>
+              <div v-else class="empty-list">{{ copy('还没有小组，创建一个地下茶水间。', 'No groups yet. Create an underground break room.') }}</div>
+            </div>
+          </section>
+
+          <section class="gp-card">
+            <div class="gp-card-head gp-head-detail">
+              <span class="gp-card-title">{{ copy('小组详情', 'Group Details') }}</span>
+              <span class="gp-card-meta">{{ selectedGroup?.group.name ?? copy('选择一个小组', 'Select a group') }}</span>
+            </div>
+            <div class="gp-card-body">
+              <div v-if="selectedGroup?.currentGoal" class="gp-goal">
+                <div class="gp-goal-head">
+                  <strong>{{ copy('本周协作目标', 'Weekly Goal') }}</strong>
+                  <small>{{ selectedGroup.currentGoal.goal.periodKey }}</small>
+                </div>
+                <p class="gp-goal-stat">{{ selectedGroup.currentGoal.completed ? copy('目标已完成', 'Goal Complete') : copy('累计 Fish Power Score', 'Total Fish Power Score') }} <b>{{ selectedGroup.currentGoal.currentValue.toFixed(1) }} / {{ selectedGroup.currentGoal.targetValue }}</b> · {{ selectedGroup.currentGoal.percent }}% · {{ selectedGroup.currentGoal.goal.rewardTitle }}</p>
+                <div class="gp-bar" :aria-label="copy('小组目标进度', 'Group goal progress')">
+                  <span :style="{ width: `${selectedGroup.currentGoal.percent}%` }"></span>
+                </div>
+                <ol v-if="selectedGroup.currentGoal.contributions.length" class="gp-rank">
+                  <li v-for="member in selectedGroup.currentGoal.contributions" :key="member.userId">
+                    <span>{{ member.displayName }} · {{ member.recordCount }} {{ copy('条', 'records') }}</span>
+                    <b>{{ member.score.toFixed(1) }}</b>
+                  </li>
+                </ol>
+              </div>
+              <template v-if="selectedGroup && selectedGroup.challenges.length">
+                <p class="gp-sec-label">{{ copy('小组挑战', 'Group Challenges') }}</p>
+                <div v-for="challenge in selectedGroup.challenges" :key="challenge.name" class="gp-row">
+                  <div class="gp-row-head">
+                    <strong>{{ translatedChallenge(challenge).name }}</strong>
+                    <button class="gp-btn-soft" type="button" @click="handleGroupChallenge(challenge.name)">{{ copy('发起挑战 · 30 鱼鳞', 'Start Challenge · 30 Scale') }}</button>
+                  </div>
+                  <span class="gp-row-sub">{{ translatedChallenge(challenge).condition }} · {{ copy('奖励「', 'Reward: ') }}{{ translatedChallenge(challenge).reward }}{{ copy('」', '') }}</span>
+                </div>
+              </template>
+              <template v-if="selectedGroupRecords.length">
+                <p class="gp-sec-label">{{ copy('小组记录流', 'Group Feed') }}</p>
+                <div v-for="record in selectedGroupRecords" :key="record.id" class="gp-row">
+                  <div class="gp-row-rec">
+                    <b>{{ record.nickname }} · {{ record.score.toFixed(1) }}</b>
+                    <span>{{ record.durationLabel }} · {{ record.activityText }} · {{ record.storyText || record.description }}</span>
+                  </div>
+                </div>
+              </template>
+              <div v-else class="empty-list">{{ copy('小组记录流还没有内容。', 'The group feed has no content yet.') }}</div>
+            </div>
+          </section>
+        </template>
+      </div>
 
       <PxCard v-if="activeSection === 'about'" id="about" class="panel about-panel">
         <template #header>
           <div class="panel-title"><BadgeCheck :size="18" /><span>{{ t('about') }}</span></div>
         </template>
 
-        <div class="about-brand">
-          <h1 class="about-brand-name">{{ copy('工位鱼王', 'Gongwei Yuwang') }}</h1>
-          <p class="about-brand-motto">{{ copy('记录办公室精神状态，不是违规教程。', 'Office mood records, not rule-breaking tutorials.') }}</p>
-        </div>
-
-        <hr class="about-divider" />
-
-        <p class="about-lead">
-          {{ copy('这里把摸鱼写成娱乐化记录、称号和排行榜，用轻量社区方式缓解打工人的荒诞感。提交一条匿名记录，系统按固定规则计算 Fish Power Score。', 'It turns slacking stories into playful records, titles, and leaderboards to capture modern office absurdity. Submit an anonymous record and the system calculates Fish Power Score with fixed rules.') }}
-        </p>
-
-        <div class="about-columns">
-          <section class="about-column">
-            <h2 class="about-section-title">{{ copy('我们在做什么', 'What We Do') }}</h2>
-            <p class="about-body-text">{{ copy('提交一条匿名摸鱼记录，系统按固定规则计算 Fish Power Score，再把结果放进排行榜、社区、圈子、小组和个人主页。', 'Submit an anonymous record. The system calculates Fish Power Score with fixed rules and shows it in leaderboards, community, circles, groups, and profiles.') }}</p>
-          </section>
-          <section class="about-column">
-            <h2 class="about-section-title">{{ copy('我们不做什么', 'What We Do Not Do') }}</h2>
-            <p class="about-body-text">{{ copy('不鼓励真实违反职场规则，不提供图片上传，不收集真实公司名、客户名、部门名、地理位置或身份信息。', 'We do not encourage real workplace rule violations, provide image uploads, or collect real company, client, department, location, or identity information.') }}</p>
-          </section>
-        </div>
-
-        <section class="about-modules">
-          <h2 class="about-section-title">{{ copy('当前模块', 'Current Modules') }}</h2>
-          <div class="about-module-tags">
-            <span>{{ t('submitRecord') }}</span>
-            <span>{{ copy('用户聚合排行榜', 'User-aggregated leaderboards') }}</span>
-            <span>{{ t('safety') }}</span>
-            <span>{{ t('communitySystem') }}</span>
-            <span>{{ t('checkin') }}</span>
+        <div class="about-body">
+          <div class="about-hero">
+            <h1 class="about-brand-name">{{ copy('工位鱼王', 'Gongwei Yuwang') }}</h1>
+            <p class="about-lead">{{ copy('把“摸鱼”正经计分的娱乐社区——匿名记录办公室精神状态，认真到有点荒诞。', 'An entertainment community that scores your office downtime — anonymous workplace-mood records, taken absurdly seriously.') }}</p>
           </div>
+
+          <section class="about-block">
+            <h2 class="about-section-title"><span>{{ copy('这是什么', 'What This Is') }}</span></h2>
+            <p class="about-text">{{ copy('工位鱼王是一个轻量、偏娱乐的社区。你提交一条匿名“摸鱼记录”——摸鱼类型、持续时间、风险场景、伪装方式，再配一段创意描述。系统按固定规则算出 Fish Power Score，并据此发放称号、徽章和成就。我们记录的是一种心态，不是教你怎么违规。', 'Gongwei Yuwang is a lightweight, for-fun community. You submit an anonymous slacking record — type, duration, risk setting, disguise, and a short creative note. The system computes a Fish Power Score by fixed rules, then hands out titles, badges, and achievements. We log a state of mind, not a how-to for breaking rules.') }}</p>
+          </section>
+
+          <section class="about-block">
+            <h2 class="about-section-title"><span>{{ copy('一条记录会经历什么', 'Where a Record Goes') }}</span></h2>
+            <p class="about-text">{{ copy('提交之后，分数由后端按固定公式计算、保留一位小数——客户端永远不决定最终得分。算好的记录会进入今日、周、月、赛季、伪装、会议和传奇排行榜，出现在你的个人主页，并按你选择的发布范围流向社区、圈子和小组。', 'Once you submit, the score is computed by the backend with a fixed formula, kept to one decimal — the client never decides the final number. The scored record then enters the daily, weekly, monthly, season, disguise, meeting, and legendary leaderboards, appears on your profile, and travels to the community, circles, and groups by the visibility you picked.') }}</p>
+          </section>
+
+          <section class="about-block">
+            <h2 class="about-section-title"><span>{{ copy('四个去处', 'Four Places It Lives') }}</span></h2>
+            <p class="about-text">{{ copy('你的记录不会只待在一个地方。社交分四层，各管一件事。', 'Your record does not stay in one place. The social side has four layers, each with its own job.') }}</p>
+
+            <div class="about-cards">
+              <div class="about-card">
+                <div class="about-card-head">
+                  <MessageCircle :size="14" />
+                  <strong>{{ copy('社区广场', 'Community') }}</strong>
+                </div>
+                <p>{{ copy('全站公共内容流，点赞、评论、举报和传奇提名都在这里。', 'The site-wide public feed — likes, comments, reports, and legend nominations all happen here.') }}</p>
+              </div>
+              <div class="about-card">
+                <div class="about-card-head">
+                  <Crown :size="14" />
+                  <strong>{{ copy('工会', 'Guild') }}</strong>
+                </div>
+                <p>{{ copy('选一个工会安家，把摸鱼贡献变成赛季竞争和工会排行。', 'Pick one guild as home and turn your slacking into seasonal competition and rankings.') }}</p>
+              </div>
+              <div class="about-card">
+                <div class="about-card-head">
+                  <Star :size="14" />
+                  <strong>{{ copy('圈子', 'Circle') }}</strong>
+                </div>
+                <p>{{ copy('按兴趣加入多个主题圈子，新记录会自动归类进去。', 'Join multiple themed circles by interest; new records are auto-sorted in.') }}</p>
+              </div>
+              <div class="about-card">
+                <div class="about-card-head">
+                  <User :size="14" />
+                  <strong>{{ copy('小组', 'Group') }}</strong>
+                </div>
+                <p>{{ copy('熟人或邀请码组成的小空间，有自己的记录流、挑战和周目标。', 'A small space of friends or invite codes, with its own feed, challenges, and weekly goals.') }}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="about-block">
+            <h2 class="about-section-title"><span>{{ copy('我们不做什么', "What We Don't Do") }}</span></h2>
+            <p class="about-text">{{ copy('这是娱乐社区，不是违规教程。我们不鼓励真实违反职场规则，不提供图片、截图或文件上传，也不收集真实公司名、部门名、客户名、员工身份或地理位置。摸鱼是一种态度，不是泄密。', 'This is an entertainment community, not a rule-breaking guide. We do not encourage real workplace violations, do not allow image, screenshot, or file uploads, and do not collect real company, department, or client names, employee identities, or locations. Slacking is an attitude, not a leak.') }}</p>
+          </section>
+
+          <section class="about-block">
+            <h2 class="about-section-title"><span>{{ copy('安全与内容保护', 'Safety & Content Protection') }}</span></h2>
+            <div class="about-note">
+              <AlertTriangle :size="16" />
+              <p>{{ copy(options.safetyNotice, 'Do not submit company secrets, personal privacy, employee IDs, chat records, client data, or non-anonymized screenshots. This platform is for entertainment only and does not support real workplace rule violations.') }}</p>
+            </div>
+
+            <div class="about-cards">
+              <div class="about-card">
+                <div class="about-card-head">
+                  <Hash :size="14" />
+                  <strong>{{ copy('长度限制', 'Length Limit') }}</strong>
+                </div>
+                <p>{{ copy('创意描述最多', 'Creative notes capped at') }} {{ options.maxDescriptionLength }} {{ copy('字，超出后无法提交。', 'characters; longer text cannot be submitted.') }}</p>
+              </div>
+              <div class="about-card">
+                <div class="about-card-head">
+                  <ShieldAlert :size="14" />
+                  <strong>{{ copy('敏感词拦截', 'Sensitive Terms') }}</strong>
+                </div>
+                <p>{{ copy('命中', 'If') }} {{ options.sensitiveTerms.length }} {{ copy('个明显敏感词时，前端和后端都会提示。', 'obvious sensitive terms are matched, both frontend and backend will warn.') }}</p>
+              </div>
+              <div class="about-card">
+                <div class="about-card-head">
+                  <ClipboardCheck :size="14" />
+                  <strong>{{ copy('审核兜底', 'Review Fallback') }}</strong>
+                </div>
+                <p>{{ copy('手机号、邮箱、链接、疑似公司全称等内容会进入人工审核队列。', 'Phone numbers, emails, links, and suspected full company names go to manual review.') }}</p>
+              </div>
+              <div class="about-card">
+                <div class="about-card-head">
+                  <BadgeCheck :size="14" />
+                  <strong>{{ copy('提交边界', 'Submission Boundary') }}</strong>
+                </div>
+                <p>{{ copy('不提供图片、截图或文件上传；分数始终由后端按枚举重新计算。', 'No image, screenshot, or file upload. Scores are always recalculated by the backend from enums.') }}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="about-block about-block-last">
+          <h2 class="about-section-title"><span>{{ copy('意见反馈', 'Feedback') }}</span></h2>
+          <p class="about-text about-feedback-intro">{{ copy('想到改进、踩到 bug，或者对内容安全有意见，都可以写下来。建议会入库，按优先级处理。', 'Spotted an improvement, hit a bug, or have a content-safety concern? Write it down — feedback is logged and handled by priority.') }}</p>
+          <form class="record-form" @submit.prevent="handleFeedbackSubmit">
+            <label class="field">
+              <span>{{ copy('建议类型', 'Feedback Type') }}</span>
+              <select v-model="feedbackForm.category">
+                <option value="feature">{{ copy('功能建议', 'Feature') }}</option>
+                <option value="bug">{{ copy('问题反馈', 'Bug') }}</option>
+                <option value="content">{{ copy('内容与安全', 'Content & Safety') }}</option>
+                <option value="other">{{ copy('其他', 'Other') }}</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>{{ copy('建议内容', 'Feedback') }}</span>
+              <textarea v-model="feedbackForm.content" maxlength="300" :placeholder="copy('写清楚你希望怎么改，别写真实公司或客户信息。', 'Describe what should change. Do not include real company or client information.')" />
+            </label>
+            <label class="field">
+              <span>{{ copy('联系方式（可选）', 'Contact (optional)') }}</span>
+              <PxInput v-model="feedbackForm.contact" :placeholder="copy('可留站内昵称，不建议填写手机号或微信号', 'Use an in-app nickname. Avoid phone numbers or chat IDs.')" clearable />
+            </label>
+            <p class="scope-note">{{ copy('建议最长 300 字；命中明显敏感内容会被拒绝或进入待处理状态。', 'Feedback is limited to 300 characters. Obvious sensitive content will be rejected or queued.') }}</p>
+            <div class="form-actions">
+              <PxButton type="primary" native-type="submit" size="small" :disabled="feedbackLoading" :loading="feedbackLoading">
+                <Send :size="14" />
+                {{ feedbackLoading ? copy('提交中', 'Submitting') : copy('提交建议', 'Submit Feedback') }}
+              </PxButton>
+            </div>
+            <div v-if="feedbackSubmitted" class="feedback-success">
+              <Check :size="16" />
+              {{ copy('建议已入库，后续会按优先级处理。', 'Feedback saved and will be handled by priority.') }}
+            </div>
+          </form>
         </section>
+        </div>
       </PxCard>
 
-      <!-- 反馈集合在关于我们页面 -->
-      <PxCard v-if="activeSection === 'feedback' || activeSection === 'about'" id="feedback" class="panel feedback-panel">
+      <!-- 反馈独立页面 -->
+      <PxCard v-if="activeSection === 'feedback'" id="feedback" class="panel feedback-panel">
         <template #header>
           <div class="panel-title"><MessageCircle :size="18" /><span>{{ t('feedback') }}</span></div>
         </template>
@@ -1376,26 +1557,21 @@ watch(
         </div>
       </PxCard>
 
-      <PxCard v-if="activeSection === 'leaderboard'" id="leaderboard" class="panel leaderboard-panel">
-        <template #header>
-          <div class="panel-title between">
-            <span>{{ selectedBoard?.label ?? t('leaderboard') }}</span>
+      <div v-if="activeSection === 'leaderboard'" id="leaderboard">
+        <div class="circle-nav-header" style="margin-bottom: 14px;">
+          <div class="circle-nav-brand-icon">
+            <Trophy :size="26" stroke-width="2.5" />
+          </div>
+          <div class="circle-nav-brand-text">
+            <strong>{{ selectedBoard?.label ?? t('leaderboard') }}</strong>
             <small>{{ selectedBoard?.description }}</small>
           </div>
-        </template>
+        </div>
+        <PxCard class="panel leaderboard-panel">
 
-        <div class="leaderboard-controls" :aria-label="copy('排行榜切换', 'Leaderboard switcher')">
-          <div class="leaderboard-control-head">
-            <div>
-              <strong>{{ selectedBoard?.label }}</strong>
-              <small>{{ selectedBoard?.description }} · {{ leaderboardResultCount }} {{ copy('条', 'rows') }}</small>
-            </div>
-            <button type="button" :title="copy('刷新排行榜', 'Refresh leaderboards')" @click="loadLeaderboard">
-              <RefreshCw :size="14" />
-              {{ copy('刷新', 'Refresh') }}
-            </button>
-          </div>
-          <div class="leaderboard-board-list">
+        <!-- 工具条：榜单切换 + 搜索 + 刷新 -->
+        <div class="leaderboard-toolbar" :aria-label="copy('排行榜工具栏', 'Leaderboard toolbar')">
+          <div class="leaderboard-board-tabs">
             <button
               v-for="board in localizedLeaderboardTypes"
               :key="board.key"
@@ -1407,37 +1583,146 @@ watch(
               {{ board.label }}
             </button>
           </div>
-          <div class="leaderboard-filter-row">
-            <label class="leaderboard-filter">
-              <span>{{ t('filter') }}</span>
-              <PxInput v-model="filterKeyword" :placeholder="t('filter')" clearable>
-                <template #prefix><Search :size="14" /></template>
-              </PxInput>
-            </label>
-            <button v-if="filterKeyword" class="leaderboard-clear-button" type="button" @click="clearLeaderboardFilter">{{ copy('清空筛选', 'Clear Filter') }}</button>
+          <div class="leaderboard-tools">
+            <PxInput
+              v-model="filterKeyword"
+              class="leaderboard-filter-input"
+              :placeholder="t('filter')"
+              clearable
+            >
+              <template #prefix><Search :size="14" /></template>
+            </PxInput>
+            <button v-if="filterKeyword" class="leaderboard-clear-button" type="button" @click="clearLeaderboardFilter">{{ copy('清空', 'Clear') }}</button>
+            <button type="button" class="leaderboard-refresh-button" :title="copy('刷新排行榜', 'Refresh leaderboards')" @click="loadLeaderboard">
+              <RefreshCw :size="14" />
+            </button>
           </div>
         </div>
 
+        <!-- 统计条 -->
+        <div v-if="leaderboardRows.length" class="leaderboard-stats-bar">
+          <div class="leaderboard-stat">
+            <strong>{{ leaderboardResultCount }}</strong>
+            <span>{{ copy('参与人数', 'Participants') }}</span>
+          </div>
+          <div class="leaderboard-stat">
+            <strong>{{ leaderboardRows[0].score.toFixed(1) }}</strong>
+            <span>{{ copy('最高分', 'Top Score') }}</span>
+          </div>
+          <div class="leaderboard-stat">
+            <strong>{{ selectedBoard?.label ?? '-' }}</strong>
+            <span>{{ copy('当前榜单', 'Current Board') }}</span>
+          </div>
+        </div>
+
+        <!-- loading -->
         <div v-if="leaderboardLoading" class="loading-line">{{ copy('排行榜加载中...', 'Loading leaderboards...') }}</div>
-        <ol v-else-if="leaderboardRows.length" class="leaderboard-list">
-          <li v-for="row in leaderboardRows" :key="`${activeBoard}-${row.rank}-${row.nickname}-${row.createdAt}`">
-            <button type="button" class="leaderboard-row leaderboard-row-summary">
-              <span class="rank">#{{ row.rank }}</span>
-              <div class="leader-main">
-                <strong>{{ row.nickname }}</strong>
-                <span>{{ row.username ? `@${row.username}` : copy('匿名昵称聚合', 'Anonymous nickname aggregate') }}</span>
-                <p>{{ copy('共提交', 'Submitted') }} {{ row.count ?? 0 }} {{ copy('条记录，当前排行榜只展示用户汇总，不展开单条内容。', 'records. This leaderboard only shows user summaries, not individual records.') }}</p>
+
+        <template v-else-if="leaderboardRows.length">
+          <!-- 领奖台：≥3 人才显示 -->
+          <template v-if="leaderboardRows.length >= 3">
+            <div class="leaderboard-divider">— {{ copy('TOP 3 · 本期领奖台', 'TOP 3 · Podium') }} —</div>
+            <div class="leaderboard-podium-wrap">
+              <div class="leaderboard-podium">
+                <!-- 银牌 #2 -->
+                <article class="lb-pod lb-pod--silver">
+                  <div class="lb-pod-badge">#2</div>
+                  <div class="lb-pod-avatar">
+                    <UserAvatar :avatarUrl="leaderboardRows[1].avatarUrl" :avatarSeed="leaderboardRows[1].avatarSeed" :nickname="leaderboardRows[1].nickname" :size="68" />
+                  </div>
+                  <div class="lb-pod-name">{{ leaderboardRows[1].nickname }}</div>
+                  <div class="lb-pod-user">{{ leaderboardRows[1].username ? `@${leaderboardRows[1].username}` : copy('匿名', 'anon') }}</div>
+                  <div class="lb-pod-score">{{ leaderboardRows[1].score.toFixed(1) }}</div>
+                  <div class="lb-pod-meta">{{ leaderboardRows[1].count ?? 0 }} {{ copy('条记录', 'records') }}</div>
+                  <div class="lb-pod-reactions">
+                    <span><Heart :size="11" /> {{ leaderboardRows[1].likeCount }}</span>
+                    <span><Star :size="11" /> {{ leaderboardRows[1].favoriteCount }}</span>
+                    <span><Crown :size="11" /> {{ leaderboardRows[1].voteCount }}</span>
+                  </div>
+                </article>
+                <!-- 金牌 #1 -->
+                <article class="lb-pod lb-pod--gold">
+                  <div class="lb-pod-badge">#1</div>
+                  <div class="lb-pod-crown"><Crown :size="22" /></div>
+                  <div class="lb-pod-avatar">
+                    <UserAvatar :avatarUrl="leaderboardRows[0].avatarUrl" :avatarSeed="leaderboardRows[0].avatarSeed" :nickname="leaderboardRows[0].nickname" :size="80" />
+                  </div>
+                  <div class="lb-pod-name">{{ leaderboardRows[0].nickname }}</div>
+                  <div class="lb-pod-user">{{ leaderboardRows[0].username ? `@${leaderboardRows[0].username}` : copy('匿名', 'anon') }}</div>
+                  <div class="lb-pod-score">{{ leaderboardRows[0].score.toFixed(1) }}</div>
+                  <div class="lb-pod-meta">{{ leaderboardRows[0].count ?? 0 }} {{ copy('条记录 · 鱼力值', 'records · Fish Power') }}</div>
+                  <div class="lb-pod-reactions">
+                    <span><Heart :size="11" /> {{ leaderboardRows[0].likeCount }}</span>
+                    <span><Star :size="11" /> {{ leaderboardRows[0].favoriteCount }}</span>
+                    <span><Crown :size="11" /> {{ leaderboardRows[0].voteCount }}</span>
+                  </div>
+                </article>
+                <!-- 铜牌 #3 -->
+                <article class="lb-pod lb-pod--bronze">
+                  <div class="lb-pod-badge">#3</div>
+                  <div class="lb-pod-avatar">
+                    <UserAvatar :avatarUrl="leaderboardRows[2].avatarUrl" :avatarSeed="leaderboardRows[2].avatarSeed" :nickname="leaderboardRows[2].nickname" :size="68" />
+                  </div>
+                  <div class="lb-pod-name">{{ leaderboardRows[2].nickname }}</div>
+                  <div class="lb-pod-user">{{ leaderboardRows[2].username ? `@${leaderboardRows[2].username}` : copy('匿名', 'anon') }}</div>
+                  <div class="lb-pod-score">{{ leaderboardRows[2].score.toFixed(1) }}</div>
+                  <div class="lb-pod-meta">{{ leaderboardRows[2].count ?? 0 }} {{ copy('条记录', 'records') }}</div>
+                  <div class="lb-pod-reactions">
+                    <span><Heart :size="11" /> {{ leaderboardRows[2].likeCount }}</span>
+                    <span><Star :size="11" /> {{ leaderboardRows[2].favoriteCount }}</span>
+                    <span><Crown :size="11" /> {{ leaderboardRows[2].voteCount }}</span>
+                  </div>
+                </article>
               </div>
-              <div class="leader-score">
-                <strong>{{ row.score.toFixed(1) }}</strong>
-                <span>{{ translatedMetric(row) }}</span>
-                <small>{{ t('like') }} {{ row.likeCount }} · {{ t('favorite') }} {{ row.favoriteCount }} · {{ copy('传奇', 'Legend') }} {{ row.voteCount }}</small>
-              </div>
-            </button>
-          </li>
-        </ol>
+            </div>
+            <div class="leaderboard-divider">— {{ copy('第 4 名起 · 继续往下游', 'From 4th place') }} —</div>
+          </template>
+
+          <!-- 降级态分割线（< 3 人） -->
+          <div v-if="leaderboardRows.length < 3" class="leaderboard-divider">— {{ copy('全部记录', 'All records') }} —</div>
+
+          <!-- 普通列表（< 3 人显示全部，≥ 3 人从第 4 名起） -->
+          <ol class="leaderboard-list">
+            <li
+              v-for="row in (leaderboardRows.length >= 3 ? leaderboardRows.slice(3) : leaderboardRows)"
+              :key="`${activeBoard}-${row.rank}-${row.nickname}-${row.createdAt}`"
+            >
+              <button
+                type="button"
+                class="leaderboard-row"
+                :class="{ 'is-me': currentUser && row.username === currentUser.username }"
+              >
+                <div class="lb-row-rank">{{ row.rank }}</div>
+                <div class="lb-row-avatar">
+                  <UserAvatar :avatarUrl="row.avatarUrl" :avatarSeed="row.avatarSeed" :nickname="row.nickname" :size="30" />
+                </div>
+                <div class="lb-row-main">
+                  <div class="lb-row-name">
+                    {{ row.nickname }}
+                    <span v-if="currentUser && row.username === currentUser.username" class="lb-you-tag">{{ copy('YOU', 'YOU') }}</span>
+                  </div>
+                  <div class="lb-row-sub">
+                    {{ row.username ? `@${row.username}` : copy('匿名昵称聚合', 'Anonymous') }}
+                    · {{ copy('共提交', 'Submitted') }} {{ row.count ?? 0 }} {{ copy('条', 'records') }}
+                  </div>
+                </div>
+                <div class="lb-row-score-col">
+                  <strong>{{ row.score.toFixed(1) }}</strong>
+                  <div class="lb-row-reactions">
+                    <span><Heart :size="11" /> {{ row.likeCount }}</span>
+                    <span><Star :size="11" /> {{ row.favoriteCount }}</span>
+                    <span><Crown :size="11" /> {{ row.voteCount }}</span>
+                  </div>
+                </div>
+              </button>
+            </li>
+          </ol>
+        </template>
+
+        <!-- 空态 -->
         <div v-else class="empty-list">{{ copy('暂无记录，第一条鱼还没入库。', 'No records yet. The first fish has not entered the database.') }}</div>
-      </PxCard>
+        </PxCard>
+      </div>
 
       <!-- 安全内容集合在关于我们页面 -->
       <div v-if="activeSection === 'safety' || activeSection === 'about'" class="info-grid">

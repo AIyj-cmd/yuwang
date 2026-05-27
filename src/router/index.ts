@@ -1,31 +1,17 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
-import HomePage from '../pages/HomePage.vue';
-import ResultPage from '../pages/ResultPage.vue';
-import LeaderboardPage from '../pages/LeaderboardPage.vue';
-import ProfilePage from '../pages/ProfilePage.vue';
-import ProtectionPage from '../pages/ProtectionPage.vue';
-import CommunityPage from '../pages/CommunityPage.vue';
-import TopicDetailPage from '../pages/TopicDetailPage.vue';
-import GuildsPage from '../pages/GuildsPage.vue';
-import GuildDetailPage from '../pages/GuildDetailPage.vue';
-import CirclesPage from '../pages/CirclesPage.vue';
-import CircleDetailPage from '../pages/CircleDetailPage.vue';
-import GroupsPage from '../pages/GroupsPage.vue';
-import GroupDetailPage from '../pages/GroupDetailPage.vue';
-import WalletPage from '../pages/WalletPage.vue';
-import NotFoundPage from '../pages/NotFoundPage.vue';
 import { fetchAdminMe } from '../services/adminApi';
+import { fetchMe } from '../api';
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/community' },
-  { path: '/submit', name: 'home', component: HomePage, meta: { section: 'submit' } },
-  { path: '/result', name: 'result', component: ResultPage, meta: { section: 'result' } },
-  { path: '/leaderboard', name: 'leaderboard', component: LeaderboardPage, meta: { section: 'leaderboard' } },
-  { path: '/profile', name: 'profile', component: ProfilePage, meta: { section: 'profile' } },
+  { path: '/submit', name: 'home', component: () => import('../pages/HomePage.vue'), meta: { section: 'submit' } },
+  { path: '/result', name: 'result', component: () => import('../pages/ResultPage.vue'), meta: { section: 'result' } },
+  { path: '/leaderboard', name: 'leaderboard', component: () => import('../pages/LeaderboardPage.vue'), meta: { section: 'leaderboard' } },
+  { path: '/profile', name: 'profile', component: () => import('../pages/ProfilePage.vue'), meta: { section: 'profile' } },
   { path: '/users/:username', name: 'user-profile', component: () => import('../pages/UserProfilePage.vue'), meta: { section: 'profile' } },
-  { path: '/profile/wallet', name: 'wallet', component: WalletPage, meta: { section: 'wallet' } },
-  { path: '/protection', name: 'protection', component: ProtectionPage, meta: { section: 'safety' } },
-  { path: '/community', name: 'community', component: CommunityPage, meta: { section: 'community' } },
+  { path: '/profile/wallet', name: 'wallet', component: () => import('../pages/WalletPage.vue'), meta: { section: 'wallet' } },
+  { path: '/protection', name: 'protection', component: () => import('../pages/ProtectionPage.vue'), meta: { section: 'safety' } },
+  { path: '/community', name: 'community', component: () => import('../pages/CommunityPage.vue'), meta: { section: 'community' } },
   { path: '/records/:id', name: 'record-share', component: () => import('../pages/RecordSharePage.vue'), meta: { section: 'community' } },
   {
     path: '/notifications',
@@ -33,19 +19,19 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/NotificationsPage.vue'),
     meta: { section: 'notifications', requiresAuth: true }
   },
-  { path: '/topics/:slug', name: 'topic-detail', component: TopicDetailPage, meta: { section: 'community' } },
-  { path: '/guilds', name: 'guilds', component: GuildsPage, meta: { section: 'guilds' } },
-  { path: '/guilds/:id', name: 'guild-detail', component: GuildDetailPage, meta: { section: 'guilds' } },
+  { path: '/topics/:slug', name: 'topic-detail', component: () => import('../pages/TopicDetailPage.vue'), meta: { section: 'community' } },
+  { path: '/guilds', name: 'guilds', component: () => import('../pages/GuildsPage.vue'), meta: { section: 'guilds' } },
+  { path: '/guilds/:id', name: 'guild-detail', component: () => import('../pages/GuildDetailPage.vue'), meta: { section: 'guilds' } },
   {
     path: '/my-guild',
     name: 'my-guild',
     component: () => import('../pages/MyGuildPage.vue'),
     meta: { section: 'guilds', requiresAuth: true }
   },
-  { path: '/circles', name: 'circles', component: CirclesPage, meta: { section: 'circles' } },
-  { path: '/circles/:id', name: 'circle-detail', component: CircleDetailPage, meta: { section: 'circles' } },
-  { path: '/groups', name: 'groups', component: GroupsPage, meta: { section: 'groups' } },
-  { path: '/groups/:id', name: 'group-detail', component: GroupDetailPage, meta: { section: 'groups' } },
+  { path: '/circles', name: 'circles', component: () => import('../pages/CirclesPage.vue'), meta: { section: 'circles' } },
+  { path: '/circles/:id', name: 'circle-detail', component: () => import('../pages/CircleDetailPage.vue'), meta: { section: 'circles' } },
+  { path: '/groups', name: 'groups', component: () => import('../pages/GroupsPage.vue'), meta: { section: 'groups' } },
+  { path: '/groups/:id', name: 'group-detail', component: () => import('../pages/GroupDetailPage.vue'), meta: { section: 'groups' } },
   { path: '/about', name: 'about', component: () => import('../pages/AboutPage.vue'), meta: { section: 'about' } },
   { path: '/feedback', name: 'feedback', component: () => import('../pages/FeedbackPage.vue'), meta: { section: 'feedback' } },
   { path: '/announcements', name: 'announcements', component: () => import('../pages/AnnouncementsPage.vue'), meta: { section: 'announcements' } },
@@ -75,7 +61,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'audit-logs', name: 'admin-audit-logs', component: () => import('../admin/AdminAuditLogsPage.vue') }
     ]
   },
-  { path: '/404', name: 'not-found', component: NotFoundPage, meta: { section: 'not-found' } },
+  { path: '/404', name: 'not-found', component: () => import('../pages/NotFoundPage.vue'), meta: { section: 'not-found' } },
   { path: '/:pathMatch(.*)*', redirect: '/404' }
 ];
 
@@ -102,30 +88,82 @@ const router = createRouter({
   }
 });
 
+/* ------------------------------------------------------------------
+ * Admin auth promise cache — avoids duplicate fetchAdminMe() calls
+ * when parent /admin redirect triggers a second navigation.
+ * ------------------------------------------------------------------ */
+let adminAuthPromise: Promise<boolean> | null = null;
+let adminAuthExpiresAt = 0;
+const ADMIN_AUTH_TTL_MS = 5000;
+
+const verifyAdminAuth = async (): Promise<boolean> => {
+  const now = Date.now();
+  if (adminAuthPromise && now < adminAuthExpiresAt) {
+    return adminAuthPromise;
+  }
+  adminAuthExpiresAt = now + ADMIN_AUTH_TTL_MS;
+  adminAuthPromise = fetchAdminMe()
+    .then(() => true)
+    .catch(() => false);
+  return adminAuthPromise;
+};
+
+/* ------------------------------------------------------------------
+ * User auth promise cache — light validation for requiresAuth routes.
+ * ------------------------------------------------------------------ */
+let userAuthPromise: Promise<boolean> | null = null;
+let userAuthExpiresAt = 0;
+const USER_AUTH_TTL_MS = 30000;
+
+const verifyUserAuth = async (): Promise<boolean> => {
+  const token = localStorage.getItem('gongwei-yuwang-token');
+  if (!token) return false;
+
+  const now = Date.now();
+  if (userAuthPromise && now < userAuthExpiresAt) {
+    return userAuthPromise;
+  }
+
+  userAuthExpiresAt = now + USER_AUTH_TTL_MS;
+  userAuthPromise = fetchMe(token)
+    .then(() => true)
+    .catch(() => {
+      localStorage.removeItem('gongwei-yuwang-token');
+      return false;
+    });
+
+  return userAuthPromise;
+};
+
 router.beforeEach(async (to) => {
   const legacyKey = to.hash.replace(/^#\/?/, '');
   const path = legacyHashRoutes[legacyKey];
   if (path) {
     return { path, replace: true };
   }
+
   if (to.meta.requiresAdmin) {
-    try {
-      await fetchAdminMe();
-    } catch {
+    const ok = await verifyAdminAuth();
+    if (!ok) {
       return { path: '/admin/login', query: { redirect: to.fullPath } };
     }
   }
+
   if (to.path === '/admin/login') {
-    try {
-      await fetchAdminMe();
+    const ok = await verifyAdminAuth();
+    if (ok) {
       return { path: '/admin/dashboard' };
-    } catch {
-      return true;
+    }
+    return true;
+  }
+
+  if (to.meta.requiresAuth) {
+    const ok = await verifyUserAuth();
+    if (!ok) {
+      return { path: '/', replace: true };
     }
   }
-  if (to.meta.requiresAuth && !localStorage.getItem('gongwei-yuwang-token')) {
-    return { path: '/', replace: true };
-  }
+
   return true;
 });
 

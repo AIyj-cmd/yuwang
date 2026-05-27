@@ -17,11 +17,16 @@ const load = async () => {
 };
 
 const create = async () => {
-  await createAdminGuild(form);
-  form.name = '';
-  form.description = '';
-  form.icon = '官';
-  await load();
+  error.value = '';
+  try {
+    await createAdminGuild(form);
+    form.name = '';
+    form.description = '';
+    form.icon = '官';
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '创建失败';
+  }
 };
 
 const edit = async (guild: AdminEntity) => {
@@ -29,13 +34,23 @@ const edit = async (guild: AdminEntity) => {
   if (!name) return;
   const description = window.prompt('工会描述', guild.description) ?? guild.description;
   const icon = window.prompt('工会图标', guild.icon ?? '官') ?? guild.icon;
-  await updateAdminGuild(guild.id, { name, description, icon });
-  await load();
+  error.value = '';
+  try {
+    await updateAdminGuild(guild.id, { name, description, icon });
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '更新失败';
+  }
 };
 
 const setStatus = async (guild: AdminEntity, status: 'active' | 'inactive') => {
-  await updateAdminGuildStatus(guild.id, status);
-  await load();
+  error.value = '';
+  try {
+    await updateAdminGuildStatus(guild.id, status);
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败';
+  }
 };
 
 onMounted(load);
