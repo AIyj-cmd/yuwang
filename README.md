@@ -72,6 +72,8 @@ npm install
 npm run dev
 ```
 
+`npm run dev` 会先启动后端 watch 服务，并让 Vite 前端等待 `http://127.0.0.1:3101/api/health` ready 后再启动，避免开发环境启动瞬间的 `/api/*` 代理 `ECONNREFUSED`。
+
 默认地址：
 
 - 前端：`http://127.0.0.1:5173/`
@@ -83,6 +85,8 @@ npm run dev
 npm run dev:client -- --port 5174 --strictPort
 npm run dev:server
 ```
+
+单独运行 `npm run dev:client` 时也会等待后端 API；如果只想启动前端，请先在另一个终端运行 `npm run dev:server`。
 
 ---
 

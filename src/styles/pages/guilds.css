@@ -292,20 +292,10 @@
   color: var(--color-text-on-mint);
 }
 
-/* 进度条 */
+/* 中间列容器(原进度条区域,现仅承载创建人) */
 .guilds-page .gh-bar-cell { display: flex; align-items: center; min-width: 0; }
-.guilds-page .gh-bar {
-  width: 100%; height: 6px;
-  background: var(--color-bg-subtle);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-}
-.guilds-page .gh-bar-fill {
-  display: block; height: 100%;
-  background: var(--color-primary);
-  border-radius: var(--radius-pill);
-  transition: width var(--transition-slow);
-}
+/* v1.5:删除原 .gh-bar / .gh-bar-fill 横向进度条样式。
+   它原本服务"赛季战力"语义,文案已改为"创建人"后失去意义。 */
 .guilds-page .gh-score {
   text-align: right;
   font-size: var(--text-base);
@@ -494,4 +484,34 @@
   .guilds-page .gh-mine-stats { grid-column: 1 / -1; justify-content: space-between; }
   .guilds-page .gh-mine-stats > div { text-align: left; }
   .guilds-page .gh-detail-cols { grid-template-columns: 1fr; }
+}
+
+/* ============ 创建人(替代旧"赛季战力"列)============ */
+.guilds-page .gh-bar-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+.guilds-page .gh-creator {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  min-width: 0;
+}
+.guilds-page .gh-creator-k {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+.guilds-page .gh-creator-v {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }

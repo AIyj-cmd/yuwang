@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
- * Guild Hall · /guilds 工会大厅 (v1.4)
- *   - 摆脱旧 PageSection + PxCard 表格布局
- *   - 与 Community V2 同一套 Neo-pixel Flat 风格
- *   - 工会列表卡片化,排名徽章 1/2/3 配色
- *   - 进度条按真实比例(0 分 = 0%,最大值 = 100%)
- *   - 进入页面时清掉跨页面残留的 statusMessage(修举报提示残留)
- * 不引入 @mmt817/pixel-ui;不发明后端 API;不改 GuildDetailPage。
+ * Guild Hall · /guilds 工会大厅 (v1.5)
+ *
+ * 视觉:与 Community V2 同一套 Neo-pixel Flat,卡片化、柔和、无黑色硬边框。
+ * 数据 / 接口 / 交互全部沿用 useAppContext 现有真实逻辑,不发明 API。
+ * 不引入 @mmt817/pixel-ui;不改 GuildDetailPage / MyGuildPage。
  * 样式全部在 src/styles/pages/guilds.css(以 .guilds-page 前缀作 scope)。
+ *
+ * 创建人来自后端 guild.creatorDisplayName,缺失时显示"未知鱼友"。
+ * 不使用 ownerUserId / createdByUserId / username / email / userId。
  */
 import '../styles/pages/guilds.css';
 import { computed, onMounted, ref } from 'vue';
@@ -40,15 +41,6 @@ onMounted(() => {
 const guildList = computed(() => (guildsData.value && guildsData.value.guilds) || []);
 const myGuild = computed(() => (guildsData.value && guildsData.value.myGuild) || null);
 
-const maxContribution = computed(() => {
-  let m = 0;
-  const list = guildList.value;
-  for (let i = 0; i < list.length; i++) {
-    if (list[i].totalContribution > m) m = list[i].totalContribution;
-  }
-  return m;
-});
-
 const myGuildRank = computed(() => {
   const mg = myGuild.value;
   if (!mg) return 0;
@@ -59,17 +51,28 @@ const myGuildRank = computed(() => {
   return 0;
 });
 
-function barWidth(g: any): string {
-  if (!g || g.totalContribution <= 0 || maxContribution.value <= 0) return '0%';
-  const pct = (g.totalContribution / maxContribution.value) * 100;
-  return Math.min(100, pct) + '%';
-}
-
-function rankVariant(idx: any): string { const i = Number(idx);
+function rankVariant(idx: any): string {
+  const i = Number(idx);
   if (i === 0) return 'gold';
   if (i === 1) return 'silver';
   if (i === 2) return 'bronze';
   return 'neutral';
+}
+
+/**
+ * 公开安全的创建人展示:只读 guild.creatorDisplayName。
+ * 缺失 / 空字符串 → "未知鱼友" / "Unknown fish"。
+ * 禁止使用 ownerUserId / createdByUserId / username / email。
+ */
+function creatorName(g: any): string {
+  const v = g && typeof g.creatorDisplayName === 'string' ? g.creatorDisplayName.trim() : '';
+  if (v) return v;
+  return copy('未知鱼友', 'Unknown fish');
+}
+
+function creatorLine(g: any): string {
+  const name = creatorName(g);
+  return copy('由 ', 'Created by ') + name + copy(' 创建', '');
 }
 
 const guildTab = ref('');
@@ -85,7 +88,10 @@ const expandedLoading = ref(false);
 const expandedError = ref('');
 
 async function toggleGuildRow(id: number) {
-  if (expandedGuildId.value === id) { expandedGuildId.value = 0; return; }
+  if (expandedGuildId.value === id) {
+    expandedGuildId.value = 0;
+    return;
+  }
   expandedGuildId.value = id;
   expandedLoading.value = true;
   expandedError.value = '';
@@ -107,13 +113,10 @@ async function toggleGuildRow(id: number) {
 function goManageMyGuild() { router.push('/my-guild'); }
 function openGuildDetail(id: number) { router.push('/guilds/' + id); }
 function isOwner(role: string): string { return role === 'owner' ? 'true' : 'false'; }
-function ownerLabel(role: string): string { return role === 'owner' ? copy('会长', 'Owner') : copy('成员', 'Member'); }
+function ownerLabel(role: string): string {
+  return role === 'owner' ? copy('会长', 'Owner') : copy('成员', 'Member');
+}
 
-/* ------------------------------------------------------------------
- * 本页提示:不再依赖全局 statusMessage 文案关键词。
- * onMounted 已清掉跨页面残留;本页所有动作走 wrapper 写 localStatus/localError,
- * 然后立即清掉全局,避免再次跨页面泄露。
- * ------------------------------------------------------------------ */
 const localStatus = ref('');
 const localError = ref('');
 
@@ -127,22 +130,16 @@ function captureFromGlobal() {
 async function onJoin(id: number) {
   localStatus.value = '';
   localError.value = '';
-  try {
-    await joinGuild(id);
-  } catch (e) {
-    if (e instanceof Error) localError.value = e.message;
-  }
+  try { await joinGuild(id); }
+  catch (e) { if (e instanceof Error) localError.value = e.message; }
   captureFromGlobal();
 }
 
 async function onLoadGuilds() {
   localStatus.value = '';
   localError.value = '';
-  try {
-    await reloadGuilds();
-  } catch (e) {
-    if (e instanceof Error) localError.value = e.message;
-  }
+  try { await reloadGuilds(); }
+  catch (e) { if (e instanceof Error) localError.value = e.message; }
   captureFromGlobal();
 }
 </script>
@@ -156,7 +153,7 @@ async function onLoadGuilds() {
         </div>
         <div class="gh-head-text">
           <h1>{{ copy('工会大厅', 'Guild Hall') }}</h1>
-          <p>{{ copy('挑一支门派,把鱼塘划成你们的地盘', 'Pick a guild and claim a corner of the pond') }}</p>
+          <p>{{ copy('工会按总贡献排序 · 点开卡片查看成员与高分记录', 'Guilds ranked by total contribution · open any card for roster and highlights') }}</p>
         </div>
       </div>
       <nav v-if="myGuild" class="gh-tabs" :aria-label="copy('工会视图', 'Guild views')">
@@ -205,12 +202,10 @@ async function onLoadGuilds() {
       </section>
 
       <section v-else class="gh-list-view">
-        <p class="gh-caption">{{ copy('全部工会按赛季总贡献排名 · 点开任意一支看成员与高分记录', 'All guilds ranked by season total · open any to see roster and highlights') }}</p>
-
         <div v-if="guildList.length" class="gh-cols-hint" aria-hidden="true">
           <span class="hint-rank">#</span>
           <span class="hint-guild">{{ copy('工会', 'Guild') }}</span>
-          <span class="hint-bar">{{ copy('赛季战力', 'Season power') }}</span>
+          <span class="hint-bar">{{ copy('创建人', 'Creator') }}</span>
           <span class="hint-score">{{ copy('总贡献', 'Total') }}</span>
         </div>
 
@@ -221,8 +216,15 @@ async function onLoadGuilds() {
             class="gh-card"
             :class="{ 'is-mine': guild.joined, 'is-open': expandedGuildId === guild.id }"
           >
-            <button type="button" class="gh-card-main" :aria-expanded="expandedGuildId === guild.id" @click="toggleGuildRow(guild.id)">
-              <span class="gh-rank" :data-variant="rankVariant(idx)"><span class="gh-rank-num">{{ Number(idx) + 1 }}</span></span>
+            <button
+              type="button"
+              class="gh-card-main"
+              :aria-expanded="expandedGuildId === guild.id"
+              @click="toggleGuildRow(guild.id)"
+            >
+              <span class="gh-rank" :data-variant="rankVariant(idx)">
+                <span class="gh-rank-num">{{ Number(idx) + 1 }}</span>
+              </span>
               <span class="gh-guild">
                 <span class="gh-guild-emblem" :data-variant="rankVariant(idx)">{{ guild.icon }}</span>
                 <span class="gh-guild-id">
@@ -234,7 +236,9 @@ async function onLoadGuilds() {
                 </span>
               </span>
               <span class="gh-bar-cell">
-                <span class="gh-bar"><span class="gh-bar-fill" :style="{ width: barWidth(guild) }"></span></span>
+                <span class="gh-creator">
+                  <span class="gh-creator-v">{{ creatorLine(guild) }}</span>
+                </span>
               </span>
               <span class="gh-score num">{{ guild.totalContribution.toFixed(1) }}</span>
               <span class="gh-chev" :class="{ rotated: expandedGuildId === guild.id }" aria-hidden="true">▾</span>
@@ -271,12 +275,18 @@ async function onLoadGuilds() {
                   </section>
                 </div>
                 <div class="gh-detail-actions">
-                  <button v-if="guild.joined" type="button" class="btn-state" disabled>{{ copy('这是你的当前工会', 'Your current guild') }}</button>
-                  <button v-else-if="!token" type="button" class="btn-ghost" disabled :title="t('needLogin')">{{ copy('登录后可加入', 'Sign in to join') }}</button>
+                  <button v-if="guild.joined" type="button" class="btn-state" disabled>
+                    {{ copy('这是你的当前工会', 'Your current guild') }}
+                  </button>
+                  <button v-else-if="!token" type="button" class="btn-ghost" disabled :title="t('needLogin')">
+                    {{ copy('登录后可加入', 'Sign in to join') }}
+                  </button>
                   <button v-else type="button" class="btn-primary" @click="onJoin(guild.id)">
                     {{ myGuild ? copy('换到这个工会', 'Switch to this guild') : copy('加入这个工会', 'Join this guild') }}
                   </button>
-                  <button type="button" class="btn-ghost" @click.stop="openGuildDetail(guild.id)">{{ copy('查看详情', 'View detail') }}</button>
+                  <button type="button" class="btn-ghost" @click.stop="openGuildDetail(guild.id)">
+                    {{ copy('查看详情', 'View detail') }}
+                  </button>
                 </div>
               </template>
             </div>
@@ -287,7 +297,7 @@ async function onLoadGuilds() {
           v-else
           icon="trophy"
           :title="copy('还没有工会占领鱼塘', 'No guild claims the pond yet')"
-          :description="copy('赛季尚未启动,可以先去社区广场摸条鱼,等待门派开张。', 'The season has not started yet. Slack in the community while we prepare guild seats.')"
+          :description="copy('赛季尚未启动 · 先去社区广场摸条鱼 · 等待门派开张', 'The season has not started yet · slack in the community while we prepare guild seats')"
         />
 
         <article v-if="token" class="gh-create">
@@ -296,7 +306,9 @@ async function onLoadGuilds() {
             <strong>{{ copy('创建你自己的工会', 'Start your own guild') }}</strong>
             <span>{{ copy('在管理页填写名称、徽章与简介', 'Configure name, emblem and intro on the manage page') }}</span>
           </div>
-          <button type="button" class="btn-primary" @click="goManageMyGuild">{{ copy('前往创建', 'Go create') }}</button>
+          <button type="button" class="btn-primary" @click="goManageMyGuild">
+            {{ copy('前往创建', 'Go create') }}
+          </button>
         </article>
         <article v-else class="gh-create gh-create--locked">
           <div class="gh-create-icon"><PixelIcon name="lock" :size="20" /></div>
