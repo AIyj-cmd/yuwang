@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Check, LogOut, X } from 'lucide-vue-next';
-import { PxButton } from '@mmt817/pixel-ui';
 
 const props = defineProps<{
   leaveConfirm: boolean;
@@ -28,19 +27,29 @@ const emit = defineEmits<{
     </p>
 
     <div v-if="!leaveConfirm" class="mg-actions">
-      <PxButton type="base" size="small" @click="emit('request-leave')">
+      <button type="button" class="btn-secondary" @click="emit('request-leave')">
         <LogOut :size="13" /> 退出工会
-      </PxButton>
+      </button>
     </div>
     <div v-else class="mg-confirm">
       <span>确认要退出当前工会吗？此操作无法撤销。</span>
       <div class="mg-form-actions">
-        <PxButton type="danger" size="small" :loading="leaving" @click="emit('confirm-leave')">
-          <Check :size="13" /> 确认退出
-        </PxButton>
-        <PxButton type="base" size="small" :disabled="leaving" @click="emit('cancel-leave')">
+        <button
+          type="button"
+          class="btn-danger"
+          :disabled="leaving"
+          @click="emit('confirm-leave')"
+        >
+          <Check :size="13" /> {{ leaving ? '退出中…' : '确认退出' }}
+        </button>
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="leaving"
+          @click="emit('cancel-leave')"
+        >
           <X :size="13" /> 取消
-        </PxButton>
+        </button>
       </div>
     </div>
   </section>
@@ -49,56 +58,104 @@ const emit = defineEmits<{
 <style scoped>
 .mg-section {
   display: grid;
-  gap: 10px;
-  padding: 14px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface-soft);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
 }
 .mg-section--danger {
-  background: var(--color-danger);
+  border-color: var(--color-danger);
+  background: var(--color-bg-active-danger);
 }
 .mg-section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .mg-section-head strong {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--color-text);
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
 }
 .field-hint {
   margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  line-height: 1.5;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
 }
 .mg-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .mg-confirm {
   display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
 }
 .mg-confirm > span {
-  font-size: 12.5px;
-  font-weight: 900;
-  line-height: 1.6;
-  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-normal);
+  color: var(--color-danger);
 }
 .mg-form-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
+}
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-bg-card);
+}
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+  border: 1.5px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: inherit;
+  box-shadow: var(--shadow-flat-sm);
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

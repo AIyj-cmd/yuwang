@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { UserMinus } from 'lucide-vue-next';
-import { PxButton, PxInput } from '@mmt817/pixel-ui';
 
 const props = defineProps<{
   removing: boolean;
@@ -32,16 +31,19 @@ const handleSubmit = () => {
       输入要移出工会的成员用户 ID。第一阶段没有成员列表接口，移除成功后会在下方记录本次操作。会长不能移除自己或其他会长。
     </p>
     <form class="mg-remove" @submit.prevent="handleSubmit">
-      <PxInput v-model="userId" placeholder="成员用户 ID，例如 1024" />
-      <PxButton
-        type="danger"
-        native-type="submit"
-        size="small"
+      <input
+        v-model="userId"
+        class="mg-input"
+        type="text"
+        placeholder="成员用户 ID，例如 1024"
+      />
+      <button
+        type="submit"
+        class="btn-danger"
         :disabled="removing || !userId.trim()"
-        :loading="removing"
       >
-        <UserMinus :size="13" /> 移除成员
-      </PxButton>
+        <UserMinus :size="13" /> {{ removing ? '移除中…' : '移除成员' }}
+      </button>
     </form>
     <div v-if="removedMembers.length" class="mg-removed">
       <span>本次会话已移除：</span>
@@ -53,58 +55,99 @@ const handleSubmit = () => {
 <style scoped>
 .mg-section {
   display: grid;
-  gap: 10px;
-  padding: 14px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface-soft);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
 }
 .mg-section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .mg-section-head strong {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--color-text);
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
 }
 .mg-section-head small {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
 }
 .field-hint {
   margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  line-height: 1.5;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+}
+.mg-input {
+  width: 100%;
+  background: var(--color-bg-card);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--color-text-primary);
+}
+.mg-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-flat-sm);
 }
 .mg-remove {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: start;
 }
 .mg-removed {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--color-text);
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
 }
 .mg-removed em {
   font-style: normal;
-  padding: 2px 7px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  font-weight: 900;
+  padding: 2px var(--space-2);
+  border: var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+  font-weight: var(--weight-bold);
+}
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+  border: 1.5px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: inherit;
+  box-shadow: var(--shadow-flat-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity var(--transition-fast);
+}
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 480px) {

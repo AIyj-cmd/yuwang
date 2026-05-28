@@ -6,14 +6,10 @@ import {
   ArrowRight,
   Check,
   Crown,
-  RefreshCw,
-  Save,
-  ShieldAlert,
-  X
+  ShieldAlert
 } from 'lucide-vue-next';
-import { PxButton, PxCard, PxInput } from '@mmt817/pixel-ui';
 import { useAppContext } from '../appContext';
-import { createGuild, leaveGuild, removeGuildMember, updateGuild } from '../api';
+import { createGuild, fetchGuild, leaveGuild, removeGuildMember, updateGuild } from '../api';
 import type { Guild, CachedGuild } from '../types';
 import GuildCreateForm from '../components/guild/GuildCreateForm.vue';
 import GuildEditForm from '../components/guild/GuildEditForm.vue';
@@ -90,14 +86,33 @@ const clearCache = () => {
   }
 };
 
-const restoreFromContext = () => {
+const restoreFromContext = async () => {
   const user = currentUser.value;
   if (!user || user.guildId === null) {
     guildInfo.value = null;
     return;
   }
   const cached = readCache();
-  guildInfo.value = cached && cached.userId === user.id && cached.guild.id === user.guildId ? cached.guild : null;
+  if (cached && cached.userId === user.id && cached.guild.id === user.guildId) {
+    guildInfo.value = cached.guild;
+    return;
+  }
+  // 缓存 miss → API fallback
+  try {
+    const res = await fetchGuild(user.guildId, authToken.value);
+    const g = res.guild;
+    const c: CachedGuild = {
+      id: g.id,
+      name: g.name ?? '',
+      description: g.description ?? '',
+      icon: g.icon ?? '',
+      role: g.role ?? 'member'
+    };
+    writeCache(c);
+    guildInfo.value = c;
+  } catch {
+    guildInfo.value = null;
+  }
 };
 
 const toCachedGuild = (guild: Guild, fallbackRole: string): CachedGuild => ({
@@ -224,7 +239,7 @@ const handleRemoveMember = async (targetId: number) => {
     return;
   }
   if (currentUser.value && targetId === currentUser.value.id) {
-    pageError.value = copy('不能把自己移出工会，会长请使用下方“退出工会”。', 'You cannot remove yourself. Use "Leave guild" below instead.');
+    pageError.value = copy('不能把自己移出工会，会长请使用下方"退出工会"。', 'You cannot remove yourself. Use "Leave guild" below instead.');
     return;
   }
   removing.value = true;
@@ -248,7 +263,7 @@ const goCommunity = () => {
 watch(
   () => `${currentUser.value?.id ?? ''}:${currentUser.value?.guildId ?? ''}`,
   () => {
-    restoreFromContext();
+    void restoreFromContext();
   },
   { immediate: true }
 );
@@ -265,127 +280,165 @@ onMounted(() => {
 <template>
   <section class="workspace single-view my-guild-page">
     <aside class="right-rail">
-      <PxCard class="panel my-guild-panel">
-        <template #header>
-          <div class="panel-title between">
-            <span><Crown :size="18" /> {{ copy('工会管理', 'Guild Management') }}</span>
-            <small>/my-guild</small>
+      <div class="my-guild-card">
+        <div class="my-guild-card__header">
+          <span class="my-guild-card__title">
+            <Crown :size="18" />
+            {{ copy('工会管理', 'Guild Management') }}
+          </span>
+          <small class="my-guild-card__sub">/my-guild</small>
+        </div>
+
+        <div class="my-guild-card__body">
+          <div v-if="accessState === 'unauthorized'" class="gc-state gc-state--error">
+            <ShieldAlert :size="22" />
+            <strong>{{ copy('需要登录后才能管理工会', 'Sign in to manage your guild') }}</strong>
+            <span>{{ copy('请用右上角的账号菜单登录。正在带你回到社区广场。', 'Use the account menu at the top right to sign in. Taking you back to the community.') }}</span>
+            <button type="button" class="gc-retry" @click="goCommunity">
+              <ArrowRight :size="14" /> {{ copy('回到社区广场', 'Back to community') }}
+            </button>
           </div>
-        </template>
 
-        <div v-if="accessState === 'unauthorized'" class="gc-state gc-state--error">
-          <ShieldAlert :size="22" />
-          <strong>{{ copy('需要登录后才能管理工会', 'Sign in to manage your guild') }}</strong>
-          <span>{{ copy('请用右上角的账号菜单登录。正在带你回到社区广场。', 'Use the account menu at the top right to sign in. Taking you back to the community.') }}</span>
-          <button type="button" class="gc-retry" @click="goCommunity">
-            <ArrowRight :size="14" /> {{ copy('回到社区广场', 'Back to community') }}
-          </button>
-        </div>
-
-        <div v-else-if="accessState === 'loading'" class="gc-state gc-state--loading">
-          <div class="gc-skeleton"></div>
-          <div class="gc-skeleton"></div>
-          <p class="loading-line">{{ copy('正在确认你的账号与工会状态...', 'Checking your account and guild status...') }}</p>
-        </div>
-
-        <template v-else>
-          <p v-if="pageError" class="error-line"><AlertTriangle :size="16" /> {{ pageError }}</p>
-          <p v-if="pageStatus" class="status-line"><Check :size="16" /> {{ pageStatus }}</p>
-
-          <GuildCreateForm
-            v-if="!hasGuild"
-            :creating="creating"
-            :safety-notice="options.safetyNotice"
-            @submit="handleCreate"
-          />
+          <div v-else-if="accessState === 'loading'" class="gc-state gc-state--loading">
+            <div class="gc-skeleton"></div>
+            <div class="gc-skeleton"></div>
+            <p class="loading-line">{{ copy('正在确认你的账号与工会状态...', 'Checking your account and guild status...') }}</p>
+          </div>
 
           <template v-else>
-            <GuildProfileDisplay
-              :guild-info="guildInfo"
-              :guild-id="guildId"
-              :is-owner="isOwner"
-              @edit="startEdit"
-            />
+            <p v-if="pageError" class="error-line"><AlertTriangle :size="16" /> {{ pageError }}</p>
+            <p v-if="pageStatus" class="status-line"><Check :size="16" /> {{ pageStatus }}</p>
 
-            <GuildEditForm
-              v-if="editing"
-              :initial-name="guildInfo?.name ?? ''"
-              :initial-description="guildInfo?.description ?? ''"
-              :initial-icon="guildInfo?.icon ?? ''"
-              :saving-edit="savingEdit"
+            <GuildCreateForm
+              v-if="!hasGuild"
+              :creating="creating"
               :safety-notice="options.safetyNotice"
-              @submit="handleSaveEdit"
-              @cancel="cancelEdit"
+              @submit="handleCreate"
             />
 
-            <GuildMemberManage
-              v-if="isOwner"
-              :removing="removing"
-              :removed-members="removedMembers"
-              @remove="handleRemoveMember"
-            />
+            <template v-else>
+              <GuildProfileDisplay
+                :guild-info="guildInfo"
+                :guild-id="guildId"
+                :is-owner="isOwner"
+                @edit="startEdit"
+              />
 
-            <GuildLeaveSection
-              :leave-confirm="leaveConfirm"
-              :is-owner="isOwner"
-              :leaving="leaving"
-              @request-leave="requestLeave"
-              @confirm-leave="confirmLeave"
-              @cancel-leave="cancelLeave"
-            />
+              <GuildEditForm
+                v-if="editing"
+                :initial-name="guildInfo?.name ?? ''"
+                :initial-description="guildInfo?.description ?? ''"
+                :initial-icon="guildInfo?.icon ?? ''"
+                :saving-edit="savingEdit"
+                :safety-notice="options.safetyNotice"
+                @submit="handleSaveEdit"
+                @cancel="cancelEdit"
+              />
+
+              <GuildMemberManage
+                v-if="isOwner"
+                :removing="removing"
+                :removed-members="removedMembers"
+                @remove="handleRemoveMember"
+              />
+
+              <GuildLeaveSection
+                :leave-confirm="leaveConfirm"
+                :is-owner="isOwner"
+                :leaving="leaving"
+                @request-leave="requestLeave"
+                @confirm-leave="confirmLeave"
+                @cancel-leave="cancelLeave"
+              />
+            </template>
           </template>
-        </template>
-      </PxCard>
+        </div>
+      </div>
     </aside>
   </section>
 </template>
 
 <style scoped>
+.my-guild-card {
+  background: var(--color-bg-card);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-flat-md);
+  overflow: hidden;
+}
+.my-guild-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-default);
+}
+.my-guild-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+}
+.my-guild-card__sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+.my-guild-card__body {
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+}
+
 .gc-state {
   display: grid;
-  gap: 6px;
-  padding: 16px;
+  gap: var(--space-2);
+  padding: var(--space-4);
   text-align: center;
-  color: var(--color-text-muted);
-  border: 2px solid var(--color-border-soft);
-  background: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
 }
 .gc-state--error {
   border-color: var(--color-danger);
-  background: var(--color-danger);
-  color: var(--color-danger-text);
+  background: var(--color-bg-active-danger);
+  color: var(--color-text-primary);
 }
 .gc-state strong {
-  font-size: 14px;
-  font-weight: 900;
-  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
 }
 .gc-state span {
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.5;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-normal);
 }
 .gc-retry {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 4px auto 0;
-  padding: 8px 14px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 12px;
-  font-weight: 800;
+  gap: var(--space-2);
+  margin: var(--space-1) auto 0;
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: inherit;
   cursor: pointer;
 }
 .gc-retry:hover {
-  background: var(--color-border);
-  color: var(--color-surface);
+  background: var(--color-bg-subtle);
 }
 .gc-skeleton {
   height: 20px;
-  border: 2px solid var(--color-border-soft);
-  background: linear-gradient(90deg, var(--color-surface-soft) 25%, var(--color-disabled) 50%, var(--color-surface-soft) 75%);
+  border-radius: var(--radius-sm);
+  border: var(--border-default);
+  background: linear-gradient(90deg, var(--color-bg-subtle) 25%, var(--color-bg-card) 50%, var(--color-bg-subtle) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.2s infinite;
 }
@@ -394,33 +447,35 @@ onMounted(() => {
   100% { background-position: -200% 0; }
 }
 .loading-line {
-  margin: 4px 0 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-muted);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
 }
 .error-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin: 0;
-  padding: 10px 12px;
-  border: 2px solid var(--color-danger);
-  background: var(--color-danger);
-  color: var(--color-danger-text);
-  font-size: 13px;
-  font-weight: 800;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-active-danger);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
 }
 .status-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin: 0;
-  padding: 10px 12px;
-  border: 2px solid var(--color-success);
-  background: var(--color-success);
-  color: var(--color-success-text);
-  font-size: 13px;
-  font-weight: 800;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-success);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-mint-soft);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
 }
 </style>

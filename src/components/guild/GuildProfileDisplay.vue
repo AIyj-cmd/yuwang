@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Crown, Pencil, RefreshCw } from 'lucide-vue-next';
-import { PxButton } from '@mmt817/pixel-ui';
 import type { CachedGuild } from '../../types';
 
 const props = defineProps<{
@@ -42,9 +41,9 @@ const emit = defineEmits<{
   </div>
 
   <div v-if="!$slots.edit" class="mg-actions">
-    <PxButton type="primary" size="small" @click="emit('edit')">
+    <button type="button" class="btn-primary" @click="emit('edit')">
       <Pencil :size="13" /> 编辑工会
-    </PxButton>
+    </button>
   </div>
 </template>
 
@@ -52,11 +51,12 @@ const emit = defineEmits<{
 .mg-guild {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px;
-  border: 3px solid var(--color-border);
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
   background: var(--color-primary);
-  box-shadow: var(--shadow-small);
+  box-shadow: var(--shadow-flat-sm);
 }
 .mg-guild__emblem {
   display: flex;
@@ -65,92 +65,120 @@ const emit = defineEmits<{
   width: 56px;
   height: 56px;
   flex-shrink: 0;
-  border: 3px solid var(--color-border);
-  background: var(--color-surface);
-  font-size: 26px;
+  border: var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  font-size: var(--text-xl);
   line-height: 1;
 }
 .mg-guild__meta {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
 }
 .mg-guild__kicker {
-  font-size: 10px;
-  font-weight: 900;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
   letter-spacing: 0.12em;
-  color: var(--color-primary-text);
+  color: var(--color-text-primary);
   opacity: 0.7;
 }
 .mg-guild__meta strong {
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--color-primary-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
   word-break: break-word;
 }
 .mg-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 2px;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 .mg-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 11px;
-  font-weight: 900;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border: var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
   font-style: normal;
 }
 .mg-tag--owner {
-  background: var(--color-accent);
+  background: var(--color-primary-soft);
 }
 .mg-tag--ghost {
-  background: var(--color-surface-soft);
-  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
 }
 .mg-desc {
   margin: 0;
-  padding: 12px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface-soft);
-  color: var(--color-text);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.6;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-relaxed);
   white-space: pre-line;
   word-break: break-word;
 }
 .mg-desc--empty {
-  color: var(--color-text-muted);
-  font-weight: 800;
+  color: var(--color-text-secondary);
 }
 .mg-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .gc-state {
   display: grid;
-  gap: 6px;
-  padding: 16px;
+  gap: var(--space-2);
+  padding: var(--space-4);
   text-align: center;
-  color: var(--color-text-muted);
-  border: 2px solid var(--color-border-soft);
-  background: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
 }
 .gc-state strong {
-  font-size: 14px;
-  font-weight: 900;
-  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
 }
 .gc-state span {
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.5;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-normal);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-primary);
+  color: var(--color-text-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: inherit;
+  box-shadow: var(--shadow-flat-sm);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.btn-primary:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--color-border);
+}
+.btn-primary:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--color-border);
 }
 </style>

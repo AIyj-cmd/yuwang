@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue';
 import { Pencil, Save, X } from 'lucide-vue-next';
-import { PxButton, PxInput } from '@mmt817/pixel-ui';
 
 const props = defineProps<{
   initialName: string;
@@ -68,7 +67,12 @@ const handleSubmit = () => {
 
     <div class="field">
       <span>工会图标</span>
-      <PxInput v-model="form.icon" placeholder="1-4 个字符" />
+      <input
+        v-model="form.icon"
+        class="mg-input"
+        type="text"
+        placeholder="1-4 个字符"
+      />
       <div class="mg-icon-picker">
         <button
           v-for="icon in iconSuggestions"
@@ -90,7 +94,12 @@ const handleSubmit = () => {
           {{ trimmedLen(form.name) }}/{{ NAME_MAX }}
         </em>
       </span>
-      <PxInput v-model="form.name" placeholder="2-40 个字符" />
+      <input
+        v-model="form.name"
+        class="mg-input"
+        type="text"
+        placeholder="2-40 个字符"
+      />
     </label>
 
     <label class="field">
@@ -100,6 +109,7 @@ const handleSubmit = () => {
       </span>
       <textarea
         v-model="form.description"
+        class="mg-input mg-textarea"
         :maxlength="DESC_MAX"
         rows="4"
         placeholder="最多 180 字。"
@@ -109,12 +119,12 @@ const handleSubmit = () => {
     <p class="safety-inline">{{ safetyNotice }}</p>
 
     <div class="mg-form-actions">
-      <PxButton type="primary" native-type="submit" size="small" :disabled="!canSubmit" :loading="savingEdit">
-        <Save :size="13" /> 保存修改
-      </PxButton>
-      <PxButton type="base" native-type="button" size="small" @click="emit('cancel')">
+      <button type="submit" class="btn-primary" :disabled="!canSubmit">
+        <Save :size="13" /> {{ savingEdit ? '保存中…' : '保存修改' }}
+      </button>
+      <button type="button" class="btn-secondary" @click="emit('cancel')">
         <X :size="13" /> 取消
-      </PxButton>
+      </button>
     </div>
   </form>
 </template>
@@ -122,51 +132,78 @@ const handleSubmit = () => {
 <style scoped>
 .mg-form {
   display: grid;
-  gap: 14px;
+  gap: var(--space-4);
 }
-.mg-form .field > span {
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+.field > span {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
 }
 .mg-card {
-  padding: 14px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface-soft);
+  padding: var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
 }
 .mg-counter {
   font-style: normal;
-  font-size: 11px;
-  font-weight: 900;
-  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
 }
 .mg-counter--over {
-  color: var(--color-danger-text);
+  color: var(--color-danger);
 }
 .mg-section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .mg-section-head strong {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--color-text);
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
 }
 .mg-section-head small {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+}
+.mg-input {
+  width: 100%;
+  background: var(--color-bg-card);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--color-text-primary);
+}
+.mg-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-flat-sm);
+}
+.mg-textarea {
+  resize: vertical;
+  min-height: 80px;
 }
 .mg-icon-picker {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
 .mg-icon-chip {
   display: inline-flex;
@@ -174,13 +211,14 @@ const handleSubmit = () => {
   justify-content: center;
   min-width: 34px;
   height: 32px;
-  padding: 0 6px;
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: 2px 2px 0 var(--color-border);
-  color: var(--color-text);
-  font-size: 15px;
-  font-weight: 900;
+  padding: 0 var(--space-2);
+  border: var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-flat-sm);
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
   cursor: pointer;
 }
 .mg-icon-chip:hover {
@@ -188,25 +226,73 @@ const handleSubmit = () => {
   box-shadow: 3px 3px 0 var(--color-border);
 }
 .mg-icon-chip.active {
-  background: var(--color-accent);
+  background: var(--color-primary-soft);
+  border-color: var(--color-border-strong);
 }
 .mg-icon-chip:focus-visible {
-  outline: 2px solid var(--color-focus);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 .safety-inline {
   margin: 0;
-  padding: 8px 10px;
-  border: 2px solid var(--color-border-soft);
-  background: var(--color-surface-soft);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  line-height: 1.5;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
 }
 .mg-form-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-primary);
+  color: var(--color-text-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: inherit;
+  box-shadow: var(--shadow-flat-sm);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--color-border);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--color-border);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+.btn-secondary:hover {
+  background: var(--color-bg-card);
 }
 </style>
