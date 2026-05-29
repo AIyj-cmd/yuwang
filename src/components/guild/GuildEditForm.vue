@@ -254,7 +254,7 @@ const handleSubmit = () => {
   align-items: center;
   gap: var(--space-1);
   background: var(--color-primary);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   border: var(--border-default);
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-4);

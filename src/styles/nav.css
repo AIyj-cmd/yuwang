@@ -9,9 +9,10 @@
    * v1.2(2026-05-27)软化:
    * 旧版用 3px solid var(--color-border) (pond 主题下是 #18202a 纯黑)
    * 加 4px 黑色硬阴影,顶部一条粗黑横线很压迫。
-   * 改为 1px 柔和米灰 hairline + 无硬阴影,只保留必要分隔。
+   * 改为 1px 柔和 hairline + 无硬阴影,只保留必要分隔。
+   * 边色跟随主题分隔线 token,避免在 night / arcade 下残留固定浅米灰横线。
    */
-  border-bottom: 1px solid #ECE6D6;
+  border-bottom: 1px solid var(--color-divider);
   background: var(--color-surface);
   box-shadow: none;
 }

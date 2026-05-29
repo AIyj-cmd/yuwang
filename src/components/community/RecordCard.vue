@@ -315,8 +315,8 @@ const onReport = async () => {
   align-items: center;
   padding: 2px var(--space-2);
   background: var(--color-accent-mint-soft);
-  /* 软化:不依赖 accent-mint 作为边色(在 night 主题下偏深),改用更柔和的内层近色 */
-  border: 1px solid #CDE5DA;
+  /* 边色跟随主题的次级边框,避免在 night / arcade 下出现固定浅薄荷线 */
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
@@ -456,7 +456,7 @@ const onReport = async () => {
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   cursor: pointer;
 }
 .compose-btn:hover {

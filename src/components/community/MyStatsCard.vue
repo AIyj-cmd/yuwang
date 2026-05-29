@@ -105,7 +105,7 @@ const goLogin = () => {
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   cursor: pointer;
 }
 .cta-btn:hover {

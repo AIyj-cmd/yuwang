@@ -94,12 +94,12 @@ onBeforeUnmount(() => {
 -->
 <style>
 html.is-community-v2 {
-  /* 覆盖 themes.css 默认的偏蓝灰 bg + 黑色网格 SVG */
-  background-color: #FAF7F2; /* 与 --color-bg-base 等值,避免 themes 覆盖到 #eef3f7 */
+  /* 覆盖 themes.css 默认的黑色网格 SVG;背景跟随当前主题的 V2 page token */
+  background-color: var(--color-bg-base);
   background-image: none;
 }
 html.is-community-v2 body {
-  background-color: #FAF7F2;
+  background-color: var(--color-bg-base);
   /*
    * 极淡纹理:1px 半透明暖灰圆点,fill-opacity 0.04,
    * 距离很近时几乎不可见,只在大面积时形成微弱纹理感。
@@ -112,10 +112,10 @@ html.is-community-v2 body {
 /*
  * 顶部导航在社区页期间的衔接:
  *   - 背景统一与 body 同色,避免出现"导航白条 + 内容奶油白"的两段色感
- *   - 底线由 nav.css 已经软化的 #ECE6D6 提供,这里不再叠加
+ *   - 底线由 nav.css 的 var(--color-divider) 提供,跟随主题,这里不再叠加
  */
 html.is-community-v2 .top-nav {
-  background: #FAF7F2;
+  background: var(--color-bg-base);
 }
 
 /*

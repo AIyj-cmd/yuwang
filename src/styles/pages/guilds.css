@@ -33,7 +33,7 @@
   background: var(--color-primary);
   border: 1.5px solid var(--v2-border-emphasis);
   border-radius: var(--radius-md);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   flex-shrink: 0;
 }
 .guilds-page .gh-head-text h1 {
@@ -68,7 +68,7 @@
 .guilds-page .gh-tab.active {
   background: var(--color-primary);
   border-color: var(--v2-border-emphasis);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
 }
 
 /* ============ 提示 ============ */
@@ -246,9 +246,9 @@
   font-family: var(--font-mono);
   font-weight: var(--weight-bold);
 }
-.guilds-page .gh-rank[data-variant='gold']    { background: var(--color-primary); border-color: var(--v2-border-emphasis); color: var(--color-text-primary); }
-.guilds-page .gh-rank[data-variant='silver']  { background: var(--color-accent-mint); border-color: var(--color-accent-mint); color: var(--color-text-on-mint); }
-.guilds-page .gh-rank[data-variant='bronze']  { background: var(--color-accent-coral); border-color: var(--color-accent-coral); color: var(--color-text-on-coral); }
+.guilds-page .gh-rank[data-variant='gold']    { background: var(--color-primary); border-color: var(--v2-border-emphasis); color: var(--color-primary-text); }
+.guilds-page .gh-rank[data-variant='silver']  { background: var(--color-accent-mint); border-color: var(--color-accent-mint); color: var(--color-primary-text); }
+.guilds-page .gh-rank[data-variant='bronze']  { background: var(--color-accent-coral); border-color: var(--color-accent-coral); color: var(--color-primary-text); }
 .guilds-page .gh-rank[data-variant='neutral'] { background: var(--color-bg-subtle); border-color: var(--v2-border-card); color: var(--color-text-secondary); }
 .guilds-page .gh-rank-num { font-size: var(--text-sm); }
 
@@ -416,7 +416,7 @@
 }
 .guilds-page .btn-primary {
   background: var(--color-primary);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   border: 1.5px solid var(--v2-border-emphasis);
 }
 .guilds-page .btn-primary:hover { background: var(--color-primary-hover); }

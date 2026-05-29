@@ -74,17 +74,17 @@ const goLeaderboard = () => {
   text-align: center;
 }
 .mini-rank li:nth-child(1) .rank-no {
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   background: var(--color-primary);
   border-radius: var(--radius-sm);
 }
 .mini-rank li:nth-child(2) .rank-no {
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   background: var(--color-accent-mint);
   border-radius: var(--radius-sm);
 }
 .mini-rank li:nth-child(3) .rank-no {
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   background: var(--color-accent-coral);
   border-radius: var(--radius-sm);
 }

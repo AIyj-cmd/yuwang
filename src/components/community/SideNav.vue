@@ -102,7 +102,7 @@ const go = (item: NavItem) => {
   border-radius: var(--radius-md);
   display: grid;
   place-items: center;
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
 }
 .nav-divider {
   height: 1px;
@@ -129,7 +129,7 @@ const go = (item: NavItem) => {
 .nav-item.active {
   background: var(--color-accent-mint);
   border-color: var(--v2-border-emphasis);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
 }
 .nav-item.active::after {
   content: '';
