@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import PixelIcon from '../community/PixelIcon.vue';
+import { useAppContext } from '../../appContext';
 import type { GuildMember } from '../../types';
 
 defineProps<{
   members: GuildMember[];
 }>();
+
+const ctx = useAppContext();
+const copy = ctx.copy as (zh: string, en: string) => string;
 
 function avatarLetter(name: string): string {
   return (name || '?')[0].toUpperCase();
@@ -33,8 +37,8 @@ function formatDate(iso: string): string {
 }
 
 function roleLabel(role: string): string {
-  if (role === 'owner') return '会长';
-  return '成员';
+  if (role === 'owner') return copy('会长', 'Leader');
+  return copy('成员', 'Member');
 }
 
 function isOwnerRole(role: string): boolean {
@@ -46,7 +50,7 @@ function isOwnerRole(role: string): boolean {
   <div class="gd-column-card">
     <h2 class="gd-section-title">
       <PixelIcon name="heart" :size="16" />
-      成员
+      {{ copy('成员', 'Members') }}
     </h2>
 
     <div v-if="members.length" class="gd-member-list">
@@ -72,7 +76,7 @@ function isOwnerRole(role: string): boolean {
       </div>
     </div>
 
-    <div v-else class="gd-empty-inline">暂无成员</div>
+    <div v-else class="gd-empty-inline">{{ copy('这个工会还没有鱼友上榜', 'No guild members on the board yet') }}</div>
   </div>
 </template>
 

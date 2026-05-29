@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useAppContext } from '../../appContext';
 import type { Guild } from '../../types';
 
-defineProps<{
+const props = defineProps<{
   guild: Guild;
   joining: boolean;
   joinError: string;
@@ -11,6 +13,17 @@ defineProps<{
 defineEmits<{
   (e: 'join'): void;
 }>();
+
+const ctx = useAppContext();
+const copy = ctx.copy as (zh: string, en: string) => string;
+const tTitle = ctx.translatedTitle as (key: string) => string;
+
+/** 公开安全的创建人展示行;只用 creatorDisplayName,缺失时回退到「未知鱼友」。 */
+const creatorLine = computed(() => {
+  const raw = typeof props.guild.creatorDisplayName === 'string' ? props.guild.creatorDisplayName.trim() : '';
+  const name = raw || copy('未知鱼友', 'Unknown fish');
+  return copy('由 ', 'Created by ') + name + copy(' 创建', '');
+});
 </script>
 
 <template>
@@ -21,30 +34,31 @@ defineEmits<{
         <div class="gd-header-info">
           <h1 class="gd-guild-name">{{ guild.name }}</h1>
           <p class="gd-guild-meta">
-            Lv.{{ guild.level }}
+            {{ tTitle(guild.level) }}
             <span class="gd-dot" aria-hidden="true"></span>
-            {{ guild.memberCount }} 人
+            {{ guild.memberCount }} {{ copy('人', 'members') }}
           </p>
+          <p class="gd-guild-creator">{{ creatorLine }}</p>
         </div>
       </div>
 
       <p v-if="guild.description" class="gd-guild-desc">{{ guild.description }}</p>
 
       <div class="gd-header-action">
-        <button v-if="guild.joined" class="gd-btn-joined" disabled>已加入</button>
+        <button v-if="guild.joined" class="gd-btn-joined" disabled>{{ copy('已加入', 'Joined') }}</button>
         <button
           v-else-if="token"
           class="gd-btn-primary"
           :disabled="joining"
           @click="$emit('join')"
-        >{{ joining ? '加入中…' : '加入工会' }}</button>
+        >{{ joining ? copy('加入中…', 'Joining…') : copy('加入工会', 'Join guild') }}</button>
         <p v-if="joinError" class="gd-join-error">{{ joinError }}</p>
       </div>
     </div>
 
     <div class="gd-contribution-row">
       <span class="gd-contribution-num">{{ guild.totalContribution.toLocaleString() }}</span>
-      <span class="gd-contribution-label">赛季总贡献</span>
+      <span class="gd-contribution-label">{{ copy('赛季总贡献', 'Season contribution') }}</span>
     </div>
   </section>
 </template>
@@ -116,6 +130,11 @@ defineEmits<{
   border-radius: 50%;
   background: var(--color-text-tertiary);
   display: inline-block;
+}
+
+.gd-guild-creator {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
 }
 
 .gd-guild-desc {

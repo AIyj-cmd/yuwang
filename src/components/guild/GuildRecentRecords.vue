@@ -2,11 +2,15 @@
 import { computed, ref } from 'vue';
 import PixelIcon from '../community/PixelIcon.vue';
 import RecordCard from '../community/RecordCard.vue';
+import { useAppContext } from '../../appContext';
 import type { FeedRecord } from '../../types';
 
 const props = defineProps<{
   records: FeedRecord[];
 }>();
+
+const ctx = useAppContext();
+const copy = ctx.copy as (zh: string, en: string) => string;
 
 const showAllRecords = ref(false);
 
@@ -24,7 +28,7 @@ const hasMoreRecords = computed(() => props.records.length > 10 && !showAllRecor
   <section class="gd-section">
     <h2 class="gd-section-title">
       <PixelIcon name="fish" :size="16" />
-      工会摸鱼记录
+      {{ copy('工会摸鱼记录', 'Guild activity') }}
     </h2>
 
     <div v-if="displayedRecords.length" class="gd-records-list">
@@ -36,13 +40,13 @@ const hasMoreRecords = computed(() => props.records.length > 10 && !showAllRecor
     </div>
 
     <div v-else class="gd-empty-state">
-      <p class="gd-empty-title">这个工会还没有摸鱼记录</p>
-      <p class="gd-empty-sub">加入后一起摸鱼吧！</p>
+      <p class="gd-empty-title">{{ copy('这个工会还没有摸鱼记录', 'No guild activity yet') }}</p>
+      <p class="gd-empty-sub">{{ copy('加入后一起摸鱼吧!', 'Join in and start slacking together!') }}</p>
     </div>
 
     <div v-if="hasMoreRecords" class="gd-more-row">
       <button class="gd-btn-ghost" @click="showAllRecords = true">
-        查看全部 {{ records.length }} 条记录
+        {{ copy('查看全部 ', 'View all ') }}{{ records.length }}{{ copy(' 条记录', ' records') }}
       </button>
     </div>
   </section>

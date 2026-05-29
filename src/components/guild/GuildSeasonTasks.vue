@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import PixelIcon from '../community/PixelIcon.vue';
+import { useAppContext } from '../../appContext';
 import type { GuildTask } from '../../types';
 
 defineProps<{
   tasks: GuildTask[];
 }>();
+
+const ctx = useAppContext();
+const copy = ctx.copy as (zh: string, en: string) => string;
 </script>
 
 <template>
   <section class="gd-section">
     <h2 class="gd-section-title">
       <PixelIcon name="fish" :size="16" />
-      本赛季任务
+      {{ copy('本赛季任务', 'Season tasks') }}
     </h2>
 
     <div v-if="tasks.length" class="gd-tasks-grid">
@@ -26,7 +30,7 @@ defineProps<{
       </div>
     </div>
 
-    <div v-else class="gd-empty-inline">暂无赛季任务</div>
+    <div v-else class="gd-empty-inline">{{ copy('本周工会任务还在摸鱼路上', 'Guild tasks are not ready yet') }}</div>
   </section>
 </template>
 

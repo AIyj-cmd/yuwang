@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import PixelIcon from '../community/PixelIcon.vue';
+import { useAppContext } from '../../appContext';
 import type { GuildRankingRow } from '../../types';
 
 defineProps<{
   ranking: GuildRankingRow[];
 }>();
+
+const ctx = useAppContext();
+const copy = ctx.copy as (zh: string, en: string) => string;
 
 function rankBg(rank: number): string {
   if (rank === 1) return 'var(--color-primary)';
@@ -23,7 +27,7 @@ function rankColor(rank: number): string {
   <div class="gd-column-card">
     <h2 class="gd-section-title">
       <PixelIcon name="crown" :size="16" />
-      贡献榜
+      {{ copy('贡献榜', 'Contribution board') }}
     </h2>
 
     <div v-if="ranking.length" class="gd-ranking-list">
@@ -41,7 +45,7 @@ function rankColor(rank: number): string {
       </div>
     </div>
 
-    <div v-else class="gd-empty-inline">暂无贡献数据</div>
+    <div v-else class="gd-empty-inline">{{ copy('还没有可展示的贡献记录', 'No contributions to show yet') }}</div>
   </div>
 </template>
 

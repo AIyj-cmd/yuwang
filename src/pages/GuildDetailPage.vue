@@ -24,6 +24,7 @@ const router = useRouter();
 const ctx = useAppContext();
 const token = ctx.authToken as import('vue').Ref<string | null>;
 const ctxLoadMe = ctx.loadMe as () => Promise<void>;
+const copy = ctx.copy as (zh: string, en: string) => string;
 
 const guildId = computed(() => Number(route.params.id));
 
@@ -104,9 +105,9 @@ async function handleJoin() {
   <div v-else-if="loadState === 'not-found'" class="gd-page gd-centered">
     <div class="gd-empty-state">
       <div class="gd-empty-icon">🐟</div>
-      <p class="gd-empty-title">工会不存在</p>
-      <p class="gd-empty-sub">这个工会可能已解散或链接有误。</p>
-      <button class="gd-btn-primary" @click="router.push('/guilds')">返回工会列表</button>
+      <p class="gd-empty-title">{{ copy('工会不存在', 'Guild not found') }}</p>
+      <p class="gd-empty-sub">{{ copy('这个工会可能已解散或链接有误。', 'This guild may have disbanded or the link is wrong.') }}</p>
+      <button class="gd-btn-primary" @click="router.push('/guilds')">{{ copy('返回工会列表', 'Back to guilds') }}</button>
     </div>
   </div>
 
@@ -114,9 +115,9 @@ async function handleJoin() {
   <div v-else-if="loadState === 'error'" class="gd-page gd-centered">
     <div class="gd-empty-state">
       <div class="gd-empty-icon">⚠️</div>
-      <p class="gd-empty-title">加载失败</p>
-      <p class="gd-empty-sub">请稍后重试。</p>
-      <button class="gd-btn-primary" @click="router.push('/guilds')">返回工会列表</button>
+      <p class="gd-empty-title">{{ copy('加载失败', 'Failed to load') }}</p>
+      <p class="gd-empty-sub">{{ copy('请稍后重试。', 'Please try again later.') }}</p>
+      <button class="gd-btn-primary" @click="router.push('/guilds')">{{ copy('返回工会列表', 'Back to guilds') }}</button>
     </div>
   </div>
 
