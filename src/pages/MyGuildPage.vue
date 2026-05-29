@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Check,
   Crown,
+  RefreshCw,
   ShieldAlert
 } from 'lucide-vue-next';
 import { useAppContext } from '../appContext';
@@ -24,6 +25,8 @@ const { authToken, copy, currentUser, options } = useAppContext();
 const CACHE_KEY = 'gongwei-yuwang-my-guild';
 
 const guildInfo = ref<CachedGuild | null>(null);
+const guildLoading = ref(false);
+const guildLoadError = ref('');
 const editing = ref(false);
 const leaveConfirm = ref(false);
 const pageError = ref('');
@@ -86,32 +89,35 @@ const clearCache = () => {
   }
 };
 
-const restoreFromContext = async () => {
+const loadGuildDetail = async () => {
   const user = currentUser.value;
   if (!user || user.guildId === null) {
     guildInfo.value = null;
+    guildLoading.value = false;
+    guildLoadError.value = '';
     return;
   }
-  const cached = readCache();
-  if (cached && cached.userId === user.id && cached.guild.id === user.guildId) {
-    guildInfo.value = cached.guild;
-    return;
-  }
-  // 缓存 miss → API fallback
+  if (!authToken.value) return;
+  guildLoading.value = true;
+  guildLoadError.value = '';
   try {
     const res = await fetchGuild(user.guildId, authToken.value);
     const g = res.guild;
-    const c: CachedGuild = {
+    const fresh: CachedGuild = {
       id: g.id,
       name: g.name ?? '',
       description: g.description ?? '',
       icon: g.icon ?? '',
       role: g.role ?? 'member'
     };
-    writeCache(c);
-    guildInfo.value = c;
-  } catch {
+    writeCache(fresh);
+    guildInfo.value = fresh;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '';
+    guildLoadError.value = msg || copy('加载工会资料失败，请重试。', 'Failed to load guild info, please retry.');
     guildInfo.value = null;
+  } finally {
+    guildLoading.value = false;
   }
 };
 
@@ -263,7 +269,7 @@ const goCommunity = () => {
 watch(
   () => `${currentUser.value?.id ?? ''}:${currentUser.value?.guildId ?? ''}`,
   () => {
-    void restoreFromContext();
+    if (accessState.value === 'ready') void loadGuildDetail();
   },
   { immediate: true }
 );
@@ -317,39 +323,56 @@ onMounted(() => {
             />
 
             <template v-else>
-              <GuildProfileDisplay
-                :guild-info="guildInfo"
-                :guild-id="guildId"
-                :is-owner="isOwner"
-                @edit="startEdit"
-              />
+              <div v-if="guildLoading" class="gc-state gc-state--loading">
+                <div class="gc-skeleton"></div>
+                <div class="gc-skeleton"></div>
+                <p class="loading-line">{{ copy('正在加载工会资料...', 'Loading guild info...') }}</p>
+              </div>
 
-              <GuildEditForm
-                v-if="editing"
-                :initial-name="guildInfo?.name ?? ''"
-                :initial-description="guildInfo?.description ?? ''"
-                :initial-icon="guildInfo?.icon ?? ''"
-                :saving-edit="savingEdit"
-                :safety-notice="options.safetyNotice"
-                @submit="handleSaveEdit"
-                @cancel="cancelEdit"
-              />
+              <div v-else-if="guildLoadError" class="gc-state gc-state--error">
+                <AlertTriangle :size="22" />
+                <strong>{{ copy('加载工会资料失败', 'Failed to load guild info') }}</strong>
+                <span>{{ guildLoadError }}</span>
+                <button type="button" class="gc-retry" @click="void loadGuildDetail()">
+                  <RefreshCw :size="14" /> {{ copy('重试', 'Retry') }}
+                </button>
+              </div>
 
-              <GuildMemberManage
-                v-if="isOwner"
-                :removing="removing"
-                :removed-members="removedMembers"
-                @remove="handleRemoveMember"
-              />
+              <template v-else-if="guildInfo">
+                <GuildProfileDisplay
+                  :guild-info="guildInfo"
+                  :guild-id="guildId"
+                  :is-owner="isOwner"
+                  @edit="startEdit"
+                />
 
-              <GuildLeaveSection
-                :leave-confirm="leaveConfirm"
-                :is-owner="isOwner"
-                :leaving="leaving"
-                @request-leave="requestLeave"
-                @confirm-leave="confirmLeave"
-                @cancel-leave="cancelLeave"
-              />
+                <GuildEditForm
+                  v-if="editing && isOwner"
+                  :initial-name="guildInfo.name"
+                  :initial-description="guildInfo.description"
+                  :initial-icon="guildInfo.icon"
+                  :saving-edit="savingEdit"
+                  :safety-notice="options.safetyNotice"
+                  @submit="handleSaveEdit"
+                  @cancel="cancelEdit"
+                />
+
+                <GuildMemberManage
+                  v-if="isOwner"
+                  :removing="removing"
+                  :removed-members="removedMembers"
+                  @remove="handleRemoveMember"
+                />
+
+                <GuildLeaveSection
+                  :leave-confirm="leaveConfirm"
+                  :is-owner="isOwner"
+                  :leaving="leaving"
+                  @request-leave="requestLeave"
+                  @confirm-leave="confirmLeave"
+                  @cancel-leave="cancelLeave"
+                />
+              </template>
             </template>
           </template>
         </div>

@@ -74,6 +74,7 @@ const token = ref(localStorage.getItem('gongwei-yuwang-token'));
 const currentUser = ref<AppUser | null>(null);
 const badges = ref<Badge[]>([]);
 const authMode = ref<'login' | 'register'>('login');
+const authPanelOpen = ref(false);
 const profile = ref<ProfileResponse | null>(null);
 const walletData = ref<WalletResponse | null>(null);
 const walletTransactions = ref<WalletTransactionsResponse | null>(null);
@@ -282,6 +283,7 @@ return {
   currentUser,
   badges,
   authMode,
+  authPanelOpen,
   profile,
   walletData,
   walletTransactions,

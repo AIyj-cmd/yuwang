@@ -47,6 +47,21 @@ Verification:
 - [x] Smoke test `GET /api/leaderboards` returns without error.
 - [x] Smoke test admin auth/dashboard endpoints still return expected auth/config status.
 
+False-negative guard examples:
+
+| Scenario | Example text | Expected |
+|---|---|---|
+| Clear first-person slacking event | `开会时偷偷刷视频摸鱼半小时，还假装在记重点` | Score is `> 0` and `<= 10`. |
+| AI false-negative | AI returns `not_slacking_event`, but text describes first-person slacking behavior | Use conservative backend scoring; do not return meaningless `0.0`. |
+| Fallback path | AI unavailable, but text describes a valid slacking event | Score is `> 0` and `<= 10`. |
+| Explicitly denies slacking | `今天认真上班，没有摸鱼` | `0`. |
+| Concept discussion only | `我没有摸鱼，只是在讨论摸鱼这个词` | `0`. |
+| Third-party behavior | `同事在摸鱼，我在认真工作` | `0` or existing invalid-input handling. |
+| Keyword stuffing | `摸鱼摸鱼摸鱼` | Must not receive the same normal score as a complete event; current backend treats this as invalid. |
+| Implicit but real behavior | `上班躲厕所刷了二十分钟短视频` | Receives a conservative valid score in `[0, 10]`. |
+| Out-of-range high score | Abnormal bonus / high-score combination | Clamped to `10.0`. |
+| Idempotent startup migration | A new `[0, 10]` score is present before repeated initialization | Score is not scaled again. |
+
 ---
 
 ## 2. Reports Active Deduplication

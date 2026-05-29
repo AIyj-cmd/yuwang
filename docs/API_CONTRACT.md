@@ -269,6 +269,10 @@ Compatibility:
 - Scoring semantics:
   - `fishPowerScore` means a single-record Fish Power Score in `[0, 10]`, rounded to 1 decimal.
   - `cumulativeScore` is a user/nickname aggregate and is not capped at 10.
+  - `fishPowerScore` is the backend's final scoring decision. Clients cannot set it through the request body.
+  - AI judge `invalid` / `not_slacking_event` is not automatically final `0.0`. If normalized text contains a clear first-person slacking event and AI appears to false-negative, the backend may apply the conservative deterministic 0-10 scoring path.
+  - Clearly non-slacking, slacking-denial, concept-only discussion, third-party-only behavior, pure noise, or keyword-stuffing inputs still score `0.0` or follow the existing invalid-input path.
+  - POST response `record.score` / `record.breakdown.fishPowerScore`, stored `slacking_records.fish_power_score`, and Community feed `fishPowerScore` must describe the same single-record score.
 - Validation:
   - Safety/anonymization validation still applies.
   - `risk`, `disguise`, and `creativity` are metadata or lightweight inputs. They must not be trusted as high-weight scoring controls.

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { Check, Send, X } from 'lucide-vue-next';
 import { useAppContext } from '../appContext';
 import { useFocusTrap } from '../composables/useFocusTrap';
@@ -14,7 +13,6 @@ const emit = defineEmits<{
   (e: 'submitted'): void;
 }>();
 
-const router = useRouter();
 const {
   canQuickSubmit,
   copy,
@@ -25,6 +23,7 @@ const {
   handleSubmit,
   lastResult,
   loading,
+  openAuthPanel,
   options,
   statusMessage,
   t,
@@ -92,7 +91,11 @@ const onSubmit = async () => {
   await handleSubmit({ quick: true });
 };
 
-const goLogin = () => router.push('/profile');
+const goLogin = () => {
+  // 关闭速记弹窗并直接打开顶部账户面板的登录表单。
+  emit('close');
+  openAuthPanel('login');
+};
 
 /* ------------------------------------------------------------------
  * 弹窗开关：打开时聚焦输入框，锁定背景滚动

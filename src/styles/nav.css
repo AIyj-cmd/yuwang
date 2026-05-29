@@ -397,6 +397,18 @@
   line-height: 1.4;
 }
 
+.auth-error {
+  margin: 0;
+  padding: 7px 10px;
+  border: 2px solid var(--color-danger-text);
+  background: var(--color-danger);
+  color: var(--color-danger-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 .mobile-toggle {
   display: none;
   align-items: center;

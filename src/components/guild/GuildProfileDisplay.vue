@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Crown, Pencil, RefreshCw } from 'lucide-vue-next';
+import { Crown, Pencil } from 'lucide-vue-next';
 import type { CachedGuild } from '../../types';
 
 const props = defineProps<{
@@ -32,15 +32,7 @@ const emit = defineEmits<{
   <p v-else-if="guildInfo" class="mg-desc mg-desc--empty">
     这支工会还没有写简介 / 公告。
   </p>
-  <div v-else class="gc-state">
-    <RefreshCw :size="20" />
-    <strong>工会资料未在本设备缓存</strong>
-    <span>
-      你已加入这支工会（见上方 ID），但它的名称和简介没有保存在当前浏览器。你仍然可以编辑资料或退出工会，编辑成功后资料会显示出来。
-    </span>
-  </div>
-
-  <div v-if="!$slots.edit" class="mg-actions">
+  <div v-if="!$slots.edit && isOwner" class="mg-actions">
     <button type="button" class="btn-primary" @click="emit('edit')">
       <Pencil :size="13" /> 编辑工会
     </button>

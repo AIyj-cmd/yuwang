@@ -63,6 +63,7 @@ const {
   announcements,
   authForm,
   authMode,
+  authPanelOpen,
   badges,
   canSubmit,
   canQuickSubmit,
@@ -479,7 +480,7 @@ const loadProfile = async (username = currentUser.value?.username) => {
   }
 };
 
-const handleAuth = async () => {
+const handleAuth = async (): Promise<{ success: boolean; message: string }> => {
   try {
     const payload = {
       username: authForm.username,
@@ -497,9 +498,22 @@ const handleAuth = async () => {
     authForm.password = '';
     await loadMe();
     setStatus(copy(`${response.user.displayName} 已登录`, `${response.user.displayName} signed in`));
+    return { success: true, message: '' };
   } catch (error) {
-    setError(error instanceof Error ? error.message : copy('账号操作失败', 'Account action failed'));
+    // 不写入全局 errorMessage，避免登录/注册失败信息泄漏到其他页面；
+    // 由调用方（顶部账户面板）以本地状态在表单内展示这次操作的错误。
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : copy('账号操作失败', 'Account action failed')
+    };
   }
+};
+
+const openAuthPanel = (mode: 'login' | 'register' = 'login') => {
+  authMode.value = mode;
+  // 置为 true 作为一次性打开信号；顶部账户面板监听后会复位为 false，
+  // 使后续再次调用仍能触发 false→true 的变化。
+  authPanelOpen.value = true;
 };
 
 const logout = () => {
@@ -746,6 +760,7 @@ return {
   loadMe,
   loadProfile,
   handleAuth,
+  openAuthPanel,
   logout,
   saveProfile,
   changeLocale,
