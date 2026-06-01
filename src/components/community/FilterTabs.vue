@@ -92,7 +92,8 @@ const onClick = (key: Exclude<CommunityFilter, 'mutual'>) => {
   background: var(--color-primary);
   /* v1.2:active 强调改为柔和暖米灰,不用 strong 黑边 */
   border-color: var(--v2-border-emphasis);
-  color: var(--color-text-primary);
+  /* on-primary 文字使用 primary-text(各主题恒为深色),避免 night/arcade 下浅字落在黄底上 */
+  color: var(--color-primary-text);
   box-shadow: var(--v2-shadow-flat-sm);
 }
 .filter-tab.disabled {

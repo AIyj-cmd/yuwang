@@ -148,7 +148,7 @@ const handleClick = () => {
 /* variant 决定 hover 的色调倾向 */
 .action[data-variant='warm']:hover:not(.disabled):not(.active) {
   background: var(--color-bg-active-warm);
-  color: #8C6B1A;
+  color: var(--color-text);
 }
 .action[data-variant='mint']:hover:not(.disabled):not(.active) {
   background: var(--color-accent-mint-soft);
@@ -171,7 +171,7 @@ const handleClick = () => {
 }
 .action.active[data-variant='warm'] {
   background: var(--color-bg-active-warm);
-  color: #8C6B1A;
+  color: var(--color-text);
 }
 .action.active[data-variant='mint'] {
   background: var(--color-accent-mint-soft);

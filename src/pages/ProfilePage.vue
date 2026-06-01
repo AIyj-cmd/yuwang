@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { Fish } from 'lucide-vue-next';
 import { PxButton } from '@mmt817/pixel-ui';
 import { useAppContext } from '../appContext';
@@ -14,16 +13,21 @@ import SocialLinks from '../components/profile/SocialLinks.vue';
 import BadgeList from '../components/profile/BadgeList.vue';
 import RecentRecords from '../components/profile/RecentRecords.vue';
 
-const router = useRouter();
 const {
   currentUser,
   profile,
   loadProfile,
   loadWallet,
   loadGuilds,
+  openAuthPanel,
   copy,
   t
 } = useAppContext();
+
+const goLogin = () => {
+  // 直接打开顶部账户面板的登录表单，而不是仅跳转到首页。
+  openAuthPanel('login');
+};
 
 const { profileInsights, profileInsightsLoading, loadProfileInsights } = useProfileInsights();
 
@@ -52,7 +56,7 @@ const refreshInsights = () => {
     <div v-if="!currentUser" class="pp-empty-state">
       <Fish :size="48" />
       <p>{{ t('needLogin') }}</p>
-      <PxButton type="primary" @click="router.push('/')">
+      <PxButton type="primary" @click="goLogin">
         {{ copy('去登录', 'Sign In') }}
       </PxButton>
     </div>

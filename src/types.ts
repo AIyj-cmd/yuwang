@@ -425,6 +425,31 @@ export type Comment = {
   createdAt: string;
 };
 
+/**
+ * 详情页公开评论(GET /api/records/:id/social → comments[])。
+ * 后端已脱敏:仅返回审核通过(approved)且可公开展示的字段。
+ * 前端禁止读取/展示 userId / username / email / status / reviewNote 等内部字段。
+ */
+export type PublicRecordComment = {
+  id: number;
+  recordId: number;
+  nickname: string;
+  content: string;
+  createdAt: string;
+  avatarSeed: string;
+};
+
+/**
+ * 详情页 record 上的当前访客互动态(后端 social.record.viewer)。
+ * 作为单条记录 liked / favorited / legendNominated / reported 的 canonical 来源。
+ */
+export type SocialRecordViewer = {
+  liked: boolean;
+  favorited: boolean;
+  legendNominated: boolean;
+  reported: boolean;
+};
+
 export type ShareCard = {
   recordId?: number;
   title: string;
@@ -446,13 +471,15 @@ export type ShareCard = {
 };
 
 export type SocialResponse = {
-  record: RecordSummary;
+  record: RecordSummary & { viewer?: SocialRecordViewer };
   viewer: {
     liked: boolean;
     favorited: boolean;
     voted: boolean;
+    legendNominated?: boolean;
+    reported?: boolean;
   };
-  comments: Comment[];
+  comments: PublicRecordComment[];
   shareCard: ShareCard;
 };
 
@@ -479,8 +506,16 @@ export type Guild = {
   slug: string;
   description: string;
   icon: string;
+  /** Legacy: 公开响应中保留但返回 null,不暴露真实 userId。前端禁止使用。 */
   ownerUserId: number | null;
+  /** Legacy: 公开响应中保留但返回 null,不暴露真实 userId。前端禁止使用。 */
   createdByUserId: number | null;
+  /**
+   * 公开安全的创建人展示名:优先 created_by_user_id 对应 display_name,
+   * fallback 到 owner_user_id 对应 display_name,缺失时为 null。
+   * 后端 GET /api/guilds 与 GET /api/guilds/:id 已补齐。
+   */
+  creatorDisplayName: string | null;
   source: 'official' | 'user' | string;
   joinPolicy: 'open' | string;
   status: 'active' | 'inactive' | 'hidden' | 'banned' | string;

@@ -6,37 +6,51 @@
  *   [头像] 昵称           [TitleBadge 称号 + 0-10 fishPowerScore]
  *          时间 · #主标签
  *   标题(1 行 clamp)
- *   正文(3 行 clamp,长文展开)
+ *   正文(3 行 clamp)
  *   ───────────────────────────
- *   ♥ 12   💬 3   ★ 5   👑   ⋯
- *   (评论框默认隐藏,点 💬 才展开)
+ *   ♥ 12   💬 3   👑   ⋯
+ *
+ * 方案 B:正文/头像/昵称/标题点击进入详情页;💬 跳转详情页评论区。
+ * 卡片内不再内联展开评论;点赞 / 传奇提名 / 举报仍为卡片快捷操作。
  *
  * 数据全部来自 props.record(FeedRecord,已脱敏的社区 feed)。
  * 互动通过 useAppContext 现有 handler 调用真实接口。
  */
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import type { FeedRecord } from '../../types';
 import { useAppContext } from '../../appContext';
+import { isDuplicateDisplayText } from '../../utils/displayText';
 import UserAvatar from '../UserAvatar.vue';
 import TitleBadge from './TitleBadge.vue';
 import ActionButton from './ActionButton.vue';
-import PixelIcon from './PixelIcon.vue';
 
 const props = defineProps<{
   record: FeedRecord;
 }>();
 
+const router = useRouter();
+
 const {
   copy,
   t,
   authToken,
-  feedCommentDrafts,
   handleFeedLike,
-  handleFeedComment,
   handleFeedNominate,
   handleFeedReport,
   translatedTitle
 } = useAppContext();
+
+/* ------------------------------------------------------------------
+ * 进入详情页(方案 B):正文/头像/昵称/标题点击 → 详情;
+ * 评论按钮 → 详情并锚定评论区(#comments)。卡片内不再内联展开评论。
+ * ------------------------------------------------------------------ */
+const goDetail = () => {
+  router.push({ name: 'record-share', params: { id: props.record.id } });
+};
+const goComments = () => {
+  router.push({ name: 'record-share', params: { id: props.record.id }, hash: '#comments' });
+};
 
 /* ------------------------------------------------------------------
  * 派生展示数据
@@ -93,32 +107,19 @@ const formatTime = (iso: string) => {
 };
 
 /* ------------------------------------------------------------------
- * 正文展开
+ * 正文(列表内 3 行截断;点击进入详情页阅读全文)
  * ------------------------------------------------------------------ */
-const expanded = ref(false);
 const bodyText = computed(() => props.record.storyText || props.record.description || '');
-// 启发式判断是否可能溢出 3 行(无 DOM 测量时用字符数兜底)。实际 CSS line-clamp 会兜底真正的折叠。
-const isLong = computed(() => bodyText.value.length > 80);
 
 /* ------------------------------------------------------------------
- * 评论框默认折叠
+ * 标题展示去重(纯前端):速记快投会把同一段文本同时写入 activity_text 与
+ * story_text,导致标题与正文重复。这里保留 3 行正文,仅当标题存在且与正文
+ * 规范化后不同时才渲染标题;两者相同则隐藏标题、避免重复展示。
+ * isDuplicateDisplayText 任一为空即返回 false,因此不会误删唯一内容。
  * ------------------------------------------------------------------ */
-const commentOpen = ref(false);
-const toggleComment = () => {
-  if (!isLoggedIn.value) {
-    // 未登录:简单提示,不做跳转(避免抢现有 ResultPage 流程)。
-    alert(t('needLogin'));
-    return;
-  }
-  commentOpen.value = !commentOpen.value;
-};
-
-const submitComment = async () => {
-  if (!isLoggedIn.value) return;
-  await handleFeedComment(props.record.id);
-  // handler 成功后会清空 feedCommentDrafts[id]
-  // 保留 commentOpen,允许继续读取/发更多
-};
+const showTitle = computed(
+  () => Boolean(props.record.activityText) && !isDuplicateDisplayText(props.record.activityText, bodyText.value)
+);
 
 /* ------------------------------------------------------------------
  * 互动 handler(委派全局 actions,自动同步全局 communityRecords)
@@ -141,15 +142,16 @@ const onReport = async () => {
 <template>
   <article class="record-card">
     <UserAvatar
-      class="record-avatar"
+      class="record-avatar record-clickable"
       :avatar-url="record.avatarUrl"
       :avatar-seed="record.avatarSeed"
       :nickname="record.nickname"
       :size="44"
       :data-variant="avatarVariant"
+      @click="goDetail"
     />
 
-    <div class="name-line">{{ record.nickname }}</div>
+    <div class="name-line record-clickable" @click="goDetail">{{ record.nickname }}</div>
 
     <div class="meta-line">
       <span class="meta-time">{{ formatTime(record.createdAt) }}</span>
@@ -165,19 +167,20 @@ const onReport = async () => {
       :score="fishPowerScore"
     />
 
-    <h3 v-if="record.activityText" class="record-title">{{ record.activityText }}</h3>
+    <h3
+      v-if="showTitle"
+      class="record-title record-clickable"
+      role="link"
+      tabindex="0"
+      @click="goDetail"
+      @keydown.enter="goDetail"
+    >
+      {{ record.activityText }}
+    </h3>
 
-    <p v-if="bodyText" class="record-body" :class="{ 'is-expanded': expanded }">
+    <p v-if="bodyText" class="record-body record-clickable" @click="goDetail">
       {{ bodyText }}
     </p>
-    <button
-      v-if="isLong"
-      type="button"
-      class="record-expand"
-      @click="expanded = !expanded"
-    >
-      {{ expanded ? copy('收起 ↑', 'Collapse ↑') : copy('展开全文 ↓', 'Read more ↓') }}
-    </button>
 
     <div class="record-actions">
       <ActionButton
@@ -192,10 +195,9 @@ const onReport = async () => {
       <ActionButton
         icon="comment"
         :count="record.commentCount"
-        :active="commentOpen"
         variant="mint"
-        :title="copy('评论', 'Comment')"
-        @click="toggleComment"
+        :title="copy('查看评论', 'View comments')"
+        @click="goComments"
       />
       <ActionButton
         icon="crown"
@@ -225,22 +227,6 @@ const onReport = async () => {
       />
     </div>
 
-    <div v-if="commentOpen" class="record-compose">
-      <label class="compose-input">
-        <PixelIcon name="comment" :size="14" />
-        <input
-          v-model="feedCommentDrafts[record.id]"
-          type="text"
-          maxlength="120"
-          :placeholder="copy('120 字以内 · 别写真实公司、客户或聊天记录', 'Within 120 chars; no real company, client, or chat records')"
-          @keydown.enter="submitComment"
-        />
-      </label>
-      <button type="button" class="compose-btn" @click="submitComment">
-        <PixelIcon name="send" :size="14" />
-        <span>{{ copy('发送', 'Send') }}</span>
-      </button>
-    </div>
   </article>
 </template>
 
@@ -315,8 +301,8 @@ const onReport = async () => {
   align-items: center;
   padding: 2px var(--space-2);
   background: var(--color-accent-mint-soft);
-  /* 软化:不依赖 accent-mint 作为边色(在 night 主题下偏深),改用更柔和的内层近色 */
-  border: 1px solid #CDE5DA;
+  /* 边色跟随主题的次级边框,避免在 night / arcade 下出现固定浅薄荷线 */
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
@@ -355,31 +341,25 @@ const onReport = async () => {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-.record-body.is-expanded {
-  display: block;
-  -webkit-line-clamp: unset;
-  overflow: visible;
-}
-.record-expand {
-  grid-column: 1 / -1;
-  grid-row: 5;
-  margin-top: var(--space-1);
-  padding: 0;
-  background: none;
-  border: none;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--color-text-secondary);
+/* 可点击进入详情的内容元素(头像 / 昵称 / 标题 / 正文) */
+.record-clickable {
   cursor: pointer;
-  justify-self: start;
 }
-.record-expand:hover {
+.record-title.record-clickable:hover {
   color: var(--color-text-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.record-clickable:focus-visible {
+  outline: 2px solid var(--color-accent-mint);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
 }
 
 .record-actions {
   grid-column: 1 / -1;
-  grid-row: 6;
+  grid-row: 5;
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   /* v1.3:分隔线降到极柔,只起到分隔作用,不再像旧工具栏顶线 */
@@ -406,62 +386,6 @@ const onReport = async () => {
 /* 更多按钮:右对齐;视觉走 ActionButton.icon-only,自带柔和胶囊 */
 .action-more {
   margin-left: auto;
-}
-
-.record-compose {
-  grid-column: 1 / -1;
-  grid-row: 7;
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--v2-divider);
-  display: flex;
-  gap: var(--space-2);
-  align-items: stretch;
-}
-.compose-input {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  background: var(--color-bg-subtle);
-  border: 1.5px solid var(--v2-border-card);
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-}
-.compose-input input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-family: inherit;
-  font-size: var(--text-sm);
-  color: var(--color-text-primary);
-  padding: var(--space-2) 0;
-  min-width: 0;
-}
-.compose-input input::placeholder {
-  color: var(--color-text-tertiary);
-}
-.compose-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  height: 36px;
-  padding: 0 var(--space-4);
-  background: var(--color-primary);
-  border: 1.5px solid var(--v2-border-emphasis);
-  border-radius: var(--radius-md);
-  box-shadow: var(--v2-shadow-flat-sm);
-  font-family: inherit;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--color-text-primary);
-  cursor: pointer;
-}
-.compose-btn:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--v2-shadow-color);
 }
 
 @media (max-width: 720px) {

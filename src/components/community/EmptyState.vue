@@ -83,7 +83,7 @@ const emit = defineEmits<{
   font-family: inherit;
   font-size: var(--text-base);
   font-weight: var(--weight-bold);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   cursor: pointer;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }

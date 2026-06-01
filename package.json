@@ -6,7 +6,7 @@
   "main": "dist-server/server/index.js",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:client": "vite --host 0.0.0.0",
+    "dev:client": "node scripts/wait-for-api.mjs && vite --host 0.0.0.0",
     "dev:server": "tsx watch server/index.ts",
     "build": "vue-tsc --noEmit && vite build && tsc -p tsconfig.server.json",
     "start": "node dist-server/server/index.js",

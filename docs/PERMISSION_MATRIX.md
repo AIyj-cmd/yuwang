@@ -34,6 +34,8 @@ Important:
 | Provide final score/title in request body | Ignored/not authoritative | Ignored/not authoritative | Ignored/not authoritative | Ignored/not authoritative | Not applicable |
 | Final single-record scoring | Backend only | Backend only | Backend only | Backend only | Backend only |
 | Read leaderboards | Allowed | Allowed | Allowed | Allowed unless globally blocked | Allowed |
+| View public record detail via `GET /api/records/:id/social` | Allowed for approved/public records | Allowed for approved/public records plus viewer state | Same as normal user unless owner-specific access is explicit | Public read allowed; protected writes remain blocked where enforced | Public route only; admin internals stay in admin routes |
+| View approved public comments in social detail | Allowed | Allowed | Allowed | Usually allowed unless globally blocked | Public route only; admin internals stay in admin routes |
 
 ---
 
@@ -50,6 +52,8 @@ Rules:
 - Community Home V2 must never expose real identity for anonymous records.
 - Avatar seeds must be public-safe and not reversible to sensitive identity.
 - `GET /api/community/feed` may keep compatibility placeholders such as `userId: null` and `username: ""`, but must not expose real user IDs, real usernames, email, or non-empty `reviewNote`.
+- `GET /api/records/:id/social` must use the same public record identity protection and must also redact public comment author internals.
+- Public social `comments[]` may expose only public display fields such as `id`, `recordId`, `nickname`, `content`, `createdAt`, and public-safe `avatarSeed`; it must not expose comment `userId`, `username`, email, `status`, `reviewNote`, or review metadata.
 - `GET /api/community/overview.todayTop` must not expose real usernames.
 - Frontend must not infer identity from hidden fields.
 
@@ -67,6 +71,23 @@ Rules:
 
 ---
 
+## 3.1 Guild Public Creator Display
+
+| Behavior | Visitor | Normal user | Guild creator/owner | Admin |
+|---|---|---|---|---|
+| Read public guild list/detail | Allowed | Allowed | Allowed | Allowed via public route; admin routes remain separate |
+| See `creatorDisplayName` | Allowed public display only | Allowed public display only | Same public display | Same public display on public route |
+| See creator email/internal username/admin fields | Not allowed | Not allowed | Not allowed through public guild route | Admin-only routes if explicitly implemented |
+
+Rules:
+
+- `creatorDisplayName` is derived from `users.display_name` only.
+- Missing creator/owner references return `null`.
+- Public guild APIs must not add new raw user ID, email, internal username, or admin fields for creator display.
+- Public guild payloads keep legacy `ownerUserId` and `createdByUserId` field names for response-shape compatibility, but return `null`; they are not a permission source for frontend display decisions.
+
+---
+
 ## 4. Reports
 
 Rules:
@@ -76,6 +97,25 @@ Rules:
 - Processed reports do not block future reports.
 - Duplicate active report must not increase counts or create duplicate review tasks.
 - Frontend may display a friendly "already reported, pending review" state.
+
+---
+
+## 4.1 Public Record Social Detail
+
+| Behavior | Visitor | Normal user | Resource owner | Admin |
+|---|---|---|---|---|
+| Read approved/public record social detail | Allowed | Allowed with viewer state | Allowed through public-safe response | Use admin routes for internals |
+| Read approved comments | Allowed with public fields only | Allowed with public fields only | Allowed with public fields only | Use admin comment routes for internals |
+| Read pending/reviewing/rejected comments through public social | Not allowed | Not allowed | Not allowed unless a future owner-specific contract is added | Admin-only routes |
+| See comment author real `userId` / `username` / email | Not allowed | Not allowed | Not allowed through public route | Admin-only routes if needed |
+| See comment `status` / `reviewNote` / review metadata | Not allowed | Not allowed | Not allowed through public route | Admin-only routes |
+| Post a comment | 401 | Allowed subject to content safety and account status | Same | Not an admin-public-route capability |
+
+Rules:
+
+- `GET /api/records/:id/social` is a public detail source, not a moderation source.
+- Public comment visibility is approved-only.
+- Pending comments created by `POST /api/records/:id/comments` must not be faked into the public comment list by frontend code.
 
 ---
 

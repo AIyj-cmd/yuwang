@@ -68,6 +68,25 @@ Compatibility:
 
 ---
 
+## 2.1 `guilds` Creator Fields
+
+The existing `guilds` table already stores creator/owner references for user-created guilds.
+
+| Field | Type | Nullable | Default | Unique | Index | Notes |
+|---|---|---:|---|---:|---|---|
+| `owner_user_id` | INTEGER | Yes | `NULL` | No | No dedicated index | Current guild owner reference; foreign key to `users(id)`. |
+| `created_by_user_id` | INTEGER | Yes | `NULL` | No | No dedicated index | User who created the guild; foreign key to `users(id)`. |
+
+Public API display rule:
+
+- `GET /api/guilds` and `GET /api/guilds/:id` may derive `creatorDisplayName` from `created_by_user_id`, falling back to `owner_user_id`.
+- The public display value comes only from `users.display_name`.
+- If the reference is missing or the user row does not exist, the API returns `creatorDisplayName: null`.
+- No new table, field, migration, or index is required for this display field.
+- Public creator display must not expose email, internal username, admin flags, or additional raw identifiers.
+
+---
+
 ## 3. `reports`
 
 Purpose:

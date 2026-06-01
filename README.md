@@ -4,7 +4,6 @@
 
 项目当前处于 **持续运营、体验打磨与前端 V2 统一阶段**。提交、计分、排行榜、账号、社区、工会、圈子、小组、通知、内容安全和管理后台已经具备。后续开发优先保持现有功能稳定，围绕前端风格统一、接口契约稳定、内容治理、社区增长和运营效率做增量迭代。
 
-在线展示页面：http://154.40.33.211:3001/community
 ---
 
 ## 当前阶段重点
@@ -73,6 +72,8 @@ npm install
 npm run dev
 ```
 
+`npm run dev` 会先启动后端 watch 服务，并让 Vite 前端等待 `http://127.0.0.1:3101/api/health` ready 后再启动，避免开发环境启动瞬间的 `/api/*` 代理 `ECONNREFUSED`。
+
 默认地址：
 
 - 前端：`http://127.0.0.1:5173/`
@@ -84,6 +85,8 @@ npm run dev
 npm run dev:client -- --port 5174 --strictPort
 npm run dev:server
 ```
+
+单独运行 `npm run dev:client` 时也会等待后端 API；如果只想启动前端，请先在另一个终端运行 `npm run dev:server`。
 
 ---
 

@@ -211,3 +211,91 @@
   --color-ink-strong-bg: #14101e;
   --color-ink-strong-text: #ffe34d;
 }
+
+/* ============================================================
+ * V2 token bridge
+ *
+ * The Community / Guild V2 surfaces consume a separate set of
+ * semantic tokens (--color-bg-base / -card / -subtle,
+ * --color-text-primary / -secondary / ..., the soft border /
+ * divider / shadow tokens, and the --border-default /
+ * --border-strong / --shadow-flat-* composites). Those defaults
+ * live in tokens.css :root with FIXED light values, so they never
+ * followed [data-theme]. We re-point them here, per real theme id,
+ * at the base theme tokens above so every theme drives the V2
+ * surfaces too.
+ *
+ * Notes:
+ *  - Borders / dividers / flat shadows use --color-border-soft (the
+ *    secondary border) rather than --color-border, because
+ *    --color-border is a hard near-black/near-white pixel line in
+ *    most themes and would render as heavy dark frames on flat V2
+ *    cards.
+ *  - Text placed ON primary / accent surfaces must NOT use
+ *    --color-text-primary (which is light in dark themes); those
+ *    spots use --color-primary-text via targeted component rules.
+ * ============================================================ */
+:root,
+[data-theme='pond'],
+[data-theme='office'],
+[data-theme='night'],
+[data-theme='paper'],
+[data-theme='arcade'] {
+  /* backgrounds */
+  --color-bg-base: var(--color-bg);
+  --color-bg-card: var(--color-surface);
+  --color-bg-subtle: var(--color-surface-soft);
+
+  /* text */
+  --color-text-primary: var(--color-text);
+  --color-text-body: var(--color-text);
+  --color-text-secondary: var(--color-text-muted);
+  --color-text-tertiary: var(--color-text-muted);
+
+  /* borders & dividers */
+  --color-border-strong: var(--color-border-soft);
+  --color-border-emphasis: var(--color-border-soft);
+  --color-border-ink-soft: var(--color-border-soft);
+  --color-divider: var(--color-border-soft);
+  --v2-border-card: var(--color-border-soft);
+  --v2-border-emphasis: var(--color-border-soft);
+  --v2-divider: var(--color-border-soft);
+  --v2-divider-soft: var(--color-border-soft);
+
+  /* composite borders & flat shadows */
+  --border-default: 1.5px solid var(--color-border-soft);
+  --border-strong: 1.5px solid var(--color-border-soft);
+  --v2-shadow-color: var(--color-border-soft);
+  --v2-shadow-color-soft: var(--color-border-soft);
+  --shadow-flat-sm: 2px 2px 0 var(--color-border-soft);
+  --shadow-flat-md: 4px 4px 0 var(--color-border-soft);
+  --shadow-flat-lg: 6px 6px 0 var(--color-border-soft);
+
+  /* primary hover: a themed darker shade of the active theme's primary
+   * (so office's blue primary doesn't jump to a fixed yellow on hover). */
+  --color-primary-hover: color-mix(in srgb, var(--color-primary) 85%, #000);
+
+  /* soft hint / badge / active surfaces */
+  --color-primary-soft: var(--color-surface-soft);
+  --color-accent-mint-soft: var(--color-surface-soft);
+  --color-accent-coral-soft: var(--color-surface-soft);
+  --color-bg-active-warm: var(--color-surface-soft);
+  --color-bg-active-coral: var(--color-surface-soft);
+  --color-bg-active-danger: var(--color-danger);
+
+  /* SOLID accent fills (--color-accent-mint / -coral / -lilac) are deliberately
+   * NOT re-pointed at the theme accents here. They stay at their fixed light
+   * pastel values (tokens.css) so the small medal / badge pills (silver / bronze
+   * rank, mini-rank #2/#3, title badges, active side-nav) remain readable light
+   * pills with dark --color-primary-text in EVERY theme — consistent with how the
+   * gold (primary) pill behaves. The corresponding *-soft surfaces above DO follow
+   * the theme, because they are used as large hover / tag / toast backgrounds where
+   * a fixed light block would read as cream residue on night / arcade cards.
+   *
+   * --color-text-on-mint / -on-coral follow theme text: after the medal pills are
+   * switched to --color-primary-text, these tokens are only used as text on the
+   * themed *-soft surfaces (or as plain emphasis text), so theme text keeps them
+   * readable on dark cards. */
+  --color-text-on-mint: var(--color-text);
+  --color-text-on-coral: var(--color-text);
+}

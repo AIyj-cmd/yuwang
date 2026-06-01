@@ -32,6 +32,7 @@ const {
   activeSection,
   authForm,
   authMode,
+  authPanelOpen,
   changeLocale,
   currentUser,
   handleAuth,
@@ -45,6 +46,8 @@ const {
   copy,
   translatedLocaleLabel
 } = useAppContext();
+
+const authPanelOpenRef = authPanelOpen as import('vue').Ref<boolean>;
 
 const sectionRouteMap: Record<string, string> = {
   submit: '/submit',
@@ -95,6 +98,16 @@ const moreMenuOpen = ref(false);
 const accountMenuOpen = ref(false);
 const topNavRef = ref<HTMLElement | null>(null);
 
+/* 账户面板本地状态：仅承载“这一次”登录/注册操作的反馈，
+   不直接渲染全局 errorMessage/statusMessage，避免跨页消息残留。 */
+const authError = ref('');
+const authPending = ref(false);
+
+const clearAuthFeedback = () => {
+  authError.value = '';
+  authPending.value = false;
+};
+
 const closeMenus = () => {
   mobileMenuOpen.value = false;
   moreMenuOpen.value = false;
@@ -113,14 +126,47 @@ const handleLogout = () => {
 };
 
 const onAuthSubmit = async () => {
-  await handleAuth();
-  if (currentUser.value) {
-    closeMenus();
+  if (authPending.value) return; // 防止重复提交
+  authError.value = '';
+  authPending.value = true;
+  try {
+    const result = await handleAuth();
+    if (result.success) {
+      closeMenus();
+    } else {
+      authError.value = result.message;
+    }
+  } finally {
+    authPending.value = false;
   }
 };
 
 watch(activeSection, () => {
   closeMenus();
+});
+
+/* 统一入口：其他页面通过 openAuthPanel('login') 把信号置 true，
+   这里负责打开账户面板并复位信号，默认停在登录态。 */
+watch(authPanelOpenRef, (open) => {
+  if (!open) return;
+  mobileMenuOpen.value = false;
+  moreMenuOpen.value = false;
+  accountMenuOpen.value = true;
+  clearAuthFeedback();
+  authPanelOpenRef.value = false;
+});
+
+/* 打开账户面板（桌面下拉或移动菜单）时清空上一次的错误/挂起状态，
+   保证不展示遗留消息。 */
+watch([accountMenuOpen, mobileMenuOpen], ([account, mobile]) => {
+  if (account || mobile) {
+    clearAuthFeedback();
+  }
+});
+
+/* 切换登录/注册 tab 时清空错误，避免注册错误泄漏到登录 tab，反之亦然。 */
+watch(authMode, () => {
+  authError.value = '';
 });
 
 const handleDocumentClick = (event: MouseEvent) => {
@@ -318,9 +364,12 @@ onBeforeUnmount(() => {
                 <PxInput v-model="authForm.username" :placeholder="t('username')" clearable />
                 <PxInput v-model="authForm.password" :placeholder="t('password')" type="password" />
                 <PxInput v-if="authMode === 'register'" v-model="authForm.displayName" :placeholder="t('displayName')" clearable />
-                <PxButton type="primary" size="small" @click="onAuthSubmit">
+                <p v-if="authError" class="auth-error" role="alert">{{ authError }}</p>
+                <PxButton type="primary" size="small" :loading="authPending" :disabled="authPending" @click="onAuthSubmit">
                   <LogIn :size="14" />
-                  {{ authMode === 'register' ? t('register') : t('login') }}
+                  {{ authPending
+                    ? (authMode === 'register' ? copy('注册中…', 'Signing up…') : copy('登录中…', 'Signing in…'))
+                    : (authMode === 'register' ? t('register') : t('login')) }}
                 </PxButton>
 
                 <div class="dropdown-divider" />
@@ -420,9 +469,12 @@ onBeforeUnmount(() => {
             <PxInput v-model="authForm.username" :placeholder="t('username')" clearable />
             <PxInput v-model="authForm.password" :placeholder="t('password')" type="password" />
             <PxInput v-if="authMode === 'register'" v-model="authForm.displayName" :placeholder="t('displayName')" clearable />
-            <PxButton type="primary" size="small" @click="onAuthSubmit">
+            <p v-if="authError" class="auth-error" role="alert">{{ authError }}</p>
+            <PxButton type="primary" size="small" :loading="authPending" :disabled="authPending" @click="onAuthSubmit">
               <LogIn :size="14" />
-              {{ authMode === 'register' ? t('register') : t('login') }}
+              {{ authPending
+                ? (authMode === 'register' ? copy('注册中…', 'Signing up…') : copy('登录中…', 'Signing in…'))
+                : (authMode === 'register' ? t('register') : t('login')) }}
             </PxButton>
           </div>
         </div>

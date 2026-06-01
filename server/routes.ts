@@ -516,13 +516,16 @@ const publicCommunityTopRow = (row: ReturnType<typeof getLeaderboardRows>[number
 };
 
 const getViewerFlags = (recordId: number, userId?: number) => {
-  if (!userId) return { liked: false, favorited: false, voted: false };
+  if (!userId) return { liked: false, favorited: false, voted: false, legendNominated: false, reported: false };
   const rows = db
     .prepare('SELECT action FROM record_interactions WHERE record_id = ? AND user_id = ?')
     .all(recordId, userId) as { action: string }[];
   const reactions = db
     .prepare("SELECT reaction_type FROM reactions WHERE target_type = 'record' AND target_id = ? AND user_id = ?")
     .all(recordId, userId) as { reaction_type: string }[];
+  const report = db
+    .prepare("SELECT id FROM reports WHERE target_type = 'record' AND target_id = ? AND user_id = ? AND status IN ('pending', 'reviewing') LIMIT 1")
+    .get(recordId, userId);
   const actions = new Set(rows.map((row) => row.action));
   for (const reaction of reactions) {
     if (reaction.reaction_type === 'like') actions.add('like');
@@ -531,7 +534,9 @@ const getViewerFlags = (recordId: number, userId?: number) => {
   return {
     liked: actions.has('like'),
     favorited: actions.has('favorite'),
-    voted: actions.has('vote')
+    voted: actions.has('vote'),
+    legendNominated: actions.has('vote'),
+    reported: Boolean(report)
   };
 };
 
@@ -556,31 +561,34 @@ const getRecordReactionFlags = (recordId: number, userId?: number) => {
   };
 };
 
-const getComments = (recordId: number, includePending = false) => {
+const publicAvatarSeedForComment = (commentId: number, nickname: string): string =>
+  createHash('sha256').update(`community-comment:${commentId}:${nickname}`).digest('hex').slice(0, 24);
+
+const getPublicComments = (recordId: number) => {
   const rows = db
     .prepare(
       `
-        SELECT comments.*, users.username
+        SELECT id, record_id, nickname, content, created_at
         FROM comments
-        JOIN users ON users.id = comments.user_id
-        WHERE comments.record_id = ?
-          AND (${includePending ? '1 = 1' : "comments.status = 'approved'"})
-        ORDER BY comments.created_at ASC
+        WHERE record_id = ?
+          AND status = 'approved'
+        ORDER BY created_at ASC
       `
     )
     .all(recordId) as Record<string, unknown>[];
 
-  return rows.map((row) => ({
-    id: Number(row.id),
-    recordId: Number(row.record_id),
-    userId: Number(row.user_id),
-    username: String(row.username),
-    nickname: String(row.nickname),
-    content: String(row.content),
-    status: String(row.status),
-    reviewNote: String(row.review_note ?? ''),
-    createdAt: String(row.created_at)
-  }));
+  return rows.map((row) => {
+    const id = Number(row.id);
+    const nickname = String(row.nickname);
+    return {
+      id,
+      recordId: Number(row.record_id),
+      nickname,
+      content: String(row.content),
+      createdAt: String(row.created_at),
+      avatarSeed: publicAvatarSeedForComment(id, nickname)
+    };
+  });
 };
 
 const getSocialSummary = (recordId: number, userId?: number) => {
@@ -589,7 +597,7 @@ const getSocialSummary = (recordId: number, userId?: number) => {
   return {
     record: publicRecord(record),
     viewer: getViewerFlags(recordId, userId),
-    comments: getComments(recordId),
+    comments: getPublicComments(recordId),
     shareCard: createShareCard(publicRecord(record))
   };
 };
@@ -929,8 +937,9 @@ const publicGuild = (row: Record<string, unknown>, userId?: number) => {
     slug: String(row.slug),
     description: String(row.description),
     icon: String(row.icon),
-    ownerUserId: row.owner_user_id === null || row.owner_user_id === undefined ? null : Number(row.owner_user_id),
-    createdByUserId: row.created_by_user_id === null || row.created_by_user_id === undefined ? null : Number(row.created_by_user_id),
+    ownerUserId: null,
+    createdByUserId: null,
+    creatorDisplayName: getGuildCreatorDisplayName(row),
     source: String(row.source ?? 'official'),
     joinPolicy: String(row.join_policy ?? 'open'),
     status: String(row.status ?? 'active'),
@@ -1038,6 +1047,18 @@ const uniqueUserGuildSlug = (): string => {
     slug = `user-guild-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   }
   return slug;
+};
+
+const getGuildCreatorDisplayName = (row: Record<string, unknown>): string | null => {
+  const creatorUserId = row.created_by_user_id ?? row.owner_user_id;
+  if (creatorUserId === null || creatorUserId === undefined) return null;
+  const creatorId = Number(creatorUserId);
+  if (!Number.isInteger(creatorId) || creatorId <= 0) return null;
+  const creator = db.prepare('SELECT display_name FROM users WHERE id = ?').get(creatorId) as
+    | { display_name: string }
+    | undefined;
+  const displayName = String(creator?.display_name ?? '').trim();
+  return displayName || null;
 };
 
 const createShareCard = (record: ReturnType<typeof publicRecord>) => {

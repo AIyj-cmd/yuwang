@@ -173,6 +173,44 @@ const sanitizeSpecialBonuses = (bonuses: AiSpecialBonus[] | undefined): { specia
   return { specialBonuses: cleaned, specialBonusTotal: total };
 };
 
+const WORK_ONLY_PATTERN =
+  /认真上班|认真工作|努力上班|努力工作|没有摸鱼|不摸鱼|正常工作|好好工作|加班完成|today i worked|not slacking|worked hard/i;
+
+const SLACKING_EVIDENCE_PATTERN =
+  /摸鱼|划水|偷懒|开小差|假装|伪装|摸了|茶水间|厕所|会议|开会|老板|工位|上班|Excel|需求文档|刷|看剧|看视频|短视频|视频|游戏|小说|slack|slacking|pretend|browse|video|game|meeting|spreadsheet/i;
+
+const DISCUSSION_ONLY_PATTERN =
+  /(?:讨论|聊|解释|研究).{0,8}摸鱼|摸鱼.{0,8}(?:这个词|概念|含义|意思)/i;
+
+const THIRD_PARTY_ONLY_PATTERN =
+  /(?:同事|别人|其他人|他们|她们|他|她).{0,16}(?:摸鱼|划水|偷懒|开小差).{0,24}我.{0,16}(?:认真|工作|上班)|我.{0,16}(?:认真|工作|上班).{0,24}(?:同事|别人|其他人|他们|她们|他|她).{0,16}(?:摸鱼|划水|偷懒|开小差)/i;
+
+const MEANINGFUL_TEXT_PATTERN = /[A-Za-z0-9\u4e00-\u9fff]/;
+const SLACKING_KEYWORD_PATTERN = /摸鱼|划水|偷懒|开小差/gi;
+
+const normalizedEventText = (input: AiJudgeInput): string =>
+  `${input.activityText} ${input.storyText} ${input.extraNote ?? ''}`.trim();
+
+const isKeywordStuffingOnly = (text: string): boolean => {
+  const remainder = text.replace(SLACKING_KEYWORD_PATTERN, '').replace(/[^A-Za-z0-9\u4e00-\u9fff]+/g, '');
+  return remainder.length <= 1;
+};
+
+const isBackendInvalidNonSlacking = (input: AiJudgeInput): boolean => {
+  const text = normalizedEventText(input);
+  if (text.length < 4 || !MEANINGFUL_TEXT_PATTERN.test(text)) return true;
+  if (WORK_ONLY_PATTERN.test(text)) return true;
+  if (DISCUSSION_ONLY_PATTERN.test(text)) return true;
+  if (THIRD_PARTY_ONLY_PATTERN.test(text)) return true;
+  return isKeywordStuffingOnly(text);
+};
+
+const hasBackendSlackingEvidence = (input: AiJudgeInput): boolean => {
+  const text = normalizedEventText(input);
+  if (isBackendInvalidNonSlacking(input)) return false;
+  return SLACKING_EVIDENCE_PATTERN.test(text);
+};
+
 export const deterministicScore = (
   input: AiJudgeInput,
   generation: AiJudgeGeneration
@@ -223,8 +261,15 @@ export const deterministicScore = (
   }
 
   const judge = generation.judgeResult;
-  const valid = judge.valid !== false;
-  const reason = judge.reason ?? '';
+  const judgeReason = judge.reason ?? '';
+  const backendInvalidNonSlacking = isBackendInvalidNonSlacking(input);
+  // AI can false-negative terse but valid community posts such as "摸鱼记录".
+  // Keep true invalid/work-only/noise entries at 0, but let backend-owned
+  // deterministic evidence produce a conservative 0-10 score.
+  const aiFalseNegativeGuarded =
+    !backendInvalidNonSlacking && judge.valid === false && judgeReason === 'not_slacking_event' && hasBackendSlackingEvidence(input);
+  const valid = backendInvalidNonSlacking ? false : judge.valid !== false || aiFalseNegativeGuarded;
+  const reason = backendInvalidNonSlacking ? 'not_slacking_event' : aiFalseNegativeGuarded ? 'ai_not_slacking_guarded_by_backend' : judgeReason;
   const isNonSlacking = !valid && reason === 'not_slacking_event';
   const intensity = judge.intensity && judge.intensity in INTENSITY_RULES ? judge.intensity : 'low';
   const outcome = judge.outcome && judge.outcome in OUTCOME_RULES ? judge.outcome : 'safe';

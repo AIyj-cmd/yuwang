@@ -61,6 +61,16 @@ const displayScore = computed(() => {
 .title-badge[data-variant='primary'] {
   background: var(--color-primary);
 }
+/* primary / mint / coral 变体落在亮色主色或固定浅彩 pill 上,文字需用恒深的
+ * primary-text(各主题恒定);默认变体(themed surface-soft 底)文字仍跟随主题。 */
+.title-badge[data-variant='primary'] .title-text,
+.title-badge[data-variant='primary'] .title-score,
+.title-badge[data-variant='mint'] .title-text,
+.title-badge[data-variant='mint'] .title-score,
+.title-badge[data-variant='coral'] .title-text,
+.title-badge[data-variant='coral'] .title-score {
+  color: var(--color-primary-text);
+}
 .title-badge[data-variant='mint'] {
   background: var(--color-accent-mint);
 }

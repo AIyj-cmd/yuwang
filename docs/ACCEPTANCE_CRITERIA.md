@@ -47,6 +47,21 @@ Verification:
 - [x] Smoke test `GET /api/leaderboards` returns without error.
 - [x] Smoke test admin auth/dashboard endpoints still return expected auth/config status.
 
+False-negative guard examples:
+
+| Scenario | Example text | Expected |
+|---|---|---|
+| Clear first-person slacking event | `开会时偷偷刷视频摸鱼半小时，还假装在记重点` | Score is `> 0` and `<= 10`. |
+| AI false-negative | AI returns `not_slacking_event`, but text describes first-person slacking behavior | Use conservative backend scoring; do not return meaningless `0.0`. |
+| Fallback path | AI unavailable, but text describes a valid slacking event | Score is `> 0` and `<= 10`. |
+| Explicitly denies slacking | `今天认真上班，没有摸鱼` | `0`. |
+| Concept discussion only | `我没有摸鱼，只是在讨论摸鱼这个词` | `0`. |
+| Third-party behavior | `同事在摸鱼，我在认真工作` | `0` or existing invalid-input handling. |
+| Keyword stuffing | `摸鱼摸鱼摸鱼` | Must not receive the same normal score as a complete event; current backend treats this as invalid. |
+| Implicit but real behavior | `上班躲厕所刷了二十分钟短视频` | Receives a conservative valid score in `[0, 10]`. |
+| Out-of-range high score | Abnormal bonus / high-score combination | Clamped to `10.0`. |
+| Idempotent startup migration | A new `[0, 10]` score is present before repeated initialization | Score is not scaled again. |
+
 ---
 
 ## 2. Reports Active Deduplication
@@ -125,6 +140,32 @@ Verification:
 
 ---
 
+## 4.1 Public Record Social Detail Contract
+
+- [x] `GET /api/records/:id/social` uses the public community record mapper for `record`.
+- [x] Visitor requests for approved/public social detail return 200.
+- [x] Visitor social `comments[]` does not include real `userId`, real `username`, email, `status`, `reviewNote`, or review metadata.
+- [x] Logged-in social `comments[]` keeps the same public-safe comment fields and does not expose author internals.
+- [x] Approved comments can be returned for public display.
+- [x] Pending, reviewing, rejected, deleted, or otherwise non-approved comments do not appear in the public social comment list.
+- [x] Anonymous/public record body continues to avoid real identity and non-empty moderation notes.
+- [x] `POST /api/records/:id/comments` remains logged-in only and keeps existing content/account-status validation.
+- [x] A comment submitted into review is not required to appear in public `comments[]`; frontend should show "visible after approval" rather than faking a public comment.
+- [x] Existing like, favorite, legend, report endpoints and active-report dedupe behavior are not changed.
+- [x] No database table, field, index, or migration is introduced.
+- [x] No `src/` frontend page/component/style/API-client file is modified.
+
+Verification:
+
+- [x] Read-only real-data smoke test on an existing commented public record confirms social comments are redacted.
+- [x] Isolated SQLite smoke test confirms visitor and logged-in social detail comments are redacted.
+- [x] Isolated SQLite smoke test confirms only approved comments are public.
+- [x] `npx tsc -p tsconfig.server.json --noEmit`.
+- [x] `npm run typecheck`.
+- [x] `npm run build`.
+
+---
+
 ## 5. Admin Session
 
 - [x] Admin auth uses httpOnly cookie + server-side admin session.
@@ -134,6 +175,27 @@ Verification:
 - [x] `admin_sessions` database errors are not swallowed as fake `401`.
 - [x] Sensitive token content is not logged.
 - [x] `/api/admin/auth/me` validates admin cookie/session.
+
+---
+
+## 5.1 Guild Creator Display Contract
+
+- [x] `guilds` has existing `owner_user_id` and `created_by_user_id` fields.
+- [x] `GET /api/guilds` returns additive `creatorDisplayName` on each guild object.
+- [x] `GET /api/guilds/:id` returns additive `creatorDisplayName` on the detail guild object.
+- [x] `creatorDisplayName` is derived from public `users.display_name` only.
+- [x] Missing creator/owner references return `creatorDisplayName: null`.
+- [x] Public guild payloads do not expose raw creator/owner user IDs; legacy ID slots remain present as `null`.
+- [x] No new database table, field, migration, or index is introduced for creator display.
+- [x] No frontend page/component/style/API-client file is modified for this backend contract change.
+- [x] No package or lockfile change is introduced.
+
+Verification:
+
+- [x] `npx tsc -p tsconfig.server.json --noEmit`.
+- [x] `npm run typecheck`.
+- [x] `npm run build`.
+- [x] Smoke test `GET /api/guilds` returns `creatorDisplayName`.
 
 ---
 

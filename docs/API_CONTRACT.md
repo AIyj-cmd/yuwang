@@ -69,7 +69,7 @@ This section is the frontend V2 map. It defines what Claude may consume. If the 
 | Site today | `GET /api/community/overview` | Public | todayRecords, todayActiveUsers, todayLikes, totals | Use real totals for cold-start fallback. |
 | Today top | `GET /api/community/overview` `todayTop` | Public | top 5 rows | Real usernames are removed from overview top rows. |
 | Like/favorite/legend | `POST /api/records/:id/interactions` | Logged-in | toggle action state | Canonical V2 body: `{ action, active }`. |
-| Comment list/post | `GET /api/records/:id/social`, `POST /api/records/:id/comments` | Read optional; write logged-in | list/comment count/post | Load details only when comments are opened. |
+| Comment list/post | `GET /api/records/:id/social`, `POST /api/records/:id/comments` | Read optional; write logged-in | public-safe approved comments/comment count/post | Load details only when comments are opened; do not mock comments. |
 | Report | `POST /api/records/:id/report` | Logged-in | report duplicate active state | Active duplicate returns `alreadyReported: true`. |
 | Legacy like/legend shortcuts | `POST /api/records/:id/like`, `POST /api/records/:id/nominate-legend` | Logged-in | compatibility only | Prefer canonical interactions endpoint for V2. |
 
@@ -83,7 +83,7 @@ Implemented Community Home V2 endpoint map:
 | Feed legendary | `GET /api/community/feed?filter=legendary` | Uses existing legend selected/nomination/vote/legendary-creativity signals. |
 | Right rail overview | `GET /api/community/overview` | Provides `myStats`, `siteToday`, `todayTop`, and disabled feature flags. |
 | Like/favorite/legend | `POST /api/records/:id/interactions` | Canonical V2 action endpoint with `{ action, active }`. |
-| Comments | `GET /api/records/:id/social`, `POST /api/records/:id/comments` | Use feed `commentCount` until details are opened. |
+| Comments | `GET /api/records/:id/social`, `POST /api/records/:id/comments` | Use feed `commentCount` until details are opened; social comments are public-safe and approved-only. |
 | Report | `POST /api/records/:id/report` | Active duplicate returns `alreadyReported: true`; feed `viewer.reported` only reflects active reports. |
 
 ---
@@ -212,6 +212,132 @@ Frontend rule: Claude must call this real endpoint for Community Home V2 record 
 
 ---
 
+## 1.3 `GET /api/records/:id/social`
+
+Purpose: public dynamic/detail data source for `/records/:id`, including the public record, viewer interaction state, approved comments, and share-card metadata.
+
+- Method/path: `GET /api/records/:id/social`
+- Auth: optional `Authorization: Bearer <token>`.
+- Request body: none.
+- Response body:
+
+```json
+{
+  "record": {
+    "id": 7,
+    "userId": null,
+    "username": "",
+    "reviewNote": "",
+    "activityText": "meeting-pretend",
+    "storyText": "public story",
+    "fishPowerScore": 4.2,
+    "score": 4.2,
+    "commentCount": 1,
+    "viewer": {
+      "liked": false,
+      "favorited": false,
+      "legendNominated": false,
+      "reported": false
+    }
+  },
+  "viewer": {
+    "liked": false,
+    "favorited": false,
+    "voted": false,
+    "legendNominated": false,
+    "reported": false
+  },
+  "comments": [
+    {
+      "id": 1,
+      "recordId": 7,
+      "nickname": "Anonymous Fish",
+      "content": "A public comment.",
+      "createdAt": "2026-05-26T00:00:00.000Z",
+      "avatarSeed": "public-safe-seed"
+    }
+  ],
+  "shareCard": {}
+}
+```
+
+Public identity and moderation rules:
+
+- `record` must use the same public-safe mapping as Community feed: no real user id, real username, email, or non-empty `reviewNote` in public response.
+- `comments[]` is an approved-only public list. It must not include `userId`, `username`, `email`, `status`, `reviewNote`, `reviewedBy`, `reviewedAt`, or other moderation/internal identity fields.
+- `comments[].avatarSeed`, when present, is generated from public comment fields and is not reversible to a real user id or username.
+- Admin review pages that need internal comment fields must use admin endpoints, not this public social endpoint.
+
+Viewer state:
+
+- New detail-page frontend should treat `record.viewer` as the canonical viewer state for record-card-compatible actions: `liked`, `favorited`, `legendNominated`, and `reported`.
+- Top-level `viewer` is kept for existing share/result flows and may include compatibility aliases such as `voted` plus additive `legendNominated` and `reported`. Existing top-level fields are not removed.
+
+Errors:
+
+- `400` when `:id` is invalid.
+- `404` when the record does not exist, is not public/approved for visitors, or is otherwise not viewable by the requester.
+
+## 1.4 `POST /api/records/:id/comments`
+
+Purpose: logged-in users post a comment to a record. This endpoint does not make pending comments publicly visible.
+
+- Method/path: `POST /api/records/:id/comments`
+- Auth: required normal user bearer token.
+- Request body:
+
+```json
+{
+  "content": "2 to 120 characters"
+}
+```
+
+Behavior:
+
+- Visitors receive `401`.
+- Muted/banned users are blocked by existing account status rules.
+- Content keeps the existing 2-120 character validation and content-safety checks.
+- If safety allows direct publication, the returned social response and subsequent `GET /api/records/:id/social` can include the new approved comment.
+- If safety sends the comment to review, frontend should display "submitted, visible after approval" and must not locally fake it as a public approved comment.
+- The public comment list remains approved-only.
+
+## 1.5 Guild Public APIs
+
+Guild list/detail endpoints expose an additive public creator display field for UI display. Existing fields remain unchanged for compatibility.
+
+- Method/path:
+  - `GET /api/guilds`
+  - `GET /api/guilds/:id`
+- Auth: optional `Authorization: Bearer <token>`.
+- Request body: none for `GET`.
+- Response body: existing guild object shape plus:
+
+```json
+{
+  "guilds": [
+    {
+      "id": 1,
+      "name": "茶水间远征军",
+      "creatorDisplayName": null
+    }
+  ]
+}
+```
+
+Field semantics:
+
+- `creatorDisplayName`: public-safe `users.display_name` for `guilds.created_by_user_id`, falling back to `guilds.owner_user_id`; returns `null` when creator/owner is missing or no user row exists.
+- This field is display-only. Frontend should use it for "创建人" and must not derive identity from user IDs.
+- No email, internal username, admin field, or additional raw user identifier is added for creator display.
+- Official/system guilds usually return `creatorDisplayName: null`.
+
+Compatibility:
+
+- Existing guild fields are not renamed or removed. Public guild payloads keep legacy `ownerUserId` and `createdByUserId` slots but return `null` so raw user IDs are not exposed through public guild APIs.
+- `creatorDisplayName` is additive and safe for older frontend clients to ignore.
+
+---
+
 ## 2. `POST /api/records`
 
 - Method/path: `POST /api/records`.
@@ -232,6 +358,10 @@ Frontend rule: Claude must call this real endpoint for Community Home V2 record 
 - Scoring semantics:
   - `fishPowerScore` means a single-record Fish Power Score in `[0, 10]`, rounded to 1 decimal.
   - `cumulativeScore` is a user/nickname aggregate and is not capped at 10.
+  - `fishPowerScore` is the backend's final scoring decision. Clients cannot set it through the request body.
+  - AI judge `invalid` / `not_slacking_event` is not automatically final `0.0`. If normalized text contains a clear first-person slacking event and AI appears to false-negative, the backend may apply the conservative deterministic 0-10 scoring path.
+  - Clearly non-slacking, slacking-denial, concept-only discussion, third-party-only behavior, pure noise, or keyword-stuffing inputs still score `0.0` or follow the existing invalid-input path.
+  - POST response `record.score` / `record.breakdown.fishPowerScore`, stored `slacking_records.fish_power_score`, and Community feed `fishPowerScore` must describe the same single-record score.
 - Validation:
   - Safety/anonymization validation still applies.
   - `risk`, `disguise`, and `creativity` are metadata or lightweight inputs. They must not be trusted as high-weight scoring controls.

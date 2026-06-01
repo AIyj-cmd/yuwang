@@ -30,6 +30,14 @@ const parseAllowedOrigins = (): Set<string> => {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+  const viteDevOrigins = Array.from({ length: 7 }, (_, index) => 5173 + index).flatMap((port) => [
+    `http://localhost:${port}`,
+    `http://127.0.0.1:${port}`
+  ]);
+  const vitePreviewOrigins = Array.from({ length: 7 }, (_, index) => 4173 + index).flatMap((port) => [
+    `http://localhost:${port}`,
+    `http://127.0.0.1:${port}`
+  ]);
   const localDevelopmentOrigins =
     process.env.NODE_ENV === 'production'
       ? []
@@ -40,8 +48,8 @@ const parseAllowedOrigins = (): Set<string> => {
           'http://127.0.0.1:3001',
           'http://localhost:3101',
           'http://127.0.0.1:3101',
-          'http://localhost:5173',
-          'http://127.0.0.1:5173'
+          ...viteDevOrigins,
+          ...vitePreviewOrigins
         ];
   return new Set([...configured, ...localDevelopmentOrigins]);
 };
