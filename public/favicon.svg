@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- 工位鱼王 favicon · 复用站内像素小鱼品牌图形(见 PixelIcon 'fish'),
+       柔和奶黄底 + 墨色鱼身,符合 Neo-pixel Flat 风格,不引入新依赖。 -->
+  <rect x="0" y="0" width="16" height="16" rx="2" fill="#FFD666" />
+  <g shape-rendering="crispEdges" fill="#2B2B2B">
+    <rect x="2" y="6" width="1" height="4" />
+    <rect x="3" y="5" width="1" height="6" />
+    <rect x="4" y="4" width="1" height="8" />
+    <rect x="5" y="4" width="6" height="8" />
+    <rect x="11" y="5" width="1" height="6" />
+    <rect x="12" y="3" width="1" height="2" />
+    <rect x="12" y="6" width="1" height="4" />
+    <rect x="12" y="11" width="1" height="2" />
+    <rect x="13" y="2" width="1" height="3" />
+    <rect x="13" y="11" width="1" height="3" />
+  </g>
+  <rect x="9" y="6" width="1" height="1" fill="#FFFFFF" />
+</svg>

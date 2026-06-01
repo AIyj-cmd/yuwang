@@ -390,6 +390,12 @@
   min-width: 220px;
 }
 
+/* 认证输入包入语义 <form> 后,沿用账户面板的纵向 8px 间距,避免控件粘连。 */
+.auth-form {
+  display: grid;
+  gap: 8px;
+}
+
 .auth-hint {
   margin: 4px 0 0;
   color: var(--color-text-muted);

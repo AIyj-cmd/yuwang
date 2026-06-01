@@ -361,16 +361,18 @@ onBeforeUnmount(() => {
                   <button type="button" :class="{ active: authMode === 'login' }" @click="authMode = 'login'">{{ t('login') }}</button>
                   <button type="button" :class="{ active: authMode === 'register' }" @click="authMode = 'register'">{{ t('register') }}</button>
                 </div>
-                <PxInput v-model="authForm.username" :placeholder="t('username')" clearable />
-                <PxInput v-model="authForm.password" :placeholder="t('password')" type="password" />
-                <PxInput v-if="authMode === 'register'" v-model="authForm.displayName" :placeholder="t('displayName')" clearable />
-                <p v-if="authError" class="auth-error" role="alert">{{ authError }}</p>
-                <PxButton type="primary" size="small" :loading="authPending" :disabled="authPending" @click="onAuthSubmit">
-                  <LogIn :size="14" />
-                  {{ authPending
-                    ? (authMode === 'register' ? copy('注册中…', 'Signing up…') : copy('登录中…', 'Signing in…'))
-                    : (authMode === 'register' ? t('register') : t('login')) }}
-                </PxButton>
+                <form class="auth-form" @submit.prevent="onAuthSubmit">
+                  <PxInput v-model="authForm.username" :placeholder="t('username')" clearable />
+                  <PxInput v-model="authForm.password" :placeholder="t('password')" type="password" />
+                  <PxInput v-if="authMode === 'register'" v-model="authForm.displayName" :placeholder="t('displayName')" clearable />
+                  <p v-if="authError" class="auth-error" role="alert">{{ authError }}</p>
+                  <PxButton type="primary" size="small" native-type="submit" :loading="authPending" :disabled="authPending">
+                    <LogIn :size="14" />
+                    {{ authPending
+                      ? (authMode === 'register' ? copy('注册中…', 'Signing up…') : copy('登录中…', 'Signing in…'))
+                      : (authMode === 'register' ? t('register') : t('login')) }}
+                  </PxButton>
+                </form>
 
                 <div class="dropdown-divider" />
 
@@ -466,16 +468,18 @@ onBeforeUnmount(() => {
               <button type="button" :class="{ active: authMode === 'login' }" @click="authMode = 'login'">{{ t('login') }}</button>
               <button type="button" :class="{ active: authMode === 'register' }" @click="authMode = 'register'">{{ t('register') }}</button>
             </div>
-            <PxInput v-model="authForm.username" :placeholder="t('username')" clearable />
-            <PxInput v-model="authForm.password" :placeholder="t('password')" type="password" />
-            <PxInput v-if="authMode === 'register'" v-model="authForm.displayName" :placeholder="t('displayName')" clearable />
-            <p v-if="authError" class="auth-error" role="alert">{{ authError }}</p>
-            <PxButton type="primary" size="small" :loading="authPending" :disabled="authPending" @click="onAuthSubmit">
-              <LogIn :size="14" />
-              {{ authPending
-                ? (authMode === 'register' ? copy('注册中…', 'Signing up…') : copy('登录中…', 'Signing in…'))
-                : (authMode === 'register' ? t('register') : t('login')) }}
-            </PxButton>
+            <form class="auth-form" @submit.prevent="onAuthSubmit">
+              <PxInput v-model="authForm.username" :placeholder="t('username')" clearable />
+              <PxInput v-model="authForm.password" :placeholder="t('password')" type="password" />
+              <PxInput v-if="authMode === 'register'" v-model="authForm.displayName" :placeholder="t('displayName')" clearable />
+              <p v-if="authError" class="auth-error" role="alert">{{ authError }}</p>
+              <PxButton type="primary" size="small" native-type="submit" :loading="authPending" :disabled="authPending">
+                <LogIn :size="14" />
+                {{ authPending
+                  ? (authMode === 'register' ? copy('注册中…', 'Signing up…') : copy('登录中…', 'Signing in…'))
+                  : (authMode === 'register' ? t('register') : t('login')) }}
+              </PxButton>
+            </form>
           </div>
         </div>
         <div class="mobile-section mobile-tools">

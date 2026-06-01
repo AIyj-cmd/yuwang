@@ -28,7 +28,6 @@ import MyStatsCard from '../components/community/MyStatsCard.vue';
 import SiteTodayCard from '../components/community/SiteTodayCard.vue';
 import MiniRank from '../components/community/MiniRank.vue';
 import MoreToolsCard from '../components/community/MoreToolsCard.vue';
-import PixelIcon from '../components/community/PixelIcon.vue';
 
 const {
   authToken,
@@ -136,22 +135,11 @@ onMounted(() => {
 
     <!-- ============ 主栏 ============ -->
     <template #main>
-      <!-- 页头:左标题 + 右搜索 icon(搜索功能维持当前能力,作为次要入口) -->
+      <!-- 页头:仅左标题(社区搜索本期未开放,已移除不可用的搜索入口) -->
       <header class="page-head">
         <div class="page-head-text">
           <h1>{{ copy('社区广场', 'Community plaza') }}</h1>
           <p class="page-head-sub">{{ copy('公共水域 · 只展示已公开且通过审核的记录', 'Public waters · approved public records only') }}</p>
-        </div>
-        <div class="head-actions">
-          <button
-            type="button"
-            class="icon-btn"
-            :title="copy('搜索', 'Search')"
-            :aria-label="copy('搜索', 'Search')"
-            disabled
-          >
-            <PixelIcon name="search" :size="16" />
-          </button>
         </div>
       </header>
 
@@ -245,34 +233,6 @@ onMounted(() => {
   margin-top: 2px;
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
-}
-.head-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.icon-btn {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  background: var(--color-bg-card);
-  border: 1.5px solid var(--v2-border-card);
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-.icon-btn:hover:not(:disabled) {
-  background: var(--color-bg-base);
-  border-color: var(--v2-border-emphasis);
-  color: var(--color-text-primary);
-}
-.icon-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-  /* disabled 状态:更柔和,不像"坏掉的黑框" */
-  background: var(--color-bg-subtle);
-  border-color: var(--v2-divider);
 }
 
 .feed-state {
